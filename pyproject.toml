@@ -1,0 +1,58 @@
+[project]
+name = "poseaudit"
+version = "0.1.0"
+description = "Audit a pose model used as a measuring instrument: how wrong are the angles, tilts and lengths it reads off keypoints?"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "8rulerstar" }]
+keywords = ["pose estimation", "keypoints", "evaluation", "measurement", "computer vision"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+    "Typing :: Typed",
+]
+dependencies = ["numpy>=1.23"]
+
+[project.optional-dependencies]
+supervision = ["supervision>=0.30.6"]
+plot = ["matplotlib>=3.6"]
+images = ["pillow>=12.3"]
+
+[project.scripts]
+poseaudit = "poseaudit.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/8rulerstar/poseaudit"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+    "hypothesis>=6",
+    "supervision>=0.30.6",
+    "matplotlib>=3.6",
+    "pillow>=12.3",
+    "mypy>=1.10",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/src/poseaudit", "/tests", "/README.md", "/LICENSE", "/CHANGELOG.md", "/CITATION.cff"]

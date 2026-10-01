@@ -1,0 +1,8 @@
+cff-version: 1.2.0
+message: "If you use poseaudit in your work, please cite it as below."
+title: "poseaudit: auditing pose models used as measuring instruments"
+authors:
+  - alias: 8rulerstar
+license: MIT
+repository-code: "https://github.com/8rulerstar/poseaudit"
+version: 0.1.0
