@@ -37,8 +37,6 @@ jobs:
       # --no-sync: a plain `uv run` would re-sync to the lockfile and quietly
       # test the newest versions instead of the lowest ones
       - run: uv run --no-sync python -c "import numpy; print(numpy.__version__)"
-      - run: uv run --no-sync ruff check .
-      - run: uv run --no-sync ruff format --check .
       - run: uv run --no-sync pytest -q
 
   package:
@@ -50,6 +48,9 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
       - run: uv sync --locked
+      # lint with the locked ruff only: the oldest allowed ruff has other rules
+      - run: uv run --no-sync ruff check .
+      - run: uv run --no-sync ruff format --check .
       - run: uv run --no-sync mypy src
       - run: uv build
       # install the built wheel alone, outside the project, and run the demo
