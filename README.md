@@ -203,9 +203,9 @@ count: a labelled instance that was not read is neither caught nor missed.
 
 ```text
 $ poseaudit audit ... --threshold 90 --side below --pred-threshold 100
-  below 90°: caught 53 of 84 (63% [52% to 73%]), false alarms 11 of 238
-  below 90°, predicted 100°: caught 63 of 84 (75% [65% to 83%]), false alarms 23 of 238
-  below 90°, predicted 98.40° (same count, fitted here): caught 61 of 84 (73% [62% to 81%]), false alarms 23 of 238
+  below 90°: caught 53 of 84 (63% [52% to 74%]), false alarms 11 of 238
+  below 90°, predicted 100°: caught 63 of 84 (75% [65% to 85%]), false alarms 23 of 238
+  below 90°, predicted 98.40° (same count, fitted here): caught 61 of 84 (73% [62% to 83%]), false alarms 23 of 238
 ```
 
 ### Tilts relative to the rest of the photo

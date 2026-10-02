@@ -195,10 +195,10 @@ How to read this:
   the normal ones assume a bell-shaped error, which a few gross failures break.
 - **ICC(A,1), CCC, r**: agreement between the two readings, 1 at best.
 - Intervals are percentile bootstraps over whole {cluster}s ({resamples}
-  resamples, seed {seed}). Rates of large errors and of decisions use Wilson
-  intervals, which treat readings as independent, unless clusters are named;
-  then the overall rate and the decision rates resample whole clusters too
-  (never narrower than Wilson's). Rates per size band stay Wilson.
+  resamples, seed {seed}). The overall rate of large errors and the decision
+  rates resample whole {cluster}s too when some hold several readings (never
+  narrower than Wilson's); with one reading to each they use Wilson intervals.
+  Rates per size band stay Wilson.
 """
 
 

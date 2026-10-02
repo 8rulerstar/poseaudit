@@ -133,6 +133,22 @@ def test_intervals_resample_whole_clusters() -> None:
     assert width(by_image) > 2 * width(by_reading)
 
 
+def test_rate_intervals_resample_whole_images_by_default() -> None:
+    """Ten copies of each image's error: the rate's interval must widen like
+    the bias's does, without naming clusters."""
+    rng = np.random.default_rng(2)
+    truth = np.repeat(rng.normal(0, 6, 20), 10)
+    preds = truth + np.repeat(rng.normal(0, 6, 20), 10)
+    images = [f"img{i // 10}" for i in range(200)]
+    r = audit(pairing(truth, preds, images), tilt(0, 1), big_error=5, thresholds=[3])
+    big = round(r.big_error_rate * r.n)
+    width = lambda ci: ci[1] - ci[0]  # noqa: E731
+    assert width(r.big_error_rate_ci) > 2 * width(wilson(big, r.n))
+    row = r.thresholds[0]
+    caught, positives = row.true_positive, row.true_positive + row.false_negative
+    assert width(row.sensitivity_ci) > 1.5 * width(wilson(caught, positives))
+
+
 def test_the_rate_interval_never_collapses_to_nothing() -> None:
     r = audit(pairing([0] * 40, [1] * 40), tilt(0, 1), big_error=5)
     assert r.big_error_rate == 0.0
@@ -1039,3 +1055,39 @@ def test_a_name_clash_among_images_no_label_needs_is_ignored(tmp_path, capsys) -
           "--pred", str(tmp_path / "pred"), "--images", str(tmp_path / "img"),
           "--keypoints", "2", "--tilt", "0,1", "--big-error", "5"])  # fmt: skip
     assert "read 1 of 1" in capsys.readouterr().out
+
+
+def test_visible_points_must_be_finite() -> None:
+    kp = np.array([[0.0, 0.0], [np.nan, 5.0], [3.0, 4.0]])
+    with pytest.raises(ValueError, match=r"keypoints \[1\] are visible but not finite"):
+        Instance.from_keypoints(kp, np.array([True, True, True]))
+    with pytest.raises(ValueError, match="not finite"):
+        Instance(np.zeros(4), kp, np.array([True, True, True]))
+    hidden = Instance.from_keypoints(kp, np.array([True, False, True]))
+    assert np.allclose(hidden.bbox, [0, 0, 3, 4])
+    listed = Instance.from_keypoints([[0, 0], [3, 4]], np.array([True, True]))
+    assert listed.keypoints.dtype == float
+
+
+def test_normalised_coordinates_are_flagged() -> None:
+    rng = np.random.default_rng(0)
+
+    def arm(a, scale):
+        r = np.radians(a)
+        kp = np.array(
+            [[0.5, 0.2], [0.5, 0.5], [0.5 + 0.3 * np.sin(r), 0.5 + 0.3 * np.cos(r)]]
+        )
+        return Instance.from_keypoints(kp * scale, np.ones(3, bool))
+
+    def run(scale):
+        a = rng.uniform(30, 150, 40)
+        pairs = [
+            Pair(f"i{k}", arm(t, scale), arm(t + rng.normal(0, 3), scale))
+            for k, t in enumerate(a)
+        ]
+        r = audit(
+            Pairing(pairs=pairs), angle(0, 1, 2), 10, jitter_repeats=0, resamples=50
+        )
+        return any("within 0 to 1" in w for w in r.warnings)
+
+    assert run(1.0) and not run(640.0)

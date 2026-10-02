@@ -315,6 +315,20 @@ def audit(
     result.warnings = list(pairing.warnings)
     beside, boxed = _missed_beside_extra(pairing, measure)
     classes = sorted({r.class_id for r in readings if r.class_id is not None})
+    if raw:
+        used = list(measure.points)
+        coords = np.concatenate(
+            [
+                np.r_[p.truth.keypoints[used], p.predicted.keypoints[used]]
+                for p, *_ in raw
+            ]
+        )
+        if np.abs(coords).max() <= 1.0:
+            result.warnings.append(
+                "Every coordinate read lies within 0 to 1: normalised coordinates? "
+                "They squeeze an image's longer side, so angles, tilts and lengths "
+                "come out wrong. Multiply x by the image width and y by its height."
+            )
     if len(classes) > 1 and not mixed_classes:
         raise ValueError(
             f"readings mix classes {classes}: audit one class at a time (classes=, "
@@ -345,8 +359,11 @@ def audit(
             "does not squash."
         )
     _fill(result, bands, size_bands, noise_ratio, resamples, seed, jitter)
-    _decide(result, thresholds, side, predicted_thresholds, cluster is not None)
-    if cluster is not None:  # Wilson would treat every reading as independent
+    # images (by default) or named clusters holding several readings are
+    # resampled whole: Wilson would treat every reading as independent
+    grouped = result.clusters < result.n
+    _decide(result, thresholds, side, predicted_thresholds, grouped)
+    if grouped:
         large = np.array([abs(r.error) >= result.big_error for r in readings])
         low, high = clustered_bootstrap(
             [r.cluster for r in readings],
@@ -614,7 +631,7 @@ def _fill(result, bands, size_bands, noise_ratio, resamples, seed, jitter) -> No
     result.size_bands = _size_bands(sizes, t, p, e, size_bands, result.big_error)
 
 
-def _decide(result, thresholds, side, predicted_thresholds, named=False) -> None:
+def _decide(result, thresholds, side, predicted_thresholds, grouped=False) -> None:
     t = np.array([r.truth for r in result.readings])
     p = np.array([r.predicted for r in result.readings])  # as read, not unwrapped
     rows = []
@@ -637,14 +654,15 @@ def _decide(result, thresholds, side, predicted_thresholds, named=False) -> None
                     "predictions set the count, not the model's scale. Try "
                     "thresholds of your own with --pred-threshold."
                 )
-    if named and rows:
+    if grouped and rows:
         rows = _clustered_rates(result, t, p, rows)
     result.thresholds = rows
 
 
 def _clustered_rates(result, t, p, rows):
-    """With named clusters, the catch and precision intervals resample whole
-    clusters: Wilson intervals treat every reading as independent."""
+    """With several readings to an image or a named cluster, the catch and
+    precision intervals resample whole clusters: Wilson intervals treat every
+    reading as independent."""
     from dataclasses import replace
 
     from poseaudit.thresholds import flagged
