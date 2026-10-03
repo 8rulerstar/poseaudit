@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Python 3.14 is tested in CI and listed as supported.
+- PyPI page links to the source, the issue tracker and this changelog.
+- The example and validation scripts read and write their JSON as UTF-8, so
+  they behave the same on systems whose default encoding is not UTF-8.
+
 ## 0.1.0
 
 First release.

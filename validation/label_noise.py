@@ -91,7 +91,7 @@ def main() -> None:
         jitter_repeats=0,
         resamples=10,
     )
-    data = json.loads(gt.read_text())
+    data = json.loads(gt.read_text(encoding="utf-8"))
     names = {image["id"]: image["file_name"] for image in data["images"]}
     by_image: dict[str, list] = {}
     for a in data["annotations"]:

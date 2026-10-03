@@ -17,6 +17,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Image Recognition",
     "Typing :: Typed",
 ]
@@ -32,6 +33,9 @@ poseaudit = "poseaudit.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/8rulerstar/poseaudit"
+Source = "https://github.com/8rulerstar/poseaudit"
+Issues = "https://github.com/8rulerstar/poseaudit/issues"
+Changelog = "https://github.com/8rulerstar/poseaudit/blob/main/CHANGELOG.md"
 
 [dependency-groups]
 dev = [

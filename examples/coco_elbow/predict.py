@@ -17,7 +17,7 @@ MIN_POINT_CONFIDENCE = 0.5
 def main(annotations: str, images: str, out: str, weights: str = "yolo11n-pose.pt"):
     ids = {
         i["file_name"]: i["id"]
-        for i in json.loads(Path(annotations).read_text())["images"]
+        for i in json.loads(Path(annotations).read_text(encoding="utf-8"))["images"]
     }
     model = YOLO(weights)
     results = []
@@ -42,7 +42,7 @@ def main(annotations: str, images: str, out: str, weights: str = "yolo11n-pose.p
                     "score": round(float(pred.boxes.conf[i]), 4),
                 }
             )
-    Path(out).write_text(json.dumps(results))
+    Path(out).write_text(json.dumps(results), encoding="utf-8")
     print(f"{len(results)} people in {len(ids)} images -> {out}")
 
 

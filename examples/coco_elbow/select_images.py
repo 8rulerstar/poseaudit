@@ -11,7 +11,7 @@ COUNT = 200
 
 
 def main(annotations: str, out: str) -> None:
-    data = json.loads(Path(annotations).read_text())
+    data = json.loads(Path(annotations).read_text(encoding="utf-8"))
     usable = {
         a["image_id"]
         for a in data["annotations"]
@@ -37,8 +37,12 @@ def main(annotations: str, out: str) -> None:
     }
     folder = Path(out)
     (folder / "images").mkdir(parents=True, exist_ok=True)
-    (folder / "urls.txt").write_text("\n".join(i["coco_url"] for i in images))
-    Path(__file__).with_name("gt_200.json").write_text(json.dumps(subset))
+    (folder / "urls.txt").write_text(
+        "\n".join(i["coco_url"] for i in images), encoding="utf-8"
+    )
+    Path(__file__).with_name("gt_200.json").write_text(
+        json.dumps(subset), encoding="utf-8"
+    )
     print(f"{len(images)} images, {len(subset['annotations'])} people")
 
 
