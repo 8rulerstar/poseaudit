@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.1
 
 - Python 3.14 is tested in CI and listed as supported.
 - PyPI page links to the source, the issue tracker and this changelog.

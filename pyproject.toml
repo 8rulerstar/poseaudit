@@ -1,6 +1,6 @@
 [project]
 name = "poseaudit"
-version = "0.1.0"
+version = "0.1.1"
 description = "Audit a pose model used as a measuring instrument: how wrong are the angles, tilts and lengths it reads off keypoints?"
 readme = "README.md"
 license = "MIT"
