@@ -492,6 +492,14 @@ readings take about three minutes at the defaults.
 - directed angles (0 to 360), signed joint angles, a chosen reference axis
 - regression-based limits of agreement; per-subject summaries
 
+## Feedback
+
+If you measured something with `poseaudit`, a line in
+[Discussions](https://github.com/8rulerstar/poseaudit/discussions/categories/show-and-tell)
+saying what (a joint, a tilt, a length; which model) helps decide what to
+build next, even if nothing went wrong. Bugs go to
+[issues](https://github.com/8rulerstar/poseaudit/issues).
+
 ## License and data
 
 Code: MIT. The demo's annotations are a subset of the
