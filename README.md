@@ -8,17 +8,48 @@
 
 **Your pose model has a good mAP. How far off are the angles it measures?**
 
-When keypoints are used to *measure* something (a joint angle, a tilt, a length),
-position metrics such as OKS, PCK or pixel error do not say how far off the
-measurement is. `poseaudit` reads the measurement off the ground truth and off
-the prediction and reports the difference the way a measuring instrument is
-judged: how large, how often large, where, biased which way, and how sure you
-can be of each figure. The statistics are the familiar agreement ones (Bland-Altman
-limits, ICC, CCC, Deming and Theil-Sen slopes); what `poseaudit` adds is the
-path to them from the formats computer vision evaluates in (COCO, YOLO,
-supervision): matching, counting what could not be read and why, intervals
-that respect images or subjects, and a check of whether a slope below 1 is
-more than keypoint jitter.
+![Left: predicted against true angle. Right: Bland-Altman plot](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/panels.png)
+
+On `yolo11n-pose` against COCO's labels, **58% of elbow angles are off by 15°
+or more when the arm segments average under 30 px, against 28% above 60 px**
+([details](#what-the-demo-shows)).
+
+**Who it is for:** anyone who reads an angle, a tilt or a length off
+keypoints, as in sports and rehabilitation motion analysis, ergonomics, or
+industrial measurement.
+
+A good mAP says the points land near the right place. It does not say how far
+off the angle you compute from them is. `poseaudit` computes the same angle
+(or tilt, or length) from your labels and from your model, compares the two,
+and tells you how large the error is, how often it is large, and where.
+
+## Install
+
+```bash
+pip install poseaudit                  # needs only numpy
+pip install "poseaudit[plot]"          # plots (matplotlib)
+pip install "poseaudit[images]"        # --images: read image sizes (Pillow)
+pip install "poseaudit[supervision]"   # from_supervision
+```
+
+## Quick start
+
+On the demo data in
+[`examples/coco_elbow`](https://github.com/8rulerstar/poseaudit/tree/main/examples/coco_elbow)
+(run from that folder):
+
+```text
+$ poseaudit audit --format coco --gt gt_200.json --pred pred_yolo11n.json \
+    --angle 5,7,9 --big-error 15 --size-bands 30,60
+angle (5, 7, 9): read 322 of 380 labelled instances
+  |error|      mean 19.55° [17.13 to 22.16], median 12.64°, 95th pct 68.99°
+  >= 15°       43.5% [38.2% to 48.9%]
+  by size      0-30 px 58% (n 134), 30-60 px 37% (n 112), 60+ px 28% (n 76)
+  bias         +2.34° [-1.16 to +6.22], median +0.52°
+```
+
+<details>
+<summary>Full output</summary>
 
 ```text
 $ poseaudit audit --format coco --gt gt_200.json --pred pred_yolo11n.json \
@@ -38,46 +69,9 @@ angle (5, 7, 9): read 322 of 380 labelled instances
   ! 2.5% of errors fall below the normal limits and 4.3% above them, against 2.5% each for a normal error: use the percentile limits.
 ```
 
-That is the left elbow angle (COCO keypoints 5, 7, 9: shoulder, elbow, wrist;
-indices count from 0) of `yolo11n-pose` against COCO's human labels on 200
-val2017 images. The data is in
-[`examples/coco_elbow`](https://github.com/8rulerstar/poseaudit/tree/main/examples/coco_elbow);
-run the command from that folder.
+</details>
 
-These figures are disagreement between the model and **one human label**, not
-the model's error against the world. COCO's own annotators disagree: placing
-the three points with the spread COCO publishes for repeated labels (its OKS
-sigmas) moves the elbow angle by 11 to 16° on average on these same arms,
-depending on how those sigmas are read (a rough estimate that treats each
-label's points as independent; [`validation/label_noise.py`](https://github.com/8rulerstar/poseaudit/blob/main/validation/label_noise.py)).
-A good part of the 19.55° may be the labels'. With a reference better than
-the model (motion capture, careful relabelling), the same figures describe
-the model.
-
-What a few lines of NumPy would miss:
-
-- **What was not read, and why.** Unlabelled points, unmatched people and
-  missing predicted points are counted apart, so a model that skips the hard
-  cases does not look better for it.
-- **Intervals that respect the data.** Readings from one image are resampled
-  together, and with `--cluster` so are the frames of one video or the photos
-  of one subject (left out, frames count as independent).
-- **The sorting trap.** When the labels are noisy, bias in bands sorted by the
-  truth leans toward squashing even for an unbiased model, the more so the
-  noisier they are ([below](#which-way-you-sort-decides-the-story)).
-- **Decisions.** Whether the prediction lands on the same side of a threshold
-  as the truth, which is what a pass or fail rule depends on.
-
-## Install
-
-```bash
-pip install poseaudit                  # needs only numpy
-pip install "poseaudit[plot]"          # plots (matplotlib)
-pip install "poseaudit[images]"        # --images: read image sizes (Pillow)
-pip install "poseaudit[supervision]"   # from_supervision
-```
-
-## Quick start
+On your own files:
 
 ```bash
 poseaudit audit --format coco --gt annotations.json --pred results.json \
@@ -114,6 +108,53 @@ predicted = {"frame_001": [pa.Instance.from_keypoints(xy_pred, visible_pred)]}
 result = pa.audit(pa.pair(truth, predicted), pa.angle(23, 25, 27), big_error=10)
 ```
 
+## Reading the demo
+
+The Quick start output is the left elbow angle (COCO keypoints 5, 7, 9: shoulder, elbow, wrist;
+indices count from 0) of `yolo11n-pose` against COCO's human labels on 200
+val2017 images. The data is in
+[`examples/coco_elbow`](https://github.com/8rulerstar/poseaudit/tree/main/examples/coco_elbow);
+run the command from that folder.
+
+These figures are disagreement between the model and **one human label**, not
+the model's error against the world. COCO's own annotators disagree: placing
+the three points with the spread COCO publishes for repeated labels (its OKS
+sigmas) moves the elbow angle by 11 to 16° on average on these same arms,
+depending on how those sigmas are read (a rough estimate that treats each
+label's points as independent; [`validation/label_noise.py`](https://github.com/8rulerstar/poseaudit/blob/main/validation/label_noise.py)).
+A good part of the 19.55° may be the labels'. With a reference better than
+the model (motion capture, careful relabelling), the same figures describe
+the model.
+
+### What a few lines of NumPy would miss
+
+- **What was not read, and why.** Unlabelled points, unmatched people and
+  missing predicted points are counted apart. The error figures cover what
+  was read, so a model that skips its hard cases does look better on them:
+  the count on the first line, and a warning past 30% unread, show it.
+- **Intervals that respect the data.** Readings from one image are resampled
+  together, and with `--cluster` so are the frames of one video or the photos
+  of one subject (left out, frames count as independent).
+- **The sorting trap.** When the labels are noisy, bias in bands sorted by the
+  truth leans toward squashing even for an unbiased model, the more so the
+  noisier they are ([below](#which-way-you-sort-decides-the-story)).
+- **Decisions.** Whether the prediction lands on the same side of a threshold
+  as the truth, which is what a pass or fail rule depends on.
+
+### The statistics
+
+When keypoints are used to *measure* something (a joint angle, a tilt, a length),
+position metrics such as OKS, PCK or pixel error do not say how far off the
+measurement is. `poseaudit` reads the measurement off the ground truth and off
+the prediction and reports the difference the way a measuring instrument is
+judged: how large, how often large, where, biased which way, and how sure you
+can be of each figure. The statistics are the familiar agreement ones (Bland-Altman
+limits, ICC, CCC, Deming and Theil-Sen slopes); what `poseaudit` adds is the
+path to them from the formats computer vision evaluates in (COCO, YOLO,
+supervision): matching, counting what could not be read and why, intervals
+that respect images or subjects, and a check of whether a slope below 1 is
+more than keypoint jitter.
+
 ## What the demo shows
 
 **Disagreement grows as the arms get smaller.** When the arm segments average
@@ -130,8 +171,6 @@ more often occluded, blurred and loosely labelled.
 | 0 to 30 px | 134 | 25.55° | 58.2% [49.7% to 66.2%] | 0.526 |
 | 30 to 60 px | 112 | 16.57° | 36.6% [28.3% to 45.8%] | 0.791 |
 | 60+ px | 76 | 13.36° | 27.6% [18.8% to 38.6%] | 0.911 |
-
-![Left: predicted against true angle. Right: Bland-Altman plot](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/panels.png)
 
 ## Which way you sort decides the story
 
