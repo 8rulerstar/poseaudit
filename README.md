@@ -75,7 +75,7 @@ On your own files:
 
 ```bash
 poseaudit audit --format coco --gt annotations.json --pred results.json \
-    --min-conf 0.5 --angle 5,7,9 --big-error 15 \
+    --min-conf 0.5 --angle 5,7,9 --big-error 15 --size-bands 30,60 \
     --report report.md --plot panels.png --csv readings.csv
 ```
 
@@ -307,10 +307,12 @@ failures, and a gross failure can also be a label on the wrong limb.
 |---|---|---|
 | `tilt(a, b)` | 2 | degrees of the axis through a and b from vertical, -90 to 90, positive when the upper end leans right; the axis has no direction, so errors wrap (89° vs -89° is 2° off) and a part read upside down is not an error |
 | `angle(a, b, c)` | 3 | interior angle at `b`, 0 to 180° (180 is straight; a flexion angle is 180 minus this, which flips the sign of the bias); unsigned, so an angle read bending the other way is not an error |
-| `length(a, b)` | 2 | pixels |
+| `length(a, b)` | 2 | pixels; two points on one pixel are unmeasurable, not 0 |
 | `ratio(a, b, c, d)` | 4 | \|a-b\| / \|c-d\|, independent of scale |
 
-The size of a reading is the mean length of its segments in the truth. There
+The size of a reading (the "arm segment" and "by size" figures above) is the
+mean length, in the truth, of the segments its points span: a-b and b-c for
+an angle, a-b for a tilt or length, a-b and c-d for a ratio. There
 is no directed angle (0 to 360) and no fixed axis other than vertical yet;
 `--relative-to` reads tilts against the rest of the image instead.
 
@@ -352,7 +354,11 @@ regions are skipped as they load, so they appear in no count.
   image, which usually means `--keypoints` is wrong, and on a missing folder.
   If every row could also be read as fewer points in x y v form with flags 0,
   1 and 2, a warning asks you to check `--keypoints`.
-- **Skeletons** of different sizes on the two sides are refused.
+- **Skeletons** of different sizes on the two sides are refused. Keypoints are
+  named by index, counted from 0, in Python and on the command line; with a
+  list of names, pass `names.index("left_elbow")`.
+- **Swapped files.** A results list given as the truth, or an annotation file
+  given as the predictions, stops the load with a message saying so.
 - **supervision.**
   - The container's `visible` mask decides visibility: filter with
     `kp.visible = kp.keypoint_confidence > 0.5`, not with a 2D mask such as
@@ -373,9 +379,16 @@ regions are skipped as they load, so they appear in no count.
 
 - Predictions are matched to the truth within each image, by image name and
   never by list position (a file extension is ignored when only that differs,
-  with a warning). Within an image the most similar pairs are matched first:
-  by box IoU (`--min-iou`, default 0.3), or by keypoint closeness when a side
-  has no box (`--min-similarity`, default 0.5). Detection scores are ignored
+  with a warning). A pair qualifies by box IoU (`--min-iou`, default 0.3), or
+  by keypoint closeness when a side has no box (`--min-similarity`, default
+  0.5). Within an image the best qualifying pairs are taken first, ranked by
+  the mean of IoU and OKS (COCO's sigmas for 17 points, their mean for other
+  skeletons; the truth box's area as scale), so two people with nearly the
+  same box are told apart by their keypoints. Remaining ties go to keypoint
+  similarity, then IoU, so the order instances are listed in does not matter;
+  an exact tie between different predictions is warned about. A warning also
+  says when images overlap but nothing, or only a few images' worth, pairs.
+  Detection scores are ignored
   in matching: drop low-scoring detections first (`--min-score`, or
   `min_score=` in the loaders), or a stray box that overlaps better can take
   the pair.
@@ -387,10 +400,11 @@ regions are skipped as they load, so they appear in no count.
   out of the denominator), no matching prediction, a predicted point missing,
   or geometry that cannot be measured.
 - Intervals are percentile bootstraps over whole clusters (by default images),
-  2,000 resamples with a fixed seed. Rates of large errors and of decisions use
-  Wilson intervals, which treat readings as independent, unless clusters are
-  named; then the overall rate and the decision rates resample whole clusters
-  too (never narrower than Wilson's). Rates per size band stay Wilson.
+  2,000 resamples with a fixed seed. The overall rate of large errors and the
+  decision rates resample whole clusters too when some hold several readings
+  (never narrower than Wilson's); with one reading to each they use Wilson
+  intervals, which treat readings as independent. Rates per size band stay
+  Wilson.
 
 ## The jitter reference
 
