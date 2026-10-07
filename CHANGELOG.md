@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.1.2
+
+- Pairing: boxes that qualify by IoU are ranked by the mean of IoU and OKS,
+  so two people with nearly the same box are paired by their keypoints, not
+  swapped. Ties go to OKS, then IoU, so the order of the lists no longer
+  matters; an exact tie between different predictions is warned about. On
+  the COCO elbow demo 5 of 490 pairs change: mean error 19.55 to 19.48°,
+  large errors 43.5 to 43.2%; the README is updated.
+- A warning when images overlap but no truth, or only a few images, pair.
+- The rate of large errors and the decision rates resample whole images (or
+  named clusters) whenever some hold several readings, as the other
+  intervals do.
+- `Instance` and `Instance.from_keypoints` refuse a visible point with a NaN
+  or infinite coordinate; `from_keypoints` accepts lists.
+- `audit` warns when every coordinate read lies within 0 to 1.
+- `length` reads NaN for two points on one pixel, like the other measures.
+- Keypoints given by name raise a clear error: measures take indices.
+- Swapped `--gt` and `--pred` (or loader arguments) are named as such.
+- `from_supervision` asks for an `{image name: sv.KeyPoints}` mapping when
+  given a bare container.
+
 ## 0.1.1
 
 - Python 3.14 is tested in CI and listed as supported.
