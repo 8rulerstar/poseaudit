@@ -6,7 +6,7 @@ import warnings
 import numpy as np
 import pytest
 
-from poseaudit import audit, load_coco, load_coco_results, pair
+from poseaudit import load_coco, load_coco_results, pair
 from poseaudit.cli import main
 from poseaudit.measures import angle, length, tilt
 from poseaudit.types import Instance
@@ -65,6 +65,40 @@ def test_keypoints_named_instead_of_indexed_say_so(make) -> None:
 
 def test_numpy_indices_are_still_indices() -> None:
     assert tilt(np.int64(0), np.int64(1)).points == (0, 1)
+
+
+def coco_files(tmp_path):
+    gt = {
+        "images": [{"id": 1, "file_name": "a.jpg"}],
+        "annotations": [
+            {"id": 1, "image_id": 1, "category_id": 1, "bbox": [0, 0, 20, 10],
+             "keypoints": [0, 0, 2, 10, 10, 2, 20, 0, 2], "num_keypoints": 3}
+        ],
+    }  # fmt: skip
+    pred = [
+        {"image_id": 1, "category_id": 1, "bbox": [0, 0, 20, 10], "score": 0.9,
+         "keypoints": [0, 0, 1, 10, 10, 1, 20, 0, 1]}
+    ]  # fmt: skip
+    (tmp_path / "gt.json").write_text(json.dumps(gt))
+    (tmp_path / "pred.json").write_text(json.dumps(pred))
+    return tmp_path / "gt.json", tmp_path / "pred.json"
+
+
+def test_swapped_coco_files_are_named_as_swapped(tmp_path) -> None:
+    gt, pred = coco_files(tmp_path)
+    with pytest.raises(ValueError, match="swapped"):
+        load_coco(pred)
+    with pytest.raises(ValueError, match="swapped"):
+        load_coco_results(gt, pred)
+
+
+def test_the_cli_says_when_gt_and_pred_are_swapped(tmp_path) -> None:
+    gt, pred = coco_files(tmp_path)
+    args = ["audit", "--format", "coco", "--gt", str(pred), "--pred", str(gt),
+            "--angle", "0,1,2", "--big-error", "15"]  # fmt: skip
+    with pytest.raises(SystemExit) as stop:
+        main(args)
+    assert "swapped" in str(stop.value)
 
 
 def test_no_match_despite_shared_images_is_warned() -> None:
