@@ -52,6 +52,21 @@ def test_an_exact_tie_between_different_predictions_is_reported() -> None:
     assert any("arbitrary" in w for w in result.warnings)
 
 
+def test_a_length_between_coincident_points_is_unmeasurable() -> None:
+    assert np.isnan(length(0, 1).read(np.array([[5.0, 5.0], [5.0, 5.0]])))
+    assert np.isnan(length(0, 1).read_many(np.zeros((1, 2, 2)))[0])
+
+
+@pytest.mark.parametrize("make", [lambda: tilt("left_hip", 1), lambda: tilt(0.0, 1)])
+def test_keypoints_named_instead_of_indexed_say_so(make) -> None:
+    with pytest.raises(TypeError, match="by index"):
+        make()
+
+
+def test_numpy_indices_are_still_indices() -> None:
+    assert tilt(np.int64(0), np.int64(1)).points == (0, 1)
+
+
 def test_no_match_despite_shared_images_is_warned() -> None:
     truth = {"im": [Instance(BOX, BENT, SEEN)]}
     scaled = {"im": [Instance(BOX / 1000, BENT / 1000, SEEN)]}  # 0 to 1 by mistake
