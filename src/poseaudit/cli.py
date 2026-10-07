@@ -39,7 +39,8 @@ def _measure(args: argparse.Namespace) -> Measure:
         points = [int(p) for p in spec.split(",")]
     except ValueError:
         raise UsageError(
-            f"--{kind} takes comma-separated keypoint indices, got {spec!r}"
+            f"--{kind} takes comma-separated keypoint indices counted from 0, "
+            f"not names, got {spec!r}"
         ) from None
     if len(points) != count:
         raise UsageError(f"--{kind} takes {count} keypoint indices, got {len(points)}")

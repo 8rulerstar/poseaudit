@@ -16,6 +16,15 @@ class Measure:
     unit: str
 
     def __post_init__(self) -> None:
+        if not all(
+            isinstance(i, (int, np.integer)) and not isinstance(i, bool)
+            for i in self.points
+        ):
+            raise TypeError(
+                f"{self.name}: keypoints are given by index, counted from 0, not "
+                f"by name: got {self.points!r}. With a list of names, pass "
+                "names.index('left_elbow')."
+            )
         if any(i < 0 for i in self.points):
             raise ValueError(f"{self.name}: keypoint indices must be 0 or more")
 
@@ -95,9 +104,14 @@ class Angle(Measure):
 
 @dataclass(frozen=True)
 class Length(Measure):
+    """|a-b| in pixels; NaN when a and b coincide, as for the other measures:
+    two labels on one pixel say the part was not resolved, not that it has
+    no length."""
+
     def read(self, keypoints: np.ndarray) -> float:
         a, b = (keypoints[i] for i in self.points)
-        return float(np.linalg.norm(b - a))
+        value = float(np.linalg.norm(b - a))
+        return value if value > 0 else float("nan")
 
 
 @dataclass(frozen=True)
