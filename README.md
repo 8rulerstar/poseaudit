@@ -11,7 +11,7 @@
 ![Left: predicted against true angle. Right: Bland-Altman plot](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/panels.png)
 
 On `yolo11n-pose` against COCO's labels, **58% of elbow angles are off by 15°
-or more when the arm segments average under 30 px, against 28% above 60 px**
+or more when the arm segments average under 30 px, against 26% above 60 px**
 ([details](#what-the-demo-shows)).
 
 **Who it is for:** anyone who reads an angle, a tilt or a length off
@@ -42,10 +42,10 @@ On the demo data in
 $ poseaudit audit --format coco --gt gt_200.json --pred pred_yolo11n.json \
     --angle 5,7,9 --big-error 15 --size-bands 30,60
 angle (5, 7, 9): read 322 of 380 labelled instances
-  |error|      mean 19.55° [17.13 to 22.16], median 12.64°, 95th pct 68.99°
-  >= 15°       43.5% [38.2% to 48.9%]
-  by size      0-30 px 58% (n 134), 30-60 px 37% (n 112), 60+ px 28% (n 76)
-  bias         +2.34° [-1.16 to +6.22], median +0.52°
+  |error|      mean 19.48° [17.05 to 22.13], median 12.59°, 95th pct 68.99°
+  >= 15°       43.2% [37.9% to 48.6%]
+  by size      0-30 px 58% (n 134), 30-60 px 37% (n 112), 60+ px 26% (n 76)
+  bias         +2.27° [-1.21 to +6.15], median +0.52°
 ```
 
 <details>
@@ -57,13 +57,13 @@ $ poseaudit audit --format coco --gt gt_200.json --pred pred_yolo11n.json \
 angle (5, 7, 9): read 322 of 380 labelled instances
   not read     no matching prediction 35, prediction lacked a point 23, unmeasurable 0
   not counted  206 with a point unlabelled in the truth, 79 unmatched predictions
-  |error|      mean 19.55° [17.13 to 22.16], median 12.64°, 95th pct 68.99°
-  >= 15°       43.5% [38.2% to 48.9%]
-  by size      0-30 px 58% (n 134), 30-60 px 37% (n 112), 60+ px 28% (n 76)
-  bias         +2.34° [-1.16 to +6.22], median +0.52°
+  |error|      mean 19.48° [17.05 to 22.13], median 12.59°, 95th pct 68.99°
+  >= 15°       43.2% [37.9% to 48.6%]
+  by size      0-30 px 58% (n 134), 30-60 px 37% (n 112), 60+ px 26% (n 76)
+  bias         +2.27° [-1.21 to +6.15], median +0.52°
   limits       -50.90° to +79.99° (2.5th to 97.5th percentile of errors)
-  gain         0.731 [0.639 to 0.814]; robust 0.784
-  vs jitter    0.871 from keypoint jitter alone; gap -0.140 [-0.199 to -0.077], p(squash) <= 0.002*
+  gain         0.731 [0.639 to 0.814]; robust 0.786
+  vs jitter    0.871 from keypoint jitter alone; gap -0.140 [-0.199 to -0.076], p(squash) <= 0.002*
                * swaps and gross failures lower the gain too, and noisy
                  labels make p small for an honest model: read the gap
   ! 2.5% of errors fall below the normal limits and 4.3% above them, against 2.5% each for a normal error: use the percentile limits.
@@ -122,7 +122,7 @@ the three points with the spread COCO publishes for repeated labels (its OKS
 sigmas) moves the elbow angle by 11 to 16° on average on these same arms,
 depending on how those sigmas are read (a rough estimate that treats each
 label's points as independent; [`validation/label_noise.py`](https://github.com/8rulerstar/poseaudit/blob/main/validation/label_noise.py)).
-A good part of the 19.55° may be the labels'. With a reference better than
+A good part of the 19.48° may be the labels'. With a reference better than
 the model (motion capture, careful relabelling), the same figures describe
 the model.
 
@@ -158,7 +158,7 @@ more than keypoint jitter.
 ## What the demo shows
 
 **Disagreement grows as the arms get smaller.** When the arm segments average
-under 30 px, 58% of elbows are off by 15° or more; above 60 px, 28%. The
+under 30 px, 58% of elbows are off by 15° or more; above 60 px, 26%. The
 signed bias of +2° hides all of this, and so does a single mAP. The link with
 size is an association; size is not the whole cause. Some of it is geometry:
 a pixel of error turns a short segment further than a long one, for the label
@@ -170,7 +170,7 @@ more often occluded, blurred and loosely labelled.
 |---|---|---|---|---|
 | 0 to 30 px | 134 | 25.55° | 58.2% [49.7% to 66.2%] | 0.526 |
 | 30 to 60 px | 112 | 16.57° | 36.6% [28.3% to 45.8%] | 0.791 |
-| 60+ px | 76 | 13.36° | 27.6% [18.8% to 38.6%] | 0.911 |
+| 60+ px | 76 | 13.06° | 26.3% [17.7% to 37.2%] | 0.909 |
 
 ## Which way you sort decides the story
 
@@ -246,7 +246,7 @@ about 7°. Keypoint jitter alone pulls a gain below 1 too: a straight arm can
 only be read as more bent, a folded one only as more open. The **jitter
 reference** (`vs jitter`) is the gain of predictions rebuilt from the truth
 plus this model's own point displacements ([how](#the-jitter-reference)):
-0.87 here. The model's gain is 0.140 lower (interval 0.077 to 0.199, paired
+0.87 here. The model's gain is 0.140 lower (interval 0.076 to 0.199, paired
 within resamples). With the default seed none of the 500 rebuilds comes out
 as low as the model's (`p(squash) <= 0.002`); with some other seeds one does
 (0.004).
@@ -257,7 +257,7 @@ What that is, the check cannot say:
   straight arm read as folded) and left and right swapped on one side lower
   the gain just as squashing does; failures in random directions are part of
   the rebuilds and do not widen the gap. Leaving out the 31 readings off by
-  45° or more leaves a gap of -0.069 [-0.109 to -0.028] (about half the gap),
+  45° or more leaves a gap of -0.068 [-0.109 to -0.028] (about half the gap),
   and leaving out the 61 off by 30° or more, -0.038 [-0.073 to -0.003]. Those
   subsets are chosen by the outcome, so they describe where the gap comes from
   rather than test it, and trimming by the outcome changes a gap by itself, so
@@ -271,11 +271,11 @@ What that is, the check cannot say:
   ([`validation/label_noise.py`](https://github.com/8rulerstar/poseaudit/blob/main/validation/label_noise.py), with independent
   normal noise on each point). Under that model label noise does not explain
   this gap, but it does trip the p: those honest models got
-  `p(squash) <= 0.05` in 17 to 40% of 30 runs each. With noisy labels, read
+  `p(squash) <= 0.05` in 7 to 23% of 30 runs each. With noisy labels, read
   the size of the gap, not the p.
 - **Squashing** is what remains, and it is not separated from the two above.
   The slopes that suit equal noise, the Bland-Altman slope (-0.049 [-0.119 to
-  +0.017]) and Deming at a noise ratio of 1 (0.945 [0.870 to 1.019]), include
+  +0.016]) and Deming at a noise ratio of 1 (0.945 [0.870 to 1.019]), include
   no squashing, but do not rule out a small one. Which to trust
   depends on the noise ratio, which this data does not pin down. Deming for
   other ratios (`--noise-ratio`, the variance of prediction noise over that
@@ -283,7 +283,7 @@ What that is, the check cannot say:
 
   | noise ratio | 1 | 4 | 10 |
   |---|---|---|---|
-  | Deming slope | 0.945 [0.870 to 1.019] | 0.797 [0.708 to 0.878] | 0.758 [0.667 to 0.842] |
+  | Deming slope | 0.945 [0.870 to 1.019] | 0.797 [0.707 to 0.877] | 0.758 [0.667 to 0.842] |
 
   On these arms honest models give a Deming slope at a ratio of 1 near 1
   whether the labels are clean or as noisy as the model, with independent
@@ -296,7 +296,7 @@ Whether the rest is squashing of a few percent or nothing, this data cannot
 tell.
 
 A few gross failures move a least-squares slope a lot. The **robust gain**, a
-Theil-Sen slope that they barely move, is 0.78 here against the least-squares
+Theil-Sen slope that they barely move, is 0.79 here against the least-squares
 0.73. Noise that grows with the angle, or on smaller arms, also separates the
 two, so their difference alone does not say how much comes from gross
 failures, and a gross failure can also be a label on the wrong limb.
