@@ -15,10 +15,25 @@ def _read(path: str | Path):
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
+def _annotation_file(path: str | Path) -> dict:
+    """The parsed annotation file, or a clear error when it is a results list:
+    the two files swapped (`--gt` and `--pred`)."""
+    data = _read(path)
+    if isinstance(data, list):
+        raise ValueError(
+            f"{path}: this is a results file (a list of detections), not an "
+            "annotation file (an object with images and annotations); were the "
+            "truth and the predictions swapped (--gt and --pred)?"
+        )
+    if not isinstance(data, dict) or "images" not in data:
+        raise ValueError(f"{path}: not a COCO annotation file (no 'images' list)")
+    return data
+
+
 def load_coco(annotations: str | Path, classes: Iterable[int] | None = None) -> Dataset:
     """Crowd regions and people with no labelled keypoint are left out.
     `classes` keeps only those category ids."""
-    data = _read(annotations)
+    data = _annotation_file(annotations)
     wanted = _wanted(classes)
     seen: set = set()
     names = {image["id"]: image["file_name"] for image in data["images"]}
@@ -59,7 +74,8 @@ def load_coco_results(
     visibility flag: set `min_confidence` (for example 0.5), or every point a
     model returns counts as seen.
     """
-    names = {image["id"]: image["file_name"] for image in _read(annotations)["images"]}
+    images = _annotation_file(annotations)["images"]
+    names = {image["id"]: image["file_name"] for image in images}
     dataset: Dataset = {}
     looks_like_confidence = False
     wanted = _wanted(classes)
@@ -68,8 +84,9 @@ def load_coco_results(
     if isinstance(rows, dict):
         raise ValueError(
             f"{results}: this is an annotation file, not a results file (a list "
-            "of detections); pass it with --gt-format coco, or give the model's "
-            "results here"
+            "of detections); were the truth and the predictions swapped (--gt "
+            "and --pred)? Otherwise pass it with --gt-format coco, or give the "
+            "model's results here"
         )
     for result in rows:
         if not isinstance(result, dict):

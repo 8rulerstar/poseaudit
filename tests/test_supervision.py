@@ -227,3 +227,11 @@ def test_an_image_with_no_rows_and_empty_carried_boxes_loads() -> None:
     kp = key_points(np.zeros((0, 2, 2)))
     kp.data["xyxy"] = np.zeros((0,))
     assert from_supervision({"i": kp})["i"] == []
+
+
+def test_a_bare_key_points_container_asks_for_a_mapping() -> None:
+    kp = key_points([[[1, 2], [3, 4]]])
+    with pytest.raises(TypeError, match="map image name"):
+        from_supervision(kp)
+    with pytest.raises(TypeError, match="detections_by_image"):
+        from_supervision({"a": kp}, sv.Detections(xyxy=np.array([[0.0, 0, 5, 5]])))

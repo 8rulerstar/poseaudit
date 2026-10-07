@@ -15,6 +15,10 @@ def from_supervision(
 ) -> Dataset:
     """Map image name -> `sv.KeyPoints`.
 
+    Both arguments are mappings keyed by image name, even for one image: a
+    bare `sv.KeyPoints` raises a TypeError, since its image could not be paired
+    with the truth's by name.
+
     Visibility is the container's: its `visible` mask when set. Filter by
     confidence on the container first, e.g. `kp.visible = kp.keypoint_confidence
     > 0.5`. As in supervision, a point at (0, 0) or with a non-finite coordinate
@@ -29,6 +33,9 @@ def from_supervision(
     are given. A model that fills `visible` itself (RF-DETR: confidence > 0)
     keeps nearly every point; set your own threshold on it.
     """
+    _by_image(keypoints_by_image, "keypoints_by_image", "sv.KeyPoints")
+    if detections_by_image is not None:
+        _by_image(detections_by_image, "detections_by_image", "sv.Detections")
     dataset: Dataset = {}
     unfiltered, suspect = [], []
     if detections_by_image is not None:
@@ -110,6 +117,15 @@ def from_supervision(
             stacklevel=2,
         )
     return dataset
+
+
+def _by_image(given, argument: str, kind: str) -> None:
+    if not isinstance(given, Mapping):
+        raise TypeError(
+            f"{argument} must map image name -> {kind}, got "
+            f"{type(given).__name__}; for one image pass {{'image.jpg': value}} "
+            "with the name the truth uses"
+        )
 
 
 def _boxes(name: str, detections_by_image, rows: int) -> np.ndarray | None:
