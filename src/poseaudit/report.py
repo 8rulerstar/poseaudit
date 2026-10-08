@@ -570,3 +570,58 @@ def row(result: "AuditResult") -> dict:
         "slope": result.gain,
         "icc": result.icc,
     }
+
+
+TABLE_COLUMNS = ("measure", "n", "bias", "limits", "mean |error|", "RMSE")
+
+
+def _cells(result: "AuditResult") -> list[str]:
+    u = _unit(result)
+    d = _digits(result)
+    lo, hi = _percentile_limits(result)
+    if result.n == 0:
+        return [label(result), "0"] + ["n/a"] * 7
+    return [
+        label(result),
+        str(result.n),
+        f"{_f(result.bias, f'+.{d}f')}{u}",
+        _range(lo, hi, f"+.{d}f", u),
+        f"{result.mean_abs_error:.{d}f}{u} {_ci(result.mean_abs_error_ci, f'.{d}f')}",
+        f"{result.rmse:.{d}f}{u}",
+        f"{result.big_error_rate:.1%} {_ci(result.big_error_rate_ci, '.1%')}",
+        _f(result.gain, ".3f"),
+        _f(result.icc, ".3f"),
+    ]
+
+
+def table(results: "list[AuditResult]", degree: str = "°") -> str:
+    """One row per measure: n, bias, percentile limits, mean |error| with its
+    interval, RMSE, the large-error rate with its interval, slope and ICC(A,1).
+    Each measure's warnings follow, under its name."""
+    big = {f"{r.big_error:g}{_unit(r)}" for r in results}
+    head = [*TABLE_COLUMNS, ">= " + "/".join(sorted(big)), "slope", "ICC(A,1)"]
+    rows = [
+        [c.replace("°", degree) for c in row] for row in [head, *map(_cells, results)]
+    ]
+    widths = [max(len(row[k]) for row in rows) for k in range(len(head))]
+    lines = [
+        "  ".join(cell.ljust(w) for cell, w in zip(row, widths, strict=True)).rstrip()
+        for row in rows
+    ]
+    for r in results:
+        lines += [f"  ! {label(r)}: {w}" for w in r.warnings]
+    return "\n".join(lines)
+
+
+def csv_rows_many(results: "list[AuditResult]") -> str:
+    """The readings of several measures, each row led by its measure."""
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(["measure", *CSV_COLUMNS])
+    for result in results:
+        for r in result.readings:
+            writer.writerow(
+                [label(result)]
+                + ["" if getattr(r, c) is None else getattr(r, c) for c in CSV_COLUMNS]
+            )
+    return buffer.getvalue()

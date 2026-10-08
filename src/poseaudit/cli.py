@@ -16,6 +16,7 @@ from poseaudit.audit import audit
 from poseaudit.io import load_coco, load_coco_results, load_yolo
 from poseaudit.measures import Measure, angle, length, ratio, tilt
 from poseaudit.pairing import pair
+from poseaudit.report import csv_rows_many, table
 from poseaudit.types import Dataset
 
 MEASURES: dict[str, tuple[Callable[..., Measure], int]] = {
@@ -30,11 +31,28 @@ class UsageError(Exception):
     pass
 
 
-def _measure(args: argparse.Namespace) -> Measure:
-    chosen = [(k, getattr(args, k)) for k in MEASURES if getattr(args, k)]
-    if len(chosen) != 1:
-        raise UsageError("give exactly one of --tilt, --angle, --length, --ratio")
-    kind, spec = chosen[0]
+class _AddMeasure(argparse.Action):
+    """--angle, --tilt, --length and --ratio may each be repeated; the
+    measures keep the order they were given in."""
+
+    def __call__(self, parser, namespace, values, option_string=None) -> None:
+        chosen = list(getattr(namespace, "measures", None) or [])
+        chosen.append((self.dest, values))
+        namespace.measures = chosen
+
+
+def _measures(args: argparse.Namespace) -> list[Measure]:
+    chosen = getattr(args, "measures", None) or []
+    if not chosen:
+        raise UsageError("give at least one of --tilt, --angle, --length, --ratio")
+    made = [_measure(kind, spec) for kind, spec in chosen]
+    names = [(m.name, m.points) for m in made]
+    if len(set(names)) < len(names):
+        raise UsageError("a measure is given twice")
+    return made
+
+
+def _measure(kind: str, spec: str) -> Measure:
     make, count = MEASURES[kind]
     try:
         points = [int(p) for p in spec.split(",")]
@@ -345,7 +363,10 @@ def _parser() -> argparse.ArgumentParser:
     what = run.add_argument_group("measure")
     for kind in MEASURES:
         what.add_argument(
-            f"--{kind}", metavar="I,J,...", help="keypoint indices, counted from 0"
+            f"--{kind}",
+            metavar="I,J,...",
+            action=_AddMeasure,
+            help="keypoint indices, counted from 0; repeat for several measures",
         )
     what.add_argument(
         "--relative-to",
@@ -470,17 +491,31 @@ def main(argv: list[str] | None = None) -> None:
         text = str(w.message).replace("min_confidence", "--min-conf")
         loader_notes.append(text)
         print(_console(f"poseaudit: warning: {text}", sys.stderr), file=sys.stderr)
-    print(_console(result.summary(full=args.full), sys.stdout))
+    results = result
+    if len(results) == 1:
+        text = results[0].summary(full=args.full)
+    elif args.full:
+        text = "\n\n".join(r.summary(full=True) for r in results)
+    else:
+        text = table(results, "°" if _utf8(sys.stdout) else " deg")
+    print(_console(text, sys.stdout))
     # in the JSON too, but printed once: stderr above, not again in the summary
-    result.warnings = loader_notes + [
-        w for w in result.warnings if w not in loader_notes
-    ]
+    for r in results:
+        r.warnings = loader_notes + [w for w in r.warnings if w not in loader_notes]
     try:
-        _write(result, args)
+        if len(results) == 1:
+            _write(results[0], args)
+        else:
+            _write_many(results, args)
     except OSError as error:
         sys.exit(f"poseaudit: could not write: {error}")
-    if result.n == 0:
+    if all(r.n == 0 for r in results):
         sys.exit("poseaudit: nothing was read")
+
+
+def _utf8(stream) -> bool:
+    encoding = (getattr(stream, "encoding", None) or "").lower().replace("-", "")
+    return encoding in ("utf8", "utf8sig")
 
 
 def _console(text: str, stream) -> str:
@@ -491,7 +526,7 @@ def _console(text: str, stream) -> str:
     whatever reads the pipe as cp949; " deg" reads the same either way. Other
     text (image names) is left alone, and files are always written as UTF-8."""
     encoding = (getattr(stream, "encoding", None) or "").lower().replace("-", "")
-    if encoding in ("utf8", "utf8sig"):
+    if _utf8(stream):
         return text
     # padding after a sign (the ">= 15°" label) gives up the three columns
     # " deg" adds, so the figures stay aligned
@@ -521,6 +556,33 @@ def _write(result, args) -> None:
             sys.exit(f"poseaudit: {error}")
 
 
+def several(results) -> dict:
+    """The JSON for several measures: the shared settings once, and each
+    measure's figures as a single measure's JSON would give them."""
+    from poseaudit._version import __version__
+
+    return {
+        "poseaudit": __version__,
+        "schema": 1,
+        "settings": results[0].settings,
+        "measures": [r.to_dict() for r in results],
+    }
+
+
+def _write_many(results, args) -> None:
+    if args.json:
+        Path(args.json).write_text(
+            json.dumps(_finite(several(results)), indent=2, default=str),
+            encoding="utf-8",
+        )
+    if args.csv:
+        Path(args.csv).write_text(csv_rows_many(results), encoding="utf-8")
+    if args.report:
+        Path(args.report).write_text(
+            "\n".join(r.to_markdown() for r in results if r.n), encoding="utf-8"
+        )
+
+
 def _run(args):
     args.gt_format = args.gt_format or args.format
     args.pred_format = args.pred_format or args.format
@@ -542,18 +604,25 @@ def _run(args):
         needs_matplotlib()
     if (args.side or args.pred_threshold) and not args.threshold:
         raise UsageError("--side and --pred-threshold need --threshold")
-    measure = _measure(args)
+    measures = _measures(args)
+    if args.plot and len(measures) > 1:
+        raise UsageError("--plot draws one measure; give one, or leave out --plot")
     bands = _bands(args.bands)
     size_bands = _bands(args.size_bands, "--size-bands", edges_only_positive=True)
     truth = _load(args, args.gt_format, args.gt, is_prediction=False)
     predicted = _load(args, args.pred_format, args.pred, is_prediction=True)
+    pairing = pair(
+        truth,
+        predicted,
+        min_iou=args.min_iou,
+        min_keypoint_similarity=args.min_similarity,
+    )
+    return [_audit(args, pairing, m, bands, size_bands) for m in measures]
+
+
+def _audit(args, pairing, measure, bands, size_bands):
     return audit(
-        pair(
-            truth,
-            predicted,
-            min_iou=args.min_iou,
-            min_keypoint_similarity=args.min_similarity,
-        ),
+        pairing,
         measure,
         args.big_error,
         bands=bands,
