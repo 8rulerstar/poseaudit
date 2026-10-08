@@ -352,7 +352,8 @@ def audit(
         )
     if jitter is not None and len(raw) < 60:
         result.warnings.append(
-            f"Only {len(raw)} readings for the jitter reference. With so few it "
+            f"Only {_count(len(raw), 'reading')} for the jitter reference. With so "
+            "few it "
             "follows noise that varies along the range only coarsely: its p can "
             "flag an honest model as squashed more often than stated, and it can "
             "miss mild squashing. A large p here does not show that the model "
@@ -814,18 +815,27 @@ def _size_bands(sizes, t, p, e, bands, big_error) -> list[SizeBand]:
     return out
 
 
+def _count(n: int, noun: str) -> str:
+    return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
+
+
 def _warnings(result: AuditResult, bands, named_clusters: bool) -> list[str]:
     notes = []
     rs = result.readings
     if result.n < 30:
-        notes.append(f"Only {result.n} readings: every figure here is fragile.")
+        notes.append(
+            f"Only {_count(result.n, 'reading')}: every figure here is fragile."
+        )
     big = round(result.big_error_rate * result.n)
     if big < 10:
-        notes.append(f"Only {big} large errors: judge the rate by its interval.")
+        notes.append(
+            (f"Only {_count(big, 'large error')}" if big else "No large errors")
+            + ": judge the rate by its interval."
+        )
     if named_clusters and result.clusters < 20:
         notes.append(
-            f"Only {result.clusters} clusters: bootstrap intervals are too narrow "
-            "with this few."
+            f"Only {_count(result.clusters, 'cluster')}: bootstrap intervals are "
+            "too narrow with this few."
         )
     r = result.not_read
     lost = r.missed + r.no_predicted_point + r.unmeasurable

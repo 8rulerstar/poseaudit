@@ -12,7 +12,8 @@
 
 On `yolo11n-pose`, **58% of elbow angles disagree with COCO's labels by 15°
 or more when the arm segments average under 30 px, against 26% above 60 px**.
-Part of that is the labels' own noise ([details](#reading-the-demo)).
+Part of that is the labels' own noise: COCO's published label spread alone
+puts 26 to 40% of these arms off by 15° or more ([details](#reading-the-demo)).
 
 **Who it is for:** anyone who reads an angle, a tilt or a length off
 keypoints, as in sports and rehabilitation motion analysis, ergonomics, or
@@ -109,9 +110,11 @@ predicted = {"frame_001": [pa.Instance.from_keypoints(xy_pred, visible_pred)]}
 result = pa.audit(pa.pair(truth, predicted), pa.angle(23, 25, 27), big_error=10)
 ```
 
-`from_keypoints` takes the box as the extent of the points. If you have the
-detector's box, pass it, so a person whose left and right points were swapped
-still pairs by box and shows up as a large error rather than as unmatched:
+`from_keypoints` gives no box (`boxed=False`): such instances are paired by
+keypoint closeness, not by box IoU, and the extent of the visible points serves
+only as the truth's scale. If you have the detector's box, pass it, so a person
+whose left and right points were swapped still pairs by box and shows up as a
+large error rather than as unmatched:
 
 ```python
 pa.Instance(bbox=np.array([x1, y1, x2, y2]), keypoints=xy_pred, visible=visible_pred)
@@ -131,6 +134,8 @@ the three points with the spread COCO publishes for repeated labels (its OKS
 sigmas) moves the elbow angle by 11 to 16° on average on these same arms,
 depending on how those sigmas are read (a rough estimate that treats each
 label's points as independent; [`validation/label_noise.py`](https://github.com/8rulerstar/poseaudit/blob/main/validation/label_noise.py)).
+That spread alone puts 25.9 to 39.9% of the arms off by 15° or more, against
+the 43.2% observed ([`validation/label_noise.out.md`](https://github.com/8rulerstar/poseaudit/blob/main/validation/label_noise.out.md)).
 A good part of the 19.48° may be the labels'. With a reference better than
 the model (motion capture, careful relabelling), the same figures describe
 the model.
@@ -389,11 +394,13 @@ regions are skipped as they load, so they appear in no count.
 - Predictions are matched to the truth within each image, by image name and
   never by list position (a file extension is ignored when only that differs,
   with a warning; folders are not, so `cam1/0001.jpg` and `cam2/0001.jpg` stay
-  apart). A pair qualifies by box IoU (`--min-iou`, default 0.3), or
+  apart, and a warning says when unmatched images share their last name with
+  the other side's, as `imgs/a.jpg` and `a` do). A pair qualifies by box IoU (`--min-iou`, default 0.3), or
   by keypoint closeness when a side has no box (`--min-similarity`, default
   0.5). Within an image the best qualifying pairs are taken first, ranked by
   the mean of IoU and OKS (COCO's sigmas for 17 points, their mean for other
-  skeletons; the truth box's area as scale), so two people with nearly the
+  skeletons; the truth box's area as scale, where COCO uses the segment area,
+  so the values differ from COCO's own OKS), so two people with nearly the
   same box are told apart by their keypoints. Remaining ties go to keypoint
   similarity, then IoU, so the order instances are listed in does not matter;
   an exact tie between different predictions is warned about. A warning also

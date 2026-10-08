@@ -25,6 +25,13 @@ def _digits(result: "AuditResult") -> int:
     return int(min(6, max(2, 1 - np.floor(np.log10(scale)))))
 
 
+def _range(low: float, high: float, fmt: str, u: str) -> str:
+    """Limits, or n/a when too few readings give none."""
+    if np.isnan(low) or np.isnan(high):
+        return "n/a"
+    return f"{low:{fmt}}{u} to {high:{fmt}}{u}"
+
+
 def _ci(interval, fmt: str) -> str:
     low, high = interval
     return f"[{low:{fmt}} to {high:{fmt}}]"
@@ -99,7 +106,7 @@ def summary(result: "AuditResult", full: bool = False) -> str:
     lines += [
         f"  bias         {result.bias:+.{d}f}{u} {_ci(result.bias_ci, f'+.{d}f')}, "
         f"median {result.median_error:+.{d}f}{u}",
-        f"  limits       {elo:+.{d}f}{u} to {ehi:+.{d}f}{u} "
+        f"  limits       {_range(elo, ehi, f'+.{d}f', u)} "
         "(2.5th to 97.5th percentile of errors)",
         f"  gain         {result.gain:.3f} {_ci(result.gain_ci, '.3f')}; robust "
         f"{result.robust_gain:.3f}",
@@ -130,14 +137,12 @@ def summary(result: "AuditResult", full: bool = False) -> str:
     if full:
         lo, hi = result.limits
         lines.append(
-            f"  normal       {lo:+.{d}f}{u} to {hi:+.{d}f}{u}, "
+            f"  normal       {_range(lo, hi, f'+.{d}f', u)}, "
             f"RMSE {result.rmse:.{d}f}{u}"
         )
         if result.repeated_limits is not None:
             rlo, rhi = result.repeated_limits
-            lines.append(
-                f"  repeated     {rlo:+.{d}f}{u} to {rhi:+.{d}f}{u} (clusters)"
-            )
+            lines.append(f"  repeated     {_range(rlo, rhi, f'+.{d}f', u)} (clusters)")
         lines.append(
             f"  BA slope     {result.ba_slope:+.3f} {_ci(result.ba_slope_ci, '+.3f')}"
         )
