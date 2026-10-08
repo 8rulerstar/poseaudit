@@ -157,7 +157,7 @@ def _full(result: "AuditResult") -> list[str]:
     if result.jitter_gain is not None:
         lines.append(
             f"  vs jitter    {result.jitter_gain:.3f} from keypoint jitter alone; gap "
-            f"{_f(result.gain_gap, '+.3f')} {_ci(result.gain_gap_ci, '+.3f')}, "
+            f"{result.gain_gap:+.3f} {_ci(result.gain_gap_ci, '+.3f')}, "
             + (
                 _p(result.jitter_p, result.settings.get("jitter_repeats"))
                 if result.jitter_p is not None
