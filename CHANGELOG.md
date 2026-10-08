@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.3
+
+- Pairing: dropping an image extension keeps the folder, so `cam1/0001.jpg`
+  and `cam2/0001.jpg` are no longer paired as one image.
+- README: the demo figures are described as disagreement with COCO's labels,
+  not as error; a box example for `Instance`, a note that the demo data is not
+  in the package, and references to markerless validation studies and Ronchi
+  and Perona (2017).
+
 ## 0.1.2
 
 - Pairing: boxes that qualify by IoU are ranked by the mean of IoU and OKS,
