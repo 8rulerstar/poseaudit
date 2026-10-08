@@ -1321,3 +1321,17 @@ def test_no_large_error_says_how_high_the_rate_could_still_be() -> None:
     assert any(
         w.startswith("No large errors (1 degree or more);") for w in one.warnings
     )
+
+
+def test_size_band_labels_share_one_number_of_decimals() -> None:
+    small = arms([90] * 10, [92] * 10, size=8)
+    middle = arms([90] * 10, [92] * 10, size=10.3)
+    large = arms([90] * 10, [92] * 10, size=40)
+    both = Pairing(pairs=small.pairs + [Pair("m" + p.image, p.truth, p.predicted)
+                   for p in middle.pairs] + [Pair("L" + p.image, p.truth,
+                   p.predicted) for p in large.pairs])  # fmt: skip
+    r = audit(both, angle(0, 1, 2), 5, size_bands=[10.2, 10.4], resamples=60,
+              jitter_repeats=0)  # fmt: skip
+    assert "0.0-10.2 px" in r.summary() and "10.4+ px" in r.summary()
+    rows = r.to_markdown().split("## Error by size")[1].split("\n## ")[0]
+    assert "| 0.0 to 10.2 px |" in rows and "| 10.4+ px |" in rows

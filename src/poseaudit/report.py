@@ -100,10 +100,10 @@ def summary(result: "AuditResult", full: bool = False) -> str:
         lines.append(
             "  by size      "
             + ", ".join(
-                f"{_px(b.low, b.high)} px {b.big_error_rate:.0%} (n {b.n})"
-                if np.isfinite(b.high)
-                else f"{b.low:.0f}+ px {b.big_error_rate:.0%} (n {b.n})"
-                for b in result.size_bands
+                f"{label} {b.big_error_rate:.0%} (n {b.n})"
+                for label, b in zip(
+                    _size_labels(result.size_bands), result.size_bands, strict=True
+                )
             )
         )
     lines += [
@@ -211,10 +211,19 @@ How to read this:
 """
 
 
-def _px(low: float, high: float, joint: str = "-") -> str:
-    """Band edges in whole pixels, or with a decimal when those would coincide."""
-    digits = 0 if round(low) != round(high) else 1
-    return f"{low:.{digits}f}{joint}{high:.{digits}f}"
+def _size_labels(bands, joint: str = "-") -> list[str]:
+    """Band edges in whole pixels, or with as many decimals as keep each band's
+    two edges apart: the same number for every band."""
+    spans = [(b.low, b.high) for b in bands if np.isfinite(b.high) and b.low != b.high]
+    digits = next(
+        (k for k in (0, 1) if all(f"{a:.{k}f}" != f"{b:.{k}f}" for a, b in spans)), 2
+    )
+    return [
+        f"{b.low:.{digits}f}{joint}{b.high:.{digits}f} px"
+        if np.isfinite(b.high)
+        else f"{b.low:.{digits}f}+ px"
+        for b in bands
+    ]
 
 
 def _limit_row(name, low, high, low_ci, high_ci, u, d=2) -> str:
@@ -378,12 +387,8 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
         "| size | n | mean abs error | large errors | gain |",
         "|---|---|---|---|---|",
     ]
-    for sb in result.size_bands:
-        span = (
-            f"{_px(sb.low, sb.high, ' to ')} px"
-            if np.isfinite(sb.high)
-            else f"{sb.low:.0f}+ px"
-        )
+    spans = _size_labels(result.size_bands, " to ")
+    for span, sb in zip(spans, result.size_bands, strict=True):
         out.append(
             f"| {span} | {sb.n} | {sb.mean_abs_error:.{d}f}{u} | "
             f"{sb.big_error_rate:.1%} {_ci(sb.big_error_rate_ci, '.1%')} | "
