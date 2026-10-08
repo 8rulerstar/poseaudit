@@ -200,6 +200,18 @@ def test_names_where_only_some_lack_the_extension_are_aligned() -> None:
     assert any("'b'" in w for w in result.warnings)
 
 
+def test_dropping_the_extension_keeps_the_folder() -> None:
+    """cam1/0001.jpg and cam2/0001.jpg are different images."""
+    result = pair(
+        {"cam1/0001.jpg": [box(0, 0, 10, 10)]}, {"cam2/0001.jpg": [box(0, 0, 10, 10)]}
+    )
+    assert not result.pairs
+    aligned = pair(
+        {"cam1/0001.jpg": [box(0, 0, 10, 10)]}, {"cam1/0001": [box(0, 0, 10, 10)]}
+    )
+    assert len(aligned.pairs) == 1
+
+
 def test_no_shared_image_name_is_reported() -> None:
     result = pair({"a.jpg": [box(0, 0, 1, 1)]}, {"b": [box(0, 0, 1, 1)]})
     assert any("No image name" in w for w in result.warnings)

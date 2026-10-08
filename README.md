@@ -10,9 +10,9 @@
 
 ![Left: predicted against true angle. Right: Bland-Altman plot](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/panels.png)
 
-On `yolo11n-pose` against COCO's labels, **58% of elbow angles are off by 15°
-or more when the arm segments average under 30 px, against 26% above 60 px**
-([details](#what-the-demo-shows)).
+On `yolo11n-pose`, **58% of elbow angles disagree with COCO's labels by 15°
+or more when the arm segments average under 30 px, against 26% above 60 px**.
+Part of that is the labels' own noise ([details](#reading-the-demo)).
 
 **Who it is for:** anyone who reads an angle, a tilt or a length off
 keypoints, as in sports and rehabilitation motion analysis, ergonomics, or
@@ -21,7 +21,7 @@ industrial measurement.
 A good mAP says the points land near the right place. It does not say how far
 off the angle you compute from them is. `poseaudit` computes the same angle
 (or tilt, or length) from your labels and from your model, compares the two,
-and tells you how large the error is, how often it is large, and where.
+and tells you how large the disagreement is, how often it is large, and where.
 
 ## Install
 
@@ -36,7 +36,8 @@ pip install "poseaudit[supervision]"   # from_supervision
 
 On the demo data in
 [`examples/coco_elbow`](https://github.com/8rulerstar/poseaudit/tree/main/examples/coco_elbow)
-(run from that folder):
+(run from that folder; `pip install` does not include the demo data, so clone
+the repository or download that folder):
 
 ```text
 $ poseaudit audit --format coco --gt gt_200.json --pred pred_yolo11n.json \
@@ -108,6 +109,14 @@ predicted = {"frame_001": [pa.Instance.from_keypoints(xy_pred, visible_pred)]}
 result = pa.audit(pa.pair(truth, predicted), pa.angle(23, 25, 27), big_error=10)
 ```
 
+`from_keypoints` takes the box as the extent of the points. If you have the
+detector's box, pass it, so a person whose left and right points were swapped
+still pairs by box and shows up as a large error rather than as unmatched:
+
+```python
+pa.Instance(bbox=np.array([x1, y1, x2, y2]), keypoints=xy_pred, visible=visible_pred)
+```
+
 ## Reading the demo
 
 The Quick start output is the left elbow angle (COCO keypoints 5, 7, 9: shoulder, elbow, wrist;
@@ -158,7 +167,7 @@ more than keypoint jitter.
 ## What the demo shows
 
 **Disagreement grows as the arms get smaller.** When the arm segments average
-under 30 px, 58% of elbows are off by 15° or more; above 60 px, 26%. The
+under 30 px, 58% of elbows disagree with the label by 15° or more; above 60 px, 26%. The
 signed bias of +2° hides all of this, and so does a single mAP. The link with
 size is an association; size is not the whole cause. Some of it is geometry:
 a pixel of error turns a short segment further than a long one, for the label
@@ -166,7 +175,7 @@ as much as for the model, and an arm pointing toward the camera looks short
 and is hard to read even on a large person. Small people in COCO are also
 more often occluded, blurred and loosely labelled.
 
-| arm segment | n | mean abs error | off by 15° or more | gain (no jitter reference per band) |
+| arm segment | n | mean abs error | 15° or more apart | gain (no jitter reference per band) |
 |---|---|---|---|---|
 | 0 to 30 px | 134 | 25.55° | 58.2% [49.7% to 66.2%] | 0.526 |
 | 30 to 60 px | 112 | 16.57° | 36.6% [28.3% to 45.8%] | 0.791 |
@@ -379,7 +388,8 @@ regions are skipped as they load, so they appear in no count.
 
 - Predictions are matched to the truth within each image, by image name and
   never by list position (a file extension is ignored when only that differs,
-  with a warning). A pair qualifies by box IoU (`--min-iou`, default 0.3), or
+  with a warning; folders are not, so `cam1/0001.jpg` and `cam2/0001.jpg` stay
+  apart). A pair qualifies by box IoU (`--min-iou`, default 0.3), or
   by keypoint closeness when a side has no box (`--min-similarity`, default
   0.5). Within an image the best qualifying pairs are taken first, ranked by
   the mean of IoU and OKS (COCO's sigmas for 17 points, their mean for other
@@ -443,9 +453,12 @@ The robust gain uses every pair of readings up to about 1,000 readings and
 - Bland JM, Altman DG (2007). Agreement between methods of measurement with multiple observations per individual. *Journal of Biopharmaceutical Statistics* 17(4):571-582.
 - Davison AC, Hinkley DV (1997). *Bootstrap Methods and their Application*. Cambridge University Press.
 - Deming WE (1943). *Statistical Adjustment of Data*. Wiley.
+- Kanko RM, Laende EK, Davis EM, Selbie WS, Deluzio KJ (2021). Concurrent assessment of gait kinematics using marker-based and markerless motion capture. *Journal of Biomechanics* 127:110665.
 - Lin LI (1989). A concordance correlation coefficient to evaluate reproducibility. *Biometrics* 45(1):255-268.
 - Linnet K (1993). Evaluation of regression procedures for methods comparison studies. *Clinical Chemistry* 39(3):424-432.
 - McGraw KO, Wong SP (1996). Forming inferences about some intraclass correlation coefficients. *Psychological Methods* 1(1):30-46.
+- Nakano N, Sakura T, Ueda K, et al. (2020). Evaluation of 3D markerless motion capture accuracy using OpenPose with multiple video cameras. *Frontiers in Sports and Active Living* 2:50.
+- Ronchi MR, Perona P (2017). Benchmarking and error diagnosis in multi-instance pose estimation. *ICCV*, 369-378.
 - Sen PK (1968). Estimates of the regression coefficient based on Kendall's tau. *Journal of the American Statistical Association* 63(324):1379-1389.
 - Theil H (1950). A rank-invariant method of linear and polynomial regression analysis. *Indagationes Mathematicae* 12:85-91.
 - Wilson EB (1927). Probable inference, the law of succession, and statistical inference. *Journal of the American Statistical Association* 22(158):209-212.
@@ -471,6 +484,10 @@ readings take about three minutes at the defaults.
 
 - The figures describe agreement with the ground truth, not with the world:
   the truth's own error is inside them, and 2D angles are not 3D joint angles.
+  Studies that validate markerless angles against motion capture (Nakano et
+  al. 2020, Kanko et al. 2021) answer the question against a better
+  reference; Ronchi and Perona (2017) break keypoint errors into jitter,
+  inversion, swap and miss, which `poseaudit` does not.
 - Every reading counts once: frames pooled from a few trials inflate ICC and
   CCC, and there is no per-trial or per-subject summary (peak angle, range of
   motion) yet.

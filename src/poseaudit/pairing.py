@@ -222,7 +222,7 @@ def _aligned_names(
     if len(set(stem_t) & set(stem_p)) <= len(set(truth) & set(predicted)):
         return truth, predicted
     odd = next(
-        (n for n in predicted if n not in truth and PurePath(n).stem in stem_t), None
+        (n for n in predicted if n not in truth and _drop_ext(n) in stem_t), None
     ) or next(iter(predicted))
     warnings.append(
         f"Image names matched only without their extensions (e.g. {odd!r}); "
@@ -235,11 +235,18 @@ def _by_stem(dataset: Dataset) -> Dataset | None:
     """None when dropping extensions would merge two images."""
     out: Dataset = {}
     for name, instances in dataset.items():
-        stem = PurePath(name).stem if PurePath(name).suffix.lower() in _IMAGE else name
+        stem = _drop_ext(name)
         if stem in out:
             return None
         out[stem] = instances
     return out
+
+
+def _drop_ext(name: str) -> str:
+    """The name without an image extension, folders kept, so cam1/a.jpg and
+    cam2/a.jpg stay apart."""
+    path = PurePath(name)
+    return str(path.with_suffix("")) if path.suffix.lower() in _IMAGE else name
 
 
 _IMAGE = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
