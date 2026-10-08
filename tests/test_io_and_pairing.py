@@ -212,6 +212,15 @@ def test_dropping_the_extension_keeps_the_folder() -> None:
     assert len(aligned.pairs) == 1
 
 
+def test_dropping_the_extension_keeps_the_name_as_given() -> None:
+    """On Windows a path object would turn cam1/0001.jpg into cam1\\0001."""
+    from poseaudit.pairing import _drop_ext
+
+    assert _drop_ext("cam1/0001.jpg") == "cam1/0001"
+    assert _drop_ext("cam1\\0001.JPG") == "cam1\\0001"
+    assert _drop_ext("155010.457_x") == "155010.457_x"
+
+
 def test_no_shared_image_name_is_reported() -> None:
     result = pair({"a.jpg": [box(0, 0, 1, 1)]}, {"b": [box(0, 0, 1, 1)]})
     assert any("No image name" in w for w in result.warnings)

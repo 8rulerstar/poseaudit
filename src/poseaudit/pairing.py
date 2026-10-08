@@ -11,7 +11,7 @@ Instances of different classes are never paired.
 """
 
 from dataclasses import dataclass, field
-from pathlib import PurePath
+from pathlib import PurePosixPath
 
 import numpy as np
 
@@ -245,8 +245,8 @@ def _by_stem(dataset: Dataset) -> Dataset | None:
 def _drop_ext(name: str) -> str:
     """The name without an image extension, folders kept, so cam1/a.jpg and
     cam2/a.jpg stay apart."""
-    path = PurePath(name)
-    return str(path.with_suffix("")) if path.suffix.lower() in _IMAGE else name
+    suffix = PurePosixPath(name).suffix  # the name is kept as given, on any OS
+    return name[: -len(suffix)] if suffix.lower() in _IMAGE else name
 
 
 _IMAGE = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
