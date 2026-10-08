@@ -1,9 +1,27 @@
 # Changelog
 
+## 0.1.4
+
+- Pairing: a warning when unmatched truth images share their last name (after
+  the last `/` or `\`, without an image extension) with unmatched predicted
+  images, as `imgs/a.jpg` and `a` do: folders differ, so they are not paired.
+  The warning for names that share nothing gives the same hint.
+- Pairing: the example in the warning about dropped extensions no longer
+  depends on the order images were listed in.
+- When nothing pairs because one side has no visible point (all labels
+  unlabelled, or every predicted point under the confidence cut), the warning
+  says so instead of pointing at image names.
+- Summary: "Only 1 reading", "No large errors" and "1 cluster" in the singular,
+  and limits print as n/a when too few readings give none.
+- README: the share of arms that COCO's label spread alone puts off by 15° or
+  more (25.9 to 39.9%) beside the headline; `from_keypoints` described as
+  giving no box; the OKS used for pairing differs from COCO's own.
+
 ## 0.1.3
 
 - Pairing: dropping an image extension keeps the folder, so `cam1/0001.jpg`
   and `cam2/0001.jpg` are no longer paired as one image.
+- On Windows, image names are kept as given when the extension is dropped.
 - README: the demo figures are described as disagreement with COCO's labels,
   not as error; a box example for `Instance`, a note that the demo data is not
   in the package, and references to markerless validation studies and Ronchi

@@ -126,12 +126,37 @@ def pair(
             f"(e.g. {tied_images[0]!r}); the pairing there is arbitrary."
         )
     _few_matched(truth, predicted, result)
+    folders = _folders_differ(
+        result.images_without_prediction, result.images_without_truth
+    )
     if truth and predicted and not set(truth) & set(predicted):
         result.warnings.append(
             "No image name appears in both truth and predictions: check that "
-            "both sides name images the same way."
+            "both sides name images the same way." + (f" {folders}" if folders else "")
         )
+    elif folders:
+        result.warnings.append(folders)
     return result
+
+
+def _folders_differ(unmatched: list[str], unused: list[str]) -> str:
+    """A note when unmatched truth images share their last name with a
+    prediction's image (`imgs/a.jpg` against `a`): only folders differ, and
+    folders are kept so that `cam1/a.jpg` and `cam2/a.jpg` stay apart."""
+    others = {_basename(n) for n in unused}
+    alike = sorted(n for n in unmatched if _basename(n) in others)
+    if not alike:
+        return ""
+    return (
+        f"{len(alike)} truth images without a prediction match a predicted image "
+        f"by their last name alone (e.g. {alike[0]!r}): folders differ, so they "
+        "were not paired; use the same names on both sides (e.g. Path(p).name)."
+    )
+
+
+def _basename(name: str) -> str:
+    """The name after its last folder, `/` or `\\`, without an image extension."""
+    return _drop_ext(name.replace("\\", "/").rsplit("/", 1)[-1])
 
 
 def _tied(candidates, k, used_t, used_p, truths, preds) -> bool:
@@ -165,6 +190,19 @@ def _few_matched(truth: Dataset, predicted: Dataset, result: Pairing) -> None:
     if not labelled or not shared:
         return  # no overlap at all has its own warning
     if not result.pairs:
+        blind = [
+            side
+            for side, data in (("truth", truth), ("predictions", predicted))
+            if not any(i.visible.any() for name in shared for i in data[name])
+        ]
+        if blind:
+            result.warnings.append(
+                "No truth instance matched a prediction: no point is visible in "
+                f"the {' or the '.join(blind)} of the images on both sides. Check the "
+                "visibility flags or, for predictions, the confidence cut "
+                "(min_confidence, --min-conf)."
+            )
+            return
         result.warnings.append(
             f"No truth instance matched a prediction, although {len(shared)} "
             "images appear on both sides: check that image ids or names refer "
@@ -222,8 +260,9 @@ def _aligned_names(
     if len(set(stem_t) & set(stem_p)) <= len(set(truth) & set(predicted)):
         return truth, predicted
     odd = next(
-        (n for n in predicted if n not in truth and _drop_ext(n) in stem_t), None
-    ) or next(iter(predicted))
+        (n for n in sorted(predicted) if n not in truth and _drop_ext(n) in stem_t),
+        None,
+    ) or min(predicted)
     warnings.append(
         f"Image names matched only without their extensions (e.g. {odd!r}); "
         "extensions dropped."
