@@ -1172,3 +1172,32 @@ def test_large_values_with_a_real_spread_are_not_flat() -> None:
     t = 1e13 + np.linspace(0, 1000, 10)
     assert ag.gain(t, t)[0] == pytest.approx(1.0)
     assert ag.ccc(t, t) == pytest.approx(1.0)
+
+
+def test_a_cluster_drawn_twice_counts_as_two_in_repeated_limits() -> None:
+    from poseaudit.confidence import clustered_bootstrap
+
+    groups = np.array(["a", "a", "b", "b", "c", "c"])
+    draws = []
+
+    def record(idx, draw):
+        draws.append((groups[idx], draw))
+        return np.zeros(1)
+
+    clustered_bootstrap(groups, record, resamples=200, seed=0, copies=True)
+    twice = next(d for g, d in draws if (g == "a").sum() == 4)
+    assert len(np.unique(twice)) == 3  # three draws, one of them "a" again
+    assert all(len(d) == len(g) for g, d in draws)
+
+
+def test_repeated_limits_interval_covers_the_estimate() -> None:
+    """Forty subjects read twice, 5 above and 5 below their mean. Merging a
+    subject's copies in a resample would understate the spread within subjects
+    and put the whole interval below the estimate."""
+    names = [f"s{k // 2}_f{k}" for k in range(80)]
+    r = audit(pairing(np.zeros(80), np.tile([5.0, -5.0], 40), names), tilt(0, 1),
+              10, cluster=lambda n: n.split("_")[0], resamples=200,
+              jitter_repeats=0)  # fmt: skip
+    assert r.repeated_limits is not None and r.repeated_upper_ci is not None
+    low, high = r.repeated_upper_ci
+    assert low - 1e-6 <= r.repeated_limits[1] <= high + 1e-6

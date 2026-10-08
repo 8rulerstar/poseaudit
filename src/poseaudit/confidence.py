@@ -22,22 +22,30 @@ def wilson(successes: int, n: int, z: float = Z95) -> tuple[float, float]:
 
 def clustered_bootstrap(
     groups: Sequence[str] | np.ndarray,
-    statistic: Callable[[np.ndarray], np.ndarray],
+    statistic: Callable[..., np.ndarray],
     resamples: int = 2000,
     level: float = 0.95,
     seed: int = 0,
+    copies: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Percentile intervals, resampling whole groups. `statistic` receives the
     indices of the readings drawn and returns one value per quantity, so every
     interval in a report comes from the same resamples. Seeded, so a report is
-    reproducible."""
+    reproducible. With `copies` it also receives, for each reading drawn, the
+    draw it came from: a group drawn twice is two groups, not one twice the
+    size."""
     labels, inverse = np.unique(np.asarray(groups), return_inverse=True)
     members = [np.flatnonzero(inverse == g) for g in range(len(labels))]
     rng = np.random.default_rng(seed)
     stats = []
     for _ in range(resamples):
         drawn = rng.integers(0, len(members), size=len(members))
-        stats.append(statistic(np.concatenate([members[g] for g in drawn])))
+        idx = np.concatenate([members[g] for g in drawn])
+        if copies:
+            draw = np.repeat(np.arange(len(drawn)), [len(members[g]) for g in drawn])
+            stats.append(statistic(idx, draw))
+        else:
+            stats.append(statistic(idx))
     tail = (1.0 - level) / 2.0 * 100.0
     with np.errstate(all="ignore"), warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)  # a band absent from a resample

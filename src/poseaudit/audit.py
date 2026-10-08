@@ -635,16 +635,15 @@ def _fill(result, bands, size_bands, noise_ratio, resamples, seed, jitter) -> No
     band_index = _band_index(level, bands)
     count = int(band_index.max()) + 1
 
-    def statistics(idx: np.ndarray) -> np.ndarray:
+    def statistics(idx: np.ndarray, draw: np.ndarray) -> np.ndarray:
         ti, pi, ei, bi = t[idx], p[idx], e[idx], band_index[idx]
         per_band = [
             ei[bi == k].mean() if (bi == k).any() else np.nan for k in range(count)
         ]
         lo, hi = ag.limits(ei)
         elo, ehi = ag.empirical_limits(ei)
-        rlo, rhi = (
-            ag.repeated_limits(ei, clusters[idx]) if repeated else (np.nan, np.nan)
-        )
+        # by draw, not by cluster: a cluster drawn twice is two subjects
+        rlo, rhi = ag.repeated_limits(ei, draw) if repeated else (np.nan, np.nan)
         deming = ag.deming(ti, pi, noise_ratio) if noise_ratio is not None else np.nan
         slope = ag.gain(ti, pi)[0]
         gap = (
@@ -663,7 +662,7 @@ def _fill(result, bands, size_bands, noise_ratio, resamples, seed, jitter) -> No
     rng = np.random.default_rng(seed + 1)
 
     lows, highs = clustered_bootstrap(
-        clusters, statistics, resamples=resamples, seed=seed
+        clusters, statistics, resamples=resamples, seed=seed, copies=True
     )
     ci = [(float(a), float(b)) for a, b in zip(lows, highs, strict=True)]
     result.bias_ci, result.lower_limit_ci, result.upper_limit_ci = ci[0], ci[1], ci[2]
