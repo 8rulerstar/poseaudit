@@ -26,9 +26,25 @@
   fewer than 20 named clusters.
 - A warning when the percentile limits rest on 40 readings or fewer.
 - With no large error, the warning says how high the rate could still be.
-- `p(squash)` is shown as `p(slope <= jitter)`: it compares the gain with the
-  jitter reference and does not by itself measure squashing. The JSON key,
-  `jitter_p`, is unchanged.
+- The default summary leads with the figures of a method comparison: bias,
+  the percentile limits and (when the tails are close to normal) the normal
+  limits, mean |error| and RMSE, the large-error rate, the slope and
+  ICC(A,1). The jitter reference and its p, the BA slope, Deming, CCC and r
+  are under `--full`. Each limits line names its JSON key.
+- In text the gain is called the slope (pred on truth, the proportional
+  bias) and the robust gain the Theil-Sen slope; `p(squash)` is
+  `p(slope <= jitter)`, which compares the slope with the jitter reference
+  and does not by itself measure squashing. JSON keys and attribute names
+  (`gain`, `robust_gain`, `jitter_p`) are unchanged.
+- The JSON also gives the percentile limits as `percentile_limits` (the same
+  as `empirical_limits`); `limits` stay the normal ones.
+- With fewer than 10 readings the percentile limits print as n/a.
+- The warning that coordinates look normalised comes before any figure, in
+  the summary and the report, and sizes are then not labelled in px.
+- Intervals and limits never print as -0.000.
+- CLI: `--plot` without matplotlib fails before the audit runs. On a console
+  that is not UTF-8 (Git Bash on Korean Windows, for one) the degree sign
+  prints as " deg".
 - `report.md` opens with the headline in words, naming a relative reading as
   such and never rounding a rare large error to 0%, and says which way an
   error points. The settings are a table at the end instead of a Python dict.
@@ -36,7 +52,8 @@
 - CLI: `--image-size` also takes `WxH`, and an error names a malformed size
   such as `1280x`; `--band-by` has a help line; `poseaudit audit --help` ends
   with examples.
-- README: the JSON gates fail on a `null` interval (in jq `null <= 3` is
+- README: recipes for a validation paper and a CI gate under the intro; the
+  JSON gates fail on a `null` interval (in jq `null <= 3` is
   true), with a Python alternative to `jq`, and a note on line continuations
   in PowerShell.
 
