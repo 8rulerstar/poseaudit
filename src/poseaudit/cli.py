@@ -469,8 +469,8 @@ def main(argv: list[str] | None = None) -> None:
     for w in caught:
         text = str(w.message).replace("min_confidence", "--min-conf")
         loader_notes.append(text)
-        print(f"poseaudit: warning: {text}", file=sys.stderr)
-    print(result.summary(full=args.full))
+        print(_console(f"poseaudit: warning: {text}", sys.stderr), file=sys.stderr)
+    print(_console(result.summary(full=args.full), sys.stdout))
     # in the JSON too, but printed once: stderr above, not again in the summary
     result.warnings = loader_notes + [
         w for w in result.warnings if w not in loader_notes
@@ -481,6 +481,22 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(f"poseaudit: could not write: {error}")
     if result.n == 0:
         sys.exit("poseaudit: nothing was read")
+
+
+def _console(text: str, stream) -> str:
+    """ " deg" for the degree sign on a stream that is not UTF-8. On Korean
+    Windows, Git Bash shows a pipe's bytes as UTF-8 while Python writes them in
+    cp949, which can encode the sign, so it comes out garbled rather than
+    failing. Reconfiguring the stream to UTF-8 would garble it instead for
+    whatever reads the pipe as cp949; " deg" reads the same either way. Other
+    text (image names) is left alone, and files are always written as UTF-8."""
+    encoding = (getattr(stream, "encoding", None) or "").lower().replace("-", "")
+    if encoding in ("utf8", "utf8sig"):
+        return text
+    text = text.replace("°", " deg")
+    if encoding:  # never fail on a character the console cannot show
+        text = text.encode(encoding, errors="replace").decode(encoding)
+    return text
 
 
 def _write(result, args) -> None:

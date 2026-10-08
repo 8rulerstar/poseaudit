@@ -1427,3 +1427,23 @@ def test_an_interval_never_prints_negative_zero() -> None:
     assert _ci((-0.0004, 0.2), ".3f") == "[0.000 to 0.200]"
     assert _ci((-0.002, 0.2), ".3f") == "[-0.002 to 0.200]"
     assert _range(-0.0, 1.0, "+.2f", "") == "+0.00 to +1.00"
+
+
+@pytest.mark.parametrize(("encoding", "sign"), [("cp949", " deg"), ("utf-8", "°")])
+def test_the_degree_sign_falls_back_on_a_console_not_in_utf8(
+    tmp_path, monkeypatch, encoding, sign
+) -> None:
+    """Git Bash on Korean Windows shows cp949 bytes for ° as garbage."""
+    import io
+    import sys
+
+    _yolo_pair(tmp_path, images=4)
+    raw = io.BytesIO()
+    out = io.TextIOWrapper(raw, encoding=encoding)
+    monkeypatch.setattr(sys, "stdout", out)
+    _cli(tmp_path, "--tilt", "0,1")
+    out.flush()
+    text = raw.getvalue().decode(encoding)
+    assert f"  >= 5{sign}" in text
+    if sign != "°":
+        assert "°" not in text and raw.getvalue().isascii()
