@@ -884,6 +884,12 @@ def _warnings(result: AuditResult, bands, named_clusters: bool) -> list[str]:
         notes.append(
             f"Only {_count(result.n, 'reading')}: every figure here is fragile."
         )
+    if 2 <= result.n <= 40:
+        notes.append(
+            f"The percentile limits rest on {result.n} readings: with 40 or fewer "
+            "the 2.5th and 97.5th percentiles fall between the two smallest and the "
+            "two largest errors, so they are little more than the extremes."
+        )
     big = round(result.big_error_rate * result.n)
     if big < 10:
         notes.append(

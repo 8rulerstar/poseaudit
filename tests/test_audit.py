@@ -1234,3 +1234,14 @@ def test_too_few_images_are_flagged_like_too_few_clusters() -> None:
     r = audit(pairing([0] * 40, [1] * 40, [f"img{i % 5}" for i in range(40)]),
               tilt(0, 1), 5, resamples=100, jitter_repeats=0)  # fmt: skip
     assert any("Only 5 images" in w for w in r.warnings)
+
+
+def test_percentile_limits_from_few_readings_are_flagged() -> None:
+    def errors(n):
+        return audit(pairing(np.zeros(n), np.linspace(-3, 3, n)), tilt(0, 1), 5,
+                     resamples=100, jitter_repeats=0).warnings  # fmt: skip
+
+    assert any("percentile limits rest on 35 readings" in w for w in errors(35))
+    # at 40 the 2.5th percentile still lies between the two smallest errors
+    assert any("percentile limits rest on 40 readings" in w for w in errors(40))
+    assert not any("percentile limits rest" in w for w in errors(41))
