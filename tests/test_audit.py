@@ -1476,3 +1476,14 @@ def test_the_normal_limits_wait_for_full_when_the_tails_are_heavy() -> None:
     r = audit(pairing(np.linspace(0, 30, 100), np.linspace(0, 30, 100) + e),
               tilt(0, 1), 5, resamples=50, jitter_repeats=0)  # fmt: skip
     assert "  normal" not in r.summary() and "  normal" in r.summary(full=True)
+
+
+def test_tiny_samples_print_no_percentile_limits() -> None:
+    r = audit(pairing(np.zeros(9), np.linspace(-3, 3, 9)), tilt(0, 1), 5,
+              resamples=50, jitter_repeats=0)  # fmt: skip
+    assert "  limits       n/a" in r.summary()
+    assert "| percentile 2.5-97.5 | n/a |" in r.to_markdown()
+    assert any("percentile limits rest on 9" in w for w in r.warnings)
+    ten = audit(pairing(np.zeros(10), np.linspace(-3, 3, 10)), tilt(0, 1), 5,
+                resamples=50, jitter_repeats=0)  # fmt: skip
+    assert "  limits       n/a" not in ten.summary()

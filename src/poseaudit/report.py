@@ -104,7 +104,7 @@ def summary(result: "AuditResult", full: bool = False) -> str:
     rest = result.warnings
     if result.n == 0:
         return "\n".join(lines + [f"  ! {w}" for w in rest])
-    elo, ehi = result.empirical_limits
+    elo, ehi = _percentile_limits(result)
     lo, hi = result.limits
     f2 = f"+.{d}f"
     lines += [
@@ -257,7 +257,21 @@ def _size_labels(bands, joint: str = "-") -> list[str]:
     ]
 
 
+MIN_PERCENTILE = 10  # below this the 2.5th and 97.5th are just the extremes
+NO_INTERVAL = (float("nan"), float("nan"))
+
+
+def _percentile_limits(result: "AuditResult") -> tuple[float, float]:
+    """The percentile limits, or NaN (printed n/a) under MIN_PERCENTILE
+    readings, where they are only the smallest and largest errors."""
+    if result.n < MIN_PERCENTILE:
+        return NO_INTERVAL
+    return result.empirical_limits
+
+
 def _limit_row(name, low, high, low_ci, high_ci, u, d=2) -> str:
+    if np.isnan(low) or np.isnan(high):
+        return f"| {name} | n/a | | n/a | |"
     return (
         f"| {name} | {_f(low, f'+.{d}f')}{u} | {_ci(low_ci, f'+.{d}f')} "
         f"| {_f(high, f'+.{d}f')}{u} | {_ci(high_ci, f'+.{d}f')} |"
@@ -369,7 +383,7 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
         )
     )
     lo, hi = result.limits
-    elo, ehi = result.empirical_limits
+    elo, ehi = _percentile_limits(result)
     below, above = result.tail_shares
     out += [
         "## Limits of agreement",
@@ -380,8 +394,11 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
             "percentile 2.5-97.5",
             elo,
             ehi,
-            result.empirical_lower_ci,
-            result.empirical_upper_ci,
+            *(
+                (result.empirical_lower_ci, result.empirical_upper_ci)
+                if result.n >= MIN_PERCENTILE
+                else (NO_INTERVAL, NO_INTERVAL)
+            ),
             u,
             d,
         ),
