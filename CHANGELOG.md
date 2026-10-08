@@ -26,7 +26,7 @@
   fewer than 20 named clusters.
 - A warning when the percentile limits rest on 40 readings or fewer.
 - With no large error, the warning says how high the rate could still be.
-- `p(squash)` is shown as `p(gain <= jitter)`: it compares the gain with the
+- `p(squash)` is shown as `p(slope <= jitter)`: it compares the gain with the
   jitter reference and does not by itself measure squashing. The JSON key,
   `jitter_p`, is unchanged.
 - `report.md` opens with the headline in words, naming a relative reading as

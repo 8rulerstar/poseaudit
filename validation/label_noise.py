@@ -140,7 +140,7 @@ def main() -> None:
         "(spreads in units of sigma*s per axis)\n"
     )
     print(
-        "| label spread | model spread | mean gap | p(gain <= jitter) <= 0.05 "
+        "| label spread | model spread | mean gap | p(slope <= jitter) <= 0.05 "
         "| Deming, ratio 1 |"
     )
     print("|---|---|---|---|---|")

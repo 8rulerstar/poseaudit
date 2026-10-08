@@ -50,11 +50,11 @@ def _ci(interval, fmt: str) -> str:
 
 
 def _p(p: float, repeats) -> str:
-    """No rebuild at or below the gain gives the smallest p the rebuilds can
+    """No rebuild at or below the slope gives the smallest p the rebuilds can
     show, 1/(repeats+1); the true p may be lower still."""
     if repeats and p <= 1 / (repeats + 1) + 1e-12:
-        return f"p(gain <= jitter) <= {1 / (repeats + 1) + 5e-4:.3f}*"
-    return f"p(gain <= jitter) {p:.3f}*"
+        return f"p(slope <= jitter) <= {1 / (repeats + 1) + 5e-4:.3f}*"
+    return f"p(slope <= jitter) {p:.3f}*"
 
 
 def _what(result: "AuditResult") -> str:
@@ -83,6 +83,12 @@ def _decision(th, u: str, d: int = 2) -> str:
     )
 
 
+def _normal_fits(result: "AuditResult") -> bool:
+    """The normal limits are worth showing beside the percentile ones: enough
+    readings, and tails close to 2.5% each (the same test as the warning)."""
+    return result.n >= 30 and max(result.tail_shares) <= 0.04
+
+
 def summary(result: "AuditResult", full: bool = False) -> str:
     u = _unit(result)
     d = _digits(result)
@@ -95,13 +101,30 @@ def summary(result: "AuditResult", full: bool = False) -> str:
         f"  not counted  {r.unlabelled} with a point unlabelled in the truth, "
         f"{r.unmatched_predictions} unmatched predictions",
     ]
+    rest = result.warnings
     if result.n == 0:
-        return "\n".join(lines + [f"  ! {w}" for w in result.warnings])
+        return "\n".join(lines + [f"  ! {w}" for w in rest])
     elo, ehi = result.empirical_limits
+    lo, hi = result.limits
+    f2 = f"+.{d}f"
+    lines += [
+        f"  bias         {_f(result.bias, f2)}{u} {_ci(result.bias_ci, f2)}, "
+        f"median {_f(result.median_error, f2)}{u}",
+        f"  limits       {_range(elo, ehi, f2, u)} "
+        "(percentile, 2.5th to 97.5th; JSON percentile_limits)",
+    ]
+    if full or _normal_fits(result):
+        lines.append(
+            f"  normal       {_range(lo, hi, f2, u)} (bias +/- 1.96 SD; JSON limits)"
+        )
+    if full and result.repeated_limits is not None:
+        rlo, rhi = result.repeated_limits
+        lines.append(f"  repeated     {_range(rlo, rhi, f2, u)} (clusters)")
     lines += [
         f"  |error|      mean {result.mean_abs_error:.{d}f}{u} "
         f"{_ci(result.mean_abs_error_ci, f'.{d}f')}, median "
         f"{result.median_abs_error:.{d}f}{u}, 95th pct {result.p95_abs_error:.{d}f}{u}",
+        f"  RMSE         {result.rmse:.{d}f}{u} {_ci(result.rmse_ci, f'.{d}f')}",
         f"  >= {result.big_error:g}{u}".ljust(15)
         + f"{result.big_error_rate:.1%} {_ci(result.big_error_rate_ci, '.1%')}",
     ]
@@ -116,17 +139,25 @@ def summary(result: "AuditResult", full: bool = False) -> str:
             )
         )
     lines += [
-        f"  bias         {result.bias:+.{d}f}{u} {_ci(result.bias_ci, f'+.{d}f')}, "
-        f"median {result.median_error:+.{d}f}{u}",
-        f"  limits       {_range(elo, ehi, f'+.{d}f', u)} "
-        "(2.5th to 97.5th percentile of errors)",
-        f"  gain         {result.gain:.3f} {_ci(result.gain_ci, '.3f')}; robust "
-        f"{result.robust_gain:.3f}",
+        f"  slope        {_f(result.gain, '.3f')} {_ci(result.gain_ci, '.3f')} "
+        f"(pred on truth, 1 is ideal); Theil-Sen {_f(result.robust_gain, '.3f')}",
+        f"  ICC(A,1)     {_f(result.icc, '.3f')} {_ci(result.icc_ci, '.3f')}",
     ]
+    if full:
+        lines += _full(result)
+    lines += [_decision(th, u, d) for th in result.thresholds]
+    lines += [f"  ! {w}" for w in rest]
+    return "\n".join(lines)
+
+
+def _full(result: "AuditResult") -> list[str]:
+    """The slope against the jitter reference and the other agreement
+    statistics: `summary(full=True)` and `--full`."""
+    lines = []
     if result.jitter_gain is not None:
         lines.append(
             f"  vs jitter    {result.jitter_gain:.3f} from keypoint jitter alone; gap "
-            f"{result.gain_gap:+.3f} {_ci(result.gain_gap_ci, '+.3f')}, "
+            f"{_f(result.gain_gap, '+.3f')} {_ci(result.gain_gap_ci, '+.3f')}, "
             + (
                 _p(result.jitter_p, result.settings.get("jitter_repeats"))
                 if result.jitter_p is not None
@@ -135,7 +166,7 @@ def summary(result: "AuditResult", full: bool = False) -> str:
         )
         if result.jitter_p is not None:
             lines.append(
-                "               * swaps and gross failures lower the gain too, "
+                "               * swaps and gross failures lower the slope too, "
                 "and noisy"
             )
             lines.append(
@@ -146,47 +177,38 @@ def summary(result: "AuditResult", full: bool = False) -> str:
             "  vs jitter    not computed: a relative reading also moves with the "
             "other parts in the frame"
         )
-    if full:
-        lo, hi = result.limits
+    lines.append(
+        f"  BA slope     {_f(result.ba_slope, '+.3f')} "
+        f"{_ci(result.ba_slope_ci, '+.3f')}"
+    )
+    if result.deming is not None:
         lines.append(
-            f"  normal       {_range(lo, hi, f'+.{d}f', u)}, "
-            f"RMSE {result.rmse:.{d}f}{u}"
+            f"  Deming       {result.deming:.3f} {_ci(result.deming_ci, '.3f')} "
+            f"(noise ratio {result.settings.get('noise_ratio')})"
         )
-        if result.repeated_limits is not None:
-            rlo, rhi = result.repeated_limits
-            lines.append(f"  repeated     {_range(rlo, rhi, f'+.{d}f', u)} (clusters)")
-        lines.append(
-            f"  BA slope     {result.ba_slope:+.3f} {_ci(result.ba_slope_ci, '+.3f')}"
-        )
-        if result.deming is not None:
-            lines.append(
-                f"  Deming       {result.deming:.3f} {_ci(result.deming_ci, '.3f')} "
-                f"(noise ratio {result.settings.get('noise_ratio')})"
-            )
-        lines.append(
-            f"  agreement    ICC(A,1) {result.icc:.3f} {_ci(result.icc_ci, '.3f')}, "
-            f"CCC {result.ccc:.3f} {_ci(result.ccc_ci, '.3f')}, r {result.pearson:.3f}"
-        )
-    lines += [_decision(th, u, d) for th in result.thresholds]
-    lines += [f"  ! {w}" for w in result.warnings]
-    return "\n".join(lines)
+    lines.append(
+        f"  agreement    CCC {_f(result.ccc, '.3f')} {_ci(result.ccc_ci, '.3f')}, "
+        f"r {_f(result.pearson, '.3f')}"
+    )
+    return lines
 
 
 GUIDE = """\
 How to read this:
 
-- **gain**: the least-squares slope of predicted on true values; 1 is ideal.
-  It is not the model's tendency alone:
+- **slope** (pred on truth): the least-squares slope of predicted on true
+  values, the proportional bias; 1 is ideal (`gain` in the JSON). It is not
+  the model's tendency alone:
   - keypoint jitter bends it, since near the ends of a range an error can only
     go one way.
-  - **vs jitter** is the gain on predictions rebuilt from the truth plus this
+  - **vs jitter** is the slope on predictions rebuilt from the truth plus this
     model's displacements from the labels: each object takes all its points'
     shifts from one object with a similar true value (possibly itself), minus
     the shift that such a group shares, carried in each segment's own frame
     and mirrored for angles that bend the other way.
-  - **gap** is the gain minus that reference; its interval averages a few
-    rebuilds in every resample. **p(gain <= jitter)** is (1 + rebuilds at or
-    below this gain) / (1 + rebuilds), one-sided. It assumes independent
+  - **gap** is the slope minus that reference; its interval averages a few
+    rebuilds in every resample. **p(slope <= jitter)** is (1 + rebuilds at or
+    below this slope) / (1 + rebuilds), one-sided. It assumes independent
     objects, so with named clusters it is left out.
   - A gap below 0 with a small p means the model reads differences as smaller
     than its displacements from the labels alone would make them. Possible
@@ -196,13 +218,13 @@ How to read this:
     widen the gap.
     With labels nearly as noisy as the model the p is often small for an
     honest model; read the size of the gap then, not the p.
-  - noise in the truth pulls the gain toward 0; with a known ratio of noise
+  - noise in the truth pulls the slope toward 0; with a known ratio of noise
     variances, read the Deming slope, which removes that but not the jitter
     at the ends.
   - a few gross failures (a point on the wrong part) can move it a lot; the
-    **robust gain** (Theil-Sen) barely moves with them. Noise that grows with
-    the value or with smaller objects also separates the two, so their
-    difference does not by itself measure gross failures.
+    **Theil-Sen** slope (`robust_gain` in the JSON) barely moves with them.
+    Noise that grows with the value or with smaller objects also separates
+    the two, so their difference does not by itself measure gross failures.
 - **bias by band**: sorting by the truth puts the truth's extremes in the end
   bands, where jitter and regression to the mean read as bias; see the
   README's "Which way you sort decides the story".
@@ -393,7 +415,7 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
         "",
         "## Error by size of the measured part",
         "",
-        "| size | n | mean abs error | large errors | gain |",
+        "| size | n | mean abs error | large errors | slope |",
         "|---|---|---|---|---|",
     ]
     spans = _size_labels(result.size_bands, " to ")

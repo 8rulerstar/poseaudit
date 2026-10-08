@@ -603,7 +603,7 @@ def test_relative_readings_say_why_there_is_no_jitter_reference() -> None:
         big_error=5,
         relative_to="median",
     )
-    assert "not computed" in r.summary()
+    assert "not computed" in r.summary(full=True)
 
 
 def straight_noisier_arms(seed: int, n: int = 300) -> Pairing:
@@ -701,7 +701,7 @@ def test_named_clusters_give_no_jitter_p() -> None:
         resamples=200,
     )
     assert r.jitter_p is None and r.gain_gap_ci is not None
-    assert "no p with named clusters" in r.summary()
+    assert "no p with named clusters" in r.summary(full=True)
 
 
 def test_a_misspelt_side_is_refused() -> None:
@@ -1245,8 +1245,8 @@ def test_the_summary_qualifies_p_and_says_what_it_compares() -> None:
     truths = np.random.default_rng(3).uniform(40, 178, 120)
     r = audit(arms(truths, 0.8 * truths + 25, jitter=2, seed=4), angle(0, 1, 2), 15,
               resamples=100)  # fmt: skip
-    text = r.summary()
-    assert "p(gain <= jitter)" in text and "labels make p small" in text
+    text = r.summary(full=True)
+    assert "p(slope <= jitter)" in text and "labels make p small" in text
     assert "p(squash)" not in text + r.to_markdown()
     assert "jitter_p" in r.to_dict()  # the JSON key stays
 
@@ -1455,3 +1455,24 @@ def test_the_json_names_the_percentile_limits() -> None:
     d = r.to_dict()
     assert d["percentile_limits"] == tuple(r.empirical_limits)
     assert d["limits"] == tuple(r.limits) and "empirical_limits" in d
+
+
+def test_the_summary_leads_with_method_comparison_figures() -> None:
+    truths = np.random.default_rng(3).uniform(40, 178, 120)
+    r = audit(arms(truths, 0.8 * truths + 25, jitter=2, seed=4), angle(0, 1, 2), 15,
+              resamples=100)  # fmt: skip
+    labels = [line[:15].strip() for line in r.summary().splitlines()[3:]]
+    assert labels[:8] == ["bias", "limits", "normal", "|error|", "RMSE", ">= 15°",
+                          "slope", "ICC(A,1)"]  # fmt: skip
+    text = r.summary()
+    assert "vs jitter" not in text and "gain" not in text
+    assert "JSON percentile_limits" in text and "JSON limits" in text
+    assert "(pred on truth" in text and "Theil-Sen" in text
+    assert "vs jitter" in r.summary(full=True)
+
+
+def test_the_normal_limits_wait_for_full_when_the_tails_are_heavy() -> None:
+    e = np.r_[np.zeros(90), np.full(10, 40.0)]
+    r = audit(pairing(np.linspace(0, 30, 100), np.linspace(0, 30, 100) + e),
+              tilt(0, 1), 5, resamples=50, jitter_repeats=0)  # fmt: skip
+    assert "  normal" not in r.summary() and "  normal" in r.summary(full=True)

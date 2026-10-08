@@ -1,7 +1,7 @@
 """Calibration and power of the jitter reference, by simulation.
 
 Synthetic elbows with known behaviour go through `poseaudit.audit`; for each
-case the script reports how often the one-sided p(gain <= jitter) is 0.05 or less and
+case the script reports how often the one-sided p(slope <= jitter) is 0.05 or less and
 how often the gap's interval lies wholly below 0. A model with no tendency
 should land near 5% and 2.5%; a squashing one near 100%.
 
@@ -113,7 +113,7 @@ def main(runs: int, resamples: int, repeats: int, cases: list[str]) -> None:
     print(
         f"{runs} runs per case; {resamples} resamples and {repeats} rebuilds per run\n"
     )
-    print("| case | p(gain <= jitter) <= 0.05 | interval wholly below 0 | setup |")
+    print("| case | p(slope <= jitter) <= 0.05 | interval wholly below 0 | setup |")
     print("|---|---|---|---|")
     for case, (_n, description) in CASES.items():
         rows = [o for o in out if o[0] == case]

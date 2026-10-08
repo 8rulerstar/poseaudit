@@ -44,10 +44,14 @@ the repository or download that folder):
 $ poseaudit audit --format coco --gt gt_200.json --pred pred_yolo11n.json \
     --angle 5,7,9 --big-error 15 --size-bands 30,60
 angle (5, 7, 9): read 322 of 380 labelled instances
+  bias         +2.27° [-1.21 to +6.15], median +0.52°
+  limits       -50.90° to +79.99° (percentile, 2.5th to 97.5th; JSON percentile_limits)
   |error|      mean 19.48° [17.05 to 22.13], median 12.59°, 95th pct 68.99°
+  RMSE         29.57° [25.30 to 33.94]
   >= 15°       43.2% [37.9% to 48.6%]
   by size      0-30 px 58% (n 134), 30-60 px 37% (n 112), 60+ px 26% (n 76)
-  bias         +2.27° [-1.21 to +6.15], median +0.52°
+  slope        0.731 [0.639 to 0.814] (pred on truth, 1 is ideal); Theil-Sen 0.786
+  ICC(A,1)     0.762 [0.677 to 0.827]
 ```
 
 <details>
@@ -59,15 +63,14 @@ $ poseaudit audit --format coco --gt gt_200.json --pred pred_yolo11n.json \
 angle (5, 7, 9): read 322 of 380 labelled instances
   not read     no matching prediction 35, prediction lacked a point 23, unmeasurable 0
   not counted  206 with a point unlabelled in the truth, 79 unmatched predictions
+  bias         +2.27° [-1.21 to +6.15], median +0.52°
+  limits       -50.90° to +79.99° (percentile, 2.5th to 97.5th; JSON percentile_limits)
   |error|      mean 19.48° [17.05 to 22.13], median 12.59°, 95th pct 68.99°
+  RMSE         29.57° [25.30 to 33.94]
   >= 15°       43.2% [37.9% to 48.6%]
   by size      0-30 px 58% (n 134), 30-60 px 37% (n 112), 60+ px 26% (n 76)
-  bias         +2.27° [-1.21 to +6.15], median +0.52°
-  limits       -50.90° to +79.99° (2.5th to 97.5th percentile of errors)
-  gain         0.731 [0.639 to 0.814]; robust 0.786
-  vs jitter    0.871 from keypoint jitter alone; gap -0.140 [-0.199 to -0.076], p(gain <= jitter) <= 0.002*
-               * swaps and gross failures lower the gain too, and noisy
-                 labels make p small for an honest model: read the gap
+  slope        0.731 [0.639 to 0.814] (pred on truth, 1 is ideal); Theil-Sen 0.786
+  ICC(A,1)     0.762 [0.677 to 0.827]
   ! 2.5% of errors fall below the normal limits and 4.3% above them, against 2.5% each for a normal error: use the percentile limits.
 ```
 
@@ -183,7 +186,7 @@ as much as for the model, and an arm pointing toward the camera looks short
 and is hard to read even on a large person. Small people in COCO are also
 more often occluded, blurred and loosely labelled.
 
-| arm segment | n | mean abs error | 15° or more apart | gain (no jitter reference per band) |
+| arm segment | n | mean abs error | 15° or more apart | slope (no jitter reference per band) |
 |---|---|---|---|---|
 | 0 to 30 px | 134 | 25.55° | 58.2% [49.7% to 66.2%] | 0.526 |
 | 30 to 60 px | 112 | 16.57° | 36.6% [28.3% to 45.8%] | 0.791 |
@@ -257,22 +260,23 @@ it says. Read the gap's interval, which resamples whole groups.
 
 ## Does the model squash large angles?
 
-The **gain** is the least-squares slope of the predicted angle on the true one:
-0.73 means that, on average over these readings, a 10° difference comes out as
-about 7°. Keypoint jitter alone pulls a gain below 1 too: a straight arm can
+The **slope** (pred on truth, the proportional bias; earlier versions called
+it the gain, still its name in the JSON) is the least-squares slope of the
+predicted angle on the true one: 0.73 means that, on average over these readings, a 10° difference comes out as
+about 7°. Keypoint jitter alone pulls a slope below 1 too: a straight arm can
 only be read as more bent, a folded one only as more open. The **jitter
-reference** (`vs jitter`) is the gain of predictions rebuilt from the truth
+reference** (`vs jitter`, shown with `--full`) is the slope of predictions rebuilt from the truth
 plus this model's own point displacements ([how](#the-jitter-reference)):
-0.87 here. The model's gain is 0.140 lower (interval 0.076 to 0.199, paired
+0.87 here. The model's slope is 0.140 lower (interval 0.076 to 0.199, paired
 within resamples). With the default seed none of the 500 rebuilds comes out
-as low as the model's (`p(gain <= jitter) <= 0.002`); with some other seeds one does
+as low as the model's (`p(slope <= jitter) <= 0.002`); with some other seeds one does
 (0.004).
 The model reads angle differences as smaller than its own scatter explains.
 What that is, the check cannot say:
 
 - **Gross failures and swaps.** Gross failures tied to the true angle (a
   straight arm read as folded) and left and right swapped on one side lower
-  the gain just as squashing does; failures in random directions are part of
+  the slope just as squashing does; failures in random directions are part of
   the rebuilds and do not widen the gap. Leaving out the 31 readings off by
   45° or more leaves a gap of -0.068 [-0.109 to -0.028] (about half the gap),
   and leaving out the 61 off by 30° or more, -0.038 [-0.073 to -0.003]. Those
@@ -288,7 +292,7 @@ What that is, the check cannot say:
   ([`validation/label_noise.py`](https://github.com/8rulerstar/poseaudit/blob/main/validation/label_noise.py), with independent
   normal noise on each point). Under that model label noise does not explain
   this gap, but it does trip the p: those honest models got
-  `p(gain <= jitter) <= 0.05` in 7 to 23% of 30 runs each. With noisy labels, read
+  `p(slope <= jitter) <= 0.05` in 7 to 23% of 30 runs each. With noisy labels, read
   the size of the gap, not the p.
 - **Squashing** is what remains, and it is not separated from the two above.
   The slopes that suit equal noise, the Bland-Altman slope (-0.049 [-0.119 to
@@ -306,14 +310,14 @@ What that is, the check cannot say:
   whether the labels are clean or as noisy as the model, with independent
   normal noise and no gross failures
   ([`validation/label_noise.py`](https://github.com/8rulerstar/poseaudit/blob/main/validation/label_noise.py)): there, jitter
-  at the ends of the range does not drag it down the way it drags the gain.
+  at the ends of the range does not drag it down the way it drags the least-squares slope.
 
 For this demo, then: a real gap, about half of it in the largest errors.
 Whether the rest is squashing of a few percent or nothing, this data cannot
 tell.
 
-A few gross failures move a least-squares slope a lot. The **robust gain**, a
-Theil-Sen slope that they barely move, is 0.79 here against the least-squares
+A few gross failures move a least-squares slope a lot. The **Theil-Sen
+slope**, which they barely move, is 0.79 here against the least-squares
 0.73. Noise that grows with the angle, or on smaller arms, also separates the
 two, so their difference alone does not say how much comes from gross
 failures, and a gross failure can also be a label on the wrong limb.
@@ -444,9 +448,9 @@ angle) and set the reference too low.
 
 | figure | definition |
 |---|---|
-| gain | least-squares slope of predicted on truth |
-| robust gain | Theil-Sen slope: median of the slopes between pairs of readings |
-| vs jitter | median gain over 500 rebuilds (see [The jitter reference](#the-jitter-reference)); the gap's interval averages 10 rebuilds per resample; p(gain <= jitter) = (1 + rebuilds with gain at or below the model's) / 501 |
+| slope | least-squares slope of predicted on truth (`gain` in the JSON) |
+| Theil-Sen | Theil-Sen slope (`robust_gain` in the JSON): median of the slopes between pairs of readings |
+| vs jitter | median slope over 500 rebuilds (see [The jitter reference](#the-jitter-reference)); the gap's interval averages 10 rebuilds per resample; p(slope <= jitter) = (1 + rebuilds with a slope at or below the model's) / 501 |
 | BA slope | slope of the error on the mean of both readings (Bland and Altman 1999) |
 | Deming | slope of predicted on truth with a known ratio of noise variances (Deming 1943; Linnet 1993); the ratio is prediction over label |
 | limits | 2.5th and 97.5th percentiles of the error; normal limits are bias ± 1.96 SD (Bland and Altman 1986) |
@@ -455,7 +459,7 @@ angle) and set the reference too low.
 | CCC | Lin's concordance correlation (Lin 1989) |
 | intervals | percentile bootstrap over clusters (Davison and Hinkley 1997); Wilson score intervals for rates without named clusters (Wilson 1927) |
 
-The robust gain uses every pair of readings up to about 1,000 readings and
+The Theil-Sen slope uses every pair of readings up to about 1,000 readings and
 500,000 random pairs above that.
 
 ### References

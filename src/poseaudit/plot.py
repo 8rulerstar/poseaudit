@@ -39,7 +39,7 @@ def plot(result: "AuditResult", path: str) -> None:
         span,
         result.gain * span + result.offset,
         lw=1.5,
-        label=f"gain {result.gain:.2f} {tuple(round(v, 2) for v in result.gain_ci)}",
+        label=f"slope {result.gain:.2f} {tuple(round(v, 2) for v in result.gain_ci)}",
     )
     left.set(xlabel=f"true {name}{unit}", ylabel=f"predicted {name}{unit}")
     left.legend(loc="upper left", fontsize=8)
