@@ -1487,3 +1487,17 @@ def test_tiny_samples_print_no_percentile_limits() -> None:
     ten = audit(pairing(np.zeros(10), np.linspace(-3, 3, 10)), tilt(0, 1), 5,
                 resamples=50, jitter_repeats=0)  # fmt: skip
     assert "  limits       n/a" not in ten.summary()
+
+
+def test_a_normalised_warning_comes_before_any_figure() -> None:
+    r = landmarks(np.ones(2), np.ones(2))
+    lines = r.summary().splitlines()
+    assert lines[1].startswith("  ! Every visible coordinate lies within 0 to 1")
+    assert sum("within 0 to 1" in x for x in lines) == 1
+    assert " px" not in r.summary()
+    text = r.to_markdown()
+    assert text.split("\n")[2].startswith("**Every visible coordinate")
+    sizes = text.split("## Error by size")[1].split("\n## ")[0]
+    assert " px" not in sizes
+    pixels = landmarks(FRAME, FRAME)
+    assert " px" in pixels.summary() or len(pixels.size_bands) < 2

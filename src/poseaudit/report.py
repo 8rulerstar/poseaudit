@@ -83,6 +83,20 @@ def _decision(th, u: str, d: int = 2) -> str:
     )
 
 
+NORMALISED = "Every visible coordinate lies within 0 to 1"
+
+
+def _first(result: "AuditResult") -> list[str]:
+    """Warnings to read before any figure: with normalised coordinates every
+    figure is in the wrong units."""
+    return [w for w in result.warnings if w.startswith(NORMALISED)]
+
+
+def _size_unit(result: "AuditResult") -> str:
+    """Sizes are in pixels, unless the coordinates look normalised."""
+    return "" if _first(result) else " px"
+
+
 def _normal_fits(result: "AuditResult") -> bool:
     """The normal limits are worth showing beside the percentile ones: enough
     readings, and tails close to 2.5% each (the same test as the warning)."""
@@ -93,15 +107,17 @@ def summary(result: "AuditResult", full: bool = False) -> str:
     u = _unit(result)
     d = _digits(result)
     r = result.not_read
+    first = _first(result)
     lines = [
         f"{_what(result)}: read {result.n} of {result.measurable} labelled instances",
+        *(f"  ! {w}" for w in first),
         f"  not read     no matching prediction {r.missed}, prediction lacked a "
         f"point {r.no_predicted_point}, unmeasurable {r.unmeasurable}"
         + (f", too few in frame {r.too_few_in_frame}" if r.too_few_in_frame else ""),
         f"  not counted  {r.unlabelled} with a point unlabelled in the truth, "
         f"{r.unmatched_predictions} unmatched predictions",
     ]
-    rest = result.warnings
+    rest = [w for w in result.warnings if w not in first]
     if result.n == 0:
         return "\n".join(lines + [f"  ! {w}" for w in rest])
     elo, ehi = _percentile_limits(result)
@@ -134,7 +150,9 @@ def summary(result: "AuditResult", full: bool = False) -> str:
             + ", ".join(
                 f"{label} {b.big_error_rate:.0%} (n {b.n})"
                 for label, b in zip(
-                    _size_labels(result.size_bands), result.size_bands, strict=True
+                    _size_labels(result.size_bands, unit=_size_unit(result)),
+                    result.size_bands,
+                    strict=True,
                 )
             )
         )
@@ -242,7 +260,7 @@ How to read this:
 """
 
 
-def _size_labels(bands, joint: str = "-") -> list[str]:
+def _size_labels(bands, joint: str = "-", unit: str = " px") -> list[str]:
     """Band edges in whole pixels, or with as many decimals as keep each band's
     two edges apart: the same number for every band."""
     spans = [(b.low, b.high) for b in bands if np.isfinite(b.high) and b.low != b.high]
@@ -250,9 +268,9 @@ def _size_labels(bands, joint: str = "-") -> list[str]:
         (k for k in (0, 1) if all(f"{a:.{k}f}" != f"{b:.{k}f}" for a, b in spans)), 2
     )
     return [
-        f"{b.low:.{digits}f}{joint}{b.high:.{digits}f} px"
+        f"{b.low:.{digits}f}{joint}{b.high:.{digits}f}{unit}"
         if np.isfinite(b.high)
-        else f"{b.low:.{digits}f}+ px"
+        else f"{b.low:.{digits}f}+{unit}"
         for b in bands
     ]
 
@@ -360,6 +378,7 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
     u = _unit(result)
     d = _digits(result)
     out = [f"# poseaudit {__version__}: {_what(result)}", ""]
+    out += [f"**{w}**\n" for w in _first(result)]
     if result.n:
         out += [_lead(result), ""]
     out += [
@@ -435,7 +454,7 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
         "| size | n | mean abs error | large errors | slope |",
         "|---|---|---|---|---|",
     ]
-    spans = _size_labels(result.size_bands, " to ")
+    spans = _size_labels(result.size_bands, " to ", _size_unit(result))
     for span, sb in zip(spans, result.size_bands, strict=True):
         out.append(
             f"| {span} | {sb.n} | {sb.mean_abs_error:.{d}f}{u} | "
@@ -482,9 +501,11 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
         "| image | instance | size | truth | predicted | error |",
         "|---|---|---|---|---|---|",
     ]
+    px = _size_unit(result)
+    sd = 0 if px else 3  # fractions of the image would all round to 0
     for r in result.worst(worst):
         out.append(
-            f"| {r.image} | {r.truth_index} | {r.size:.0f} px | {r.truth:.{d}f}{u} "
+            f"| {r.image} | {r.truth_index} | {r.size:.{sd}f}{px} | {r.truth:.{d}f}{u} "
             f"| {r.predicted:.{d}f}{u} | {r.error:+.{d}f}{u} |"
         )
     out += ["", *_settings(result)]
