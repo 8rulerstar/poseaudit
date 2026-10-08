@@ -1405,3 +1405,16 @@ def test_the_readme_gate_fails_on_a_null_interval(tmp_path, monkeypatch) -> None
     monkeypatch.chdir(tmp_path)
     with pytest.raises(SystemExit, match="gate failed"):
         exec(gate, {})
+
+
+def test_a_plot_without_matplotlib_fails_before_the_audit(tmp_path, monkeypatch):
+    import sys
+
+    import poseaudit.cli as cli
+
+    _yolo_pair(tmp_path)
+    monkeypatch.setitem(sys.modules, "matplotlib.figure", None)
+    monkeypatch.setattr(cli, "audit", lambda *a, **k: pytest.fail("audit ran"))
+    with pytest.raises(SystemExit) as stop:
+        _cli(tmp_path, "--tilt", "0,1", "--plot", str(tmp_path / "p.png"))
+    assert "plotting needs matplotlib" in str(stop.value)

@@ -8,15 +8,19 @@ if TYPE_CHECKING:
     from poseaudit.audit import AuditResult
 
 
-def plot(result: "AuditResult", path: str) -> None:
+def needs_matplotlib() -> None:
     try:
-        from matplotlib.figure import (
-            Figure,
-        )  # no pyplot: leaves the user's backend alone
+        import matplotlib.figure  # noqa: F401
     except ImportError as error:
         raise ImportError(
             "plotting needs matplotlib: pip install poseaudit[plot]"
         ) from error
+
+
+def plot(result: "AuditResult", path: str) -> None:
+    needs_matplotlib()
+    from matplotlib.figure import Figure  # no pyplot: leaves the user's backend alone
+
     if result.n == 0:
         raise ValueError("no readings to plot")
 

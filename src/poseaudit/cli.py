@@ -517,6 +517,10 @@ def _run(args):
             "two outputs name the same file; one would overwrite the other"
         )
     _check_values(args)
+    if args.plot:  # before the audit, which can take minutes
+        from poseaudit.plot import needs_matplotlib
+
+        needs_matplotlib()
     if (args.side or args.pred_threshold) and not args.threshold:
         raise UsageError("--side and --pred-threshold need --threshold")
     measure = _measure(args)
