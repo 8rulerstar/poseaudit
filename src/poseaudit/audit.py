@@ -891,10 +891,22 @@ def _warnings(result: AuditResult, bands, named_clusters: bool) -> list[str]:
             "two largest errors, so they are little more than the extremes."
         )
     big = round(result.big_error_rate * result.n)
-    if big < 10:
+    if big == 0:
+        from poseaudit.report import _amount
+
+        high = result.big_error_rate_ci[1]
         notes.append(
-            (f"Only {_count(big, 'large error')}" if big else "No large errors")
-            + ": judge the rate by its interval."
+            f"No large errors ({_amount(result.big_error, result.measure.unit)} "
+            "or more)"
+            + (
+                f"; the rate could still be up to {high:.1%}."
+                if np.isfinite(high)
+                else "."
+            )
+        )
+    elif big < 10:
+        notes.append(
+            f"Only {_count(big, 'large error')}: judge the rate by its interval."
         )
     kind = "cluster" if named_clusters else "image"
     if result.clusters < 2:

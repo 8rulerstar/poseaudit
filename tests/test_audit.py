@@ -1251,7 +1251,6 @@ def test_the_summary_qualifies_p_and_says_what_it_compares() -> None:
     assert "jitter_p" in r.to_dict()  # the JSON key stays
 
 
-
 def test_the_report_opens_in_words_and_ends_with_a_settings_table() -> None:
     r = audit(pairing([0, 5, 10, 20], [1, 4, 18, 21]), tilt(0, 1), 5,
               resamples=60, jitter_repeats=0, settings={"note": "a|b"})  # fmt: skip
@@ -1263,7 +1262,6 @@ def test_the_report_opens_in_words_and_ends_with_a_settings_table() -> None:
     assert "| seed | 0 |" in settings and "| thresholds | none |" in settings
     assert r"| note | a\|b |" in settings  # escaped, or the row splits
     assert "{'" not in text  # no Python dict
-
 
 
 def lead(result) -> str:
@@ -1309,3 +1307,17 @@ def test_the_lead_never_rounds_a_rare_error_away() -> None:
 def test_a_report_with_nothing_read_still_ends_with_a_newline() -> None:
     r = audit(Pairing(missed=[("a", leaning(0))]), tilt(0, 1), 5)
     assert r.n == 0 and r.to_markdown().endswith("|\n")
+
+
+def test_no_large_error_says_how_high_the_rate_could_still_be() -> None:
+    r = audit(pairing([0] * 40, [1] * 40), tilt(0, 1), big_error=5)
+    high = r.big_error_rate_ci[1]
+    note = (
+        f"No large errors (5 degrees or more); the rate could still be up to "
+        f"{high:.1%}."
+    )
+    assert note in r.warnings
+    one = audit(pairing([0] * 40, [0.5] * 40), tilt(0, 1), big_error=1)
+    assert any(
+        w.startswith("No large errors (1 degree or more);") for w in one.warnings
+    )
