@@ -7,6 +7,7 @@ import unicodedata
 import warnings
 from collections.abc import Callable
 from pathlib import Path
+from typing import NoReturn
 
 import numpy as np
 
@@ -242,13 +243,54 @@ def _check_values(args) -> None:
         raise UsageError("--keypoints must be 1 or more")
 
 
+EXAMPLES = """\
+examples:
+  left elbow angle (COCO keypoints 5, 7, 9; indices count from 0), COCO
+  annotations against COCO results, with a report:
+    poseaudit audit --format coco --gt gt.json --pred res.json --angle 5,7,9 --big-error 15 --report report.md
+
+  trunk tilt (shoulder 5 to hip 11) from YOLO label folders, each image's size
+  read from the images:
+    poseaudit audit --format yolo --gt labels --pred preds --keypoints 17 --images imgs --tilt 5,11 --big-error 5
+
+  frames of one video resampled together (image names such as clip3_f0041):
+    poseaudit audit ... --cluster "^(clip\\d+)_"
+"""  # noqa: E501
+
+
+SIZE_FORMS = "--image-size takes W H or WxH"
+
+
+class _ImageSize(argparse.Action):
+    """W H as two words, or WxH as one. The audit parser has no positional
+    arguments, so the open count swallows nothing a correct line needs; a third
+    word is named in the error."""
+
+    def __call__(self, parser, namespace, values, option_string=None) -> None:
+        words = list(values) if len(values) > 1 else re.split(r"[xX]", values[0])
+        if len(words) != 2 or not all(re.fullmatch(r"\d+", w) for w in words):
+            parser.error(f"{SIZE_FORMS}, got {' '.join(values)!r}")
+        setattr(namespace, self.dest, [int(w) for w in words])
+
+
+class _Parser(argparse.ArgumentParser):
+    def error(self, message: str) -> NoReturn:
+        # before Python 3.13 argparse reads a word such as -1x5 as an option, so
+        # it never reaches _ImageSize and the size is reported as missing
+        if message.startswith("argument --image-size") and "expected" in message:
+            message += f"; {SIZE_FORMS}"
+        super().error(message)
+
+
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="poseaudit")
+    parser = _Parser(prog="poseaudit")
     parser.add_argument("--version", action="version", version=__version__)
     sub = parser.add_subparsers(dest="command", required=True)
     run = sub.add_parser(
         "audit",
         help="how far one measure read off predicted keypoints is from the truth",
+        epilog=EXAMPLES,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     data = run.add_argument_group("data")
     data.add_argument("--gt", required=True, help="YOLO label folder or COCO json")
@@ -264,10 +306,10 @@ def _parser() -> argparse.ArgumentParser:
     )
     data.add_argument(
         "--image-size",
-        nargs=2,
-        type=int,
+        nargs="+",
+        action=_ImageSize,
         metavar=("W", "H"),
-        help="image width then height in pixels (YOLO)",
+        help="image width then height in pixels, as W H or WxH (YOLO)",
     )
     data.add_argument("--images", help="image folder, to read each YOLO image's size")
     data.add_argument("--keypoints", type=int, help="keypoints per instance (YOLO)")
@@ -335,7 +377,12 @@ def _parser() -> argparse.ArgumentParser:
         help="a count, or comma-separated edges such as -90,-7,0,7,90",
     )
     how.add_argument(
-        "--band-by", choices=["truth", "mean", "predicted"], default="truth"
+        "--band-by",
+        choices=["truth", "mean", "predicted"],
+        default="truth",
+        help="what to sort readings by for the bias bands: the truth (default) "
+        "when the labels are much less noisy than the model, the mean of both when "
+        "they are about equally noisy",
     )
     how.add_argument(
         "--cluster",

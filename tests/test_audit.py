@@ -1335,3 +1335,55 @@ def test_size_band_labels_share_one_number_of_decimals() -> None:
     assert "0.0-10.2 px" in r.summary() and "10.4+ px" in r.summary()
     rows = r.to_markdown().split("## Error by size")[1].split("\n## ")[0]
     assert "| 0.0 to 10.2 px |" in rows and "| 10.4+ px |" in rows
+
+
+@pytest.mark.parametrize(
+    "size",
+    [
+        ["--image-size", "200x100"],
+        ["--image-size=200X100"],
+        ["--image-siz=200x100"],  # abbreviations argparse accepts
+        ["--image-si", "200x100"],
+        ["--image-size", "200", "100"],
+    ],
+)
+def test_an_image_size_may_be_written_w_x_h(tmp_path, capsys, size) -> None:
+    _yolo_pair(tmp_path)
+    main(["audit", "--format", "yolo", "--gt", str(tmp_path / "gt"),
+          "--pred", str(tmp_path / "pred"), *size, "--keypoints", "2",
+          "--tilt", "0,1", "--big-error", "5",
+          "--json", str(tmp_path / "r.json")])  # fmt: skip
+    assert "read 1 of 1" in capsys.readouterr().out
+    data = json.loads((tmp_path / "r.json").read_text())
+    assert data["settings"]["image_size"] == [200, 100]
+
+
+@pytest.mark.parametrize(
+    ("size", "shown"),
+    [
+        (["--image-size", "1280x"], "got '1280x'"),
+        (["--image-size", "x720"], "got 'x720'"),
+        (["--image-size", "640x640x3"], "got '640x640x3'"),
+        (["--image-size", "640", "480", "3"], "got '640 480 3'"),
+        (["--image-size=-1x5"], "got '-1x5'"),
+        # before Python 3.13 argparse reads -1x5 as an option: no word to name
+        (["--image-size", "-1x5"], "--image-size takes W H or WxH"),
+    ],
+)
+def test_a_malformed_image_size_is_named(tmp_path, capsys, size, shown) -> None:
+    _yolo_pair(tmp_path)
+    with pytest.raises(SystemExit) as stop:
+        main(["audit", "--format", "yolo", "--gt", str(tmp_path / "gt"),
+              "--pred", str(tmp_path / "pred"), *size, "--keypoints", "2",
+              "--tilt", "0,1", "--big-error", "5"])  # fmt: skip
+    assert stop.value.code == 2
+    err = capsys.readouterr().err
+    assert shown in err and "--image-size takes W H or WxH" in err
+
+
+def test_audit_help_explains_band_by_and_gives_examples(capsys) -> None:
+    with pytest.raises(SystemExit):
+        main(["audit", "--help"])
+    out = capsys.readouterr().out
+    assert "examples:" in out and "poseaudit audit --format coco --gt" in out
+    assert "bias bands" in out  # --band-by
