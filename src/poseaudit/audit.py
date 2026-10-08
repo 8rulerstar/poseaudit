@@ -897,6 +897,13 @@ def _warnings(result: AuditResult, bands, named_clusters: bool) -> list[str]:
             "the 2.5th and 97.5th percentiles fall between the two smallest and the "
             "two largest errors, so they are little more than the extremes."
         )
+    truth = np.array([r.truth for r in rs])
+    if len(truth) >= 2 and ag._flat(truth):
+        unit = {"deg": "°", "px": " px"}.get(result.measure.unit, "")
+        notes.append(
+            f"The truth hardly varies (range {np.ptp(truth):.3g}{unit}): the slope, "
+            "ICC and CCC are not defined, and print as n/a."
+        )
     big = round(result.big_error_rate * result.n)
     if big == 0:
         from poseaudit.report import _amount

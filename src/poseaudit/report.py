@@ -28,7 +28,9 @@ def _digits(result: "AuditResult") -> int:
 
 def _f(value: float, fmt: str) -> str:
     """`value` formatted, but never as -0.000: a value that rounds to zero
-    has no sign worth printing."""
+    has no sign worth printing. NaN (a figure not defined here) is n/a."""
+    if value != value:
+        return "n/a"
     text = f"{value:{fmt}}"
     if text.startswith("-") and not text.strip("-0.%"):
         text = ("+" if fmt.startswith("+") else "") + text[1:]
@@ -174,7 +176,8 @@ def _full(result: "AuditResult") -> list[str]:
     lines = []
     if result.jitter_gain is not None:
         lines.append(
-            f"  vs jitter    {result.jitter_gain:.3f} from keypoint jitter alone; gap "
+            f"  vs jitter    {_f(result.jitter_gain, '.3f')} from keypoint jitter "
+            "alone; gap "
             f"{result.gain_gap:+.3f} {_ci(result.gain_gap_ci, '+.3f')}, "
             + (
                 _p(result.jitter_p, result.settings.get("jitter_repeats"))
@@ -201,7 +204,7 @@ def _full(result: "AuditResult") -> list[str]:
     )
     if result.deming is not None:
         lines.append(
-            f"  Deming       {result.deming:.3f} {_ci(result.deming_ci, '.3f')} "
+            f"  Deming       {_f(result.deming, '.3f')} {_ci(result.deming_ci, '.3f')} "
             f"(noise ratio {result.settings.get('noise_ratio')})"
         )
     lines.append(
@@ -459,7 +462,7 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
         out.append(
             f"| {span} | {sb.n} | {sb.mean_abs_error:.{d}f}{u} | "
             f"{sb.big_error_rate:.1%} {_ci(sb.big_error_rate_ci, '.1%')} | "
-            f"{sb.gain:.3f} |"
+            f"{_f(sb.gain, '.3f')} |"
         )
     out += [
         "",

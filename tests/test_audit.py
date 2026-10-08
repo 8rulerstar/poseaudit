@@ -1511,3 +1511,14 @@ def test_the_json_has_no_percentile_limits_under_10_readings() -> None:
     d = _finite(r.to_dict())
     assert d["percentile_limits"] == [None, None] == d["empirical_limits"]
     assert d["limits"][0] is not None
+
+
+def test_a_flat_truth_is_explained_and_prints_n_a() -> None:
+    t = np.full(40, 30.0)
+    p = 30 + np.random.default_rng(0).normal(0, 2, 40)
+    r = audit(pairing(t, p, [f"i{k}" for k in range(40)]), tilt(0, 1), 5,
+              resamples=50, jitter_repeats=0)  # fmt: skip
+    assert any(w.startswith("The truth hardly varies (range 0") for w in r.warnings)
+    text = r.summary(full=True) + r.to_markdown()
+    assert "nan" not in text
+    assert "  slope        n/a" in text and "ICC(A,1)     n/a" in text
