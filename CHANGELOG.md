@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.3
 
 - Pairing: dropping an image extension keeps the folder, so `cam1/0001.jpg`
   and `cam2/0001.jpg` are no longer paired as one image.
