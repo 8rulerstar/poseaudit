@@ -1,5 +1,45 @@
 # Changelog
 
+## Unreleased
+
+- `Instance` and `Instance.from_keypoints` refuse keypoints not of shape
+  (K, 2), such as x, y, v rows, and a `visible` not of shape (K,), naming the
+  shape expected.
+- A measure with a repeated keypoint, such as `angle(25, 25, 27)`, is refused
+  when made; the two segments of a ratio may still share a point.
+- A keypoint index out of range says how many keypoints there are and that
+  indices count from 0; unpaired instances are checked too.
+- `audit(noise_ratio=...)` refuses a ratio of 0 or less, as the CLI does.
+- Normalised coordinates are judged per side on every visible point, with
+  0.05 of slack for points just past the frame. When only one side looks
+  normalised, the warning says the two sides are in different units, which
+  is why nothing pairs.
+- The BA slope, ICC(A,1) and CCC are NaN when the truth does not vary,
+  instead of 2, 0 and 0 whatever the model does. A truth counts as flat only
+  when its range is below 1e-12 of its size, so large values with a real
+  spread keep their slopes.
+- In resamples, repeated-readings limits count a cluster drawn twice as two
+  clusters, not one twice the size.
+- With a single image or cluster every interval is NaN (`null` in the JSON,
+  `[no interval]` in the summary) instead of a single point, the Wilson
+  intervals of rates included. Fewer than 20 images get the same warning as
+  fewer than 20 named clusters.
+- A warning when the percentile limits rest on 40 readings or fewer.
+- With no large error, the warning says how high the rate could still be.
+- `p(squash)` is shown as `p(gain <= jitter)`: it compares the gain with the
+  jitter reference and does not by itself measure squashing. The JSON key,
+  `jitter_p`, is unchanged.
+- `report.md` opens with the headline in words, naming a relative reading as
+  such and never rounding a rare large error to 0%, and says which way an
+  error points. The settings are a table at the end instead of a Python dict.
+  Size band labels share one number of decimals.
+- CLI: `--image-size` also takes `WxH`, and an error names a malformed size
+  such as `1280x`; `--band-by` has a help line; `poseaudit audit --help` ends
+  with examples.
+- README: the JSON gates fail on a `null` interval (in jq `null <= 3` is
+  true), with a Python alternative to `jq`, and a note on line continuations
+  in PowerShell.
+
 ## 0.1.4
 
 - Pairing: a warning when unmatched truth images share their last name (after
