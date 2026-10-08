@@ -1,6 +1,6 @@
 600 runs per case; 200 resamples and 200 rebuilds per run
 
-| case | p(squash) <= 0.05 | interval wholly below 0 | setup |
+| case | p(gain <= jitter) <= 0.05 | interval wholly below 0 | setup |
 |---|---|---|---|
 | isotropic | 4.3% | 2.2% | no tendency; every point scatters 8% of the arm |
 | across forearm | 5.7% | 2.8% | no tendency; the wrist scatters 20% across the forearm |

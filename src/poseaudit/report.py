@@ -43,8 +43,8 @@ def _p(p: float, repeats) -> str:
     """No rebuild at or below the gain gives the smallest p the rebuilds can
     show, 1/(repeats+1); the true p may be lower still."""
     if repeats and p <= 1 / (repeats + 1) + 1e-12:
-        return f"p(squash) <= {1 / (repeats + 1) + 5e-4:.3f}*"
-    return f"p(squash) {p:.3f}*"
+        return f"p(gain <= jitter) <= {1 / (repeats + 1) + 5e-4:.3f}*"
+    return f"p(gain <= jitter) {p:.3f}*"
 
 
 def _what(result: "AuditResult") -> str:
@@ -170,19 +170,20 @@ How to read this:
   - keypoint jitter bends it, since near the ends of a range an error can only
     go one way.
   - **vs jitter** is the gain on predictions rebuilt from the truth plus this
-    model's own displacements: each object takes all its points' shifts from
-    one object with a similar true value (possibly itself), minus the shift
-    that such a group shares, carried in each segment's own frame and
-    mirrored for angles that bend the other way.
+    model's displacements from the labels: each object takes all its points'
+    shifts from one object with a similar true value (possibly itself), minus
+    the shift that such a group shares, carried in each segment's own frame
+    and mirrored for angles that bend the other way.
   - **gap** is the gain minus that reference; its interval averages a few
-    rebuilds in every resample. **p(squash)** is (1 + rebuilds at or below
-    this gain) / (1 + rebuilds), one-sided. It assumes independent objects,
-    so with named clusters it is left out.
+    rebuilds in every resample. **p(gain <= jitter)** is (1 + rebuilds at or
+    below this gain) / (1 + rebuilds), one-sided. It assumes independent
+    objects, so with named clusters it is left out.
   - A gap below 0 with a small p means the model reads differences as smaller
-    than its jitter explains. Possible causes: squashing, gross failures tied
-    to the true value (a straight part read as bent), left and right swapped
-    on one side, or noise in the truth. Gross failures in random directions
-    are part of the rebuilds and do not widen the gap.
+    than its displacements from the labels alone would make them. Possible
+    causes: squashing, gross failures tied to the true value (a straight part
+    read as bent), left and right swapped on one side, or noise in the truth.
+    Gross failures in random directions are part of the rebuilds and do not
+    widen the gap.
     With labels nearly as noisy as the model the p is often small for an
     honest model; read the size of the gap then, not the p.
   - noise in the truth pulls the gain toward 0; with a known ratio of noise

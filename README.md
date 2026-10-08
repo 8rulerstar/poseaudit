@@ -65,7 +65,7 @@ angle (5, 7, 9): read 322 of 380 labelled instances
   bias         +2.27° [-1.21 to +6.15], median +0.52°
   limits       -50.90° to +79.99° (2.5th to 97.5th percentile of errors)
   gain         0.731 [0.639 to 0.814]; robust 0.786
-  vs jitter    0.871 from keypoint jitter alone; gap -0.140 [-0.199 to -0.076], p(squash) <= 0.002*
+  vs jitter    0.871 from keypoint jitter alone; gap -0.140 [-0.199 to -0.076], p(gain <= jitter) <= 0.002*
                * swaps and gross failures lower the gain too, and noisy
                  labels make p small for an honest model: read the gap
   ! 2.5% of errors fall below the normal limits and 4.3% above them, against 2.5% each for a normal error: use the percentile limits.
@@ -262,7 +262,7 @@ reference** (`vs jitter`) is the gain of predictions rebuilt from the truth
 plus this model's own point displacements ([how](#the-jitter-reference)):
 0.87 here. The model's gain is 0.140 lower (interval 0.076 to 0.199, paired
 within resamples). With the default seed none of the 500 rebuilds comes out
-as low as the model's (`p(squash) <= 0.002`); with some other seeds one does
+as low as the model's (`p(gain <= jitter) <= 0.002`); with some other seeds one does
 (0.004).
 The model reads angle differences as smaller than its own scatter explains.
 What that is, the check cannot say:
@@ -285,7 +285,7 @@ What that is, the check cannot say:
   ([`validation/label_noise.py`](https://github.com/8rulerstar/poseaudit/blob/main/validation/label_noise.py), with independent
   normal noise on each point). Under that model label noise does not explain
   this gap, but it does trip the p: those honest models got
-  `p(squash) <= 0.05` in 7 to 23% of 30 runs each. With noisy labels, read
+  `p(gain <= jitter) <= 0.05` in 7 to 23% of 30 runs each. With noisy labels, read
   the size of the gap, not the p.
 - **Squashing** is what remains, and it is not separated from the two above.
   The slopes that suit equal noise, the Bland-Altman slope (-0.049 [-0.119 to
@@ -441,7 +441,7 @@ angle) and set the reference too low.
 |---|---|
 | gain | least-squares slope of predicted on truth |
 | robust gain | Theil-Sen slope: median of the slopes between pairs of readings |
-| vs jitter | median gain over 500 rebuilds (see [The jitter reference](#the-jitter-reference)); the gap's interval averages 10 rebuilds per resample; p(squash) = (1 + rebuilds with gain at or below the model's) / 501 |
+| vs jitter | median gain over 500 rebuilds (see [The jitter reference](#the-jitter-reference)); the gap's interval averages 10 rebuilds per resample; p(gain <= jitter) = (1 + rebuilds with gain at or below the model's) / 501 |
 | BA slope | slope of the error on the mean of both readings (Bland and Altman 1999) |
 | Deming | slope of predicted on truth with a known ratio of noise variances (Deming 1943; Linnet 1993); the ratio is prediction over label |
 | limits | 2.5th and 97.5th percentiles of the error; normal limits are bias ± 1.96 SD (Bland and Altman 1986) |

@@ -891,14 +891,6 @@ def test_cli_resampling_settings_reach_the_audit(tmp_path) -> None:
     assert data["settings"]["jitter_repeats"] == 0 and data["jitter_gain"] is None
 
 
-def test_the_summary_qualifies_p_squash() -> None:
-    truths = np.random.default_rng(3).uniform(40, 178, 120)
-    r = audit(arms(truths, 0.8 * truths + 25, jitter=2, seed=4), angle(0, 1, 2), 15,
-              resamples=100)  # fmt: skip
-    text = r.summary()
-    assert "p(squash)" in text and "labels make p small" in text
-
-
 def test_ratio_band_labels_keep_their_decimals(tmp_path) -> None:
     from poseaudit import ratio
 
@@ -1245,3 +1237,15 @@ def test_percentile_limits_from_few_readings_are_flagged() -> None:
     # at 40 the 2.5th percentile still lies between the two smallest errors
     assert any("percentile limits rest on 40 readings" in w for w in errors(40))
     assert not any("percentile limits rest" in w for w in errors(41))
+
+
+def test_the_summary_qualifies_p_and_says_what_it_compares() -> None:
+    """The p compares the gain with the jitter reference; it does not measure
+    squashing, which its old label suggested."""
+    truths = np.random.default_rng(3).uniform(40, 178, 120)
+    r = audit(arms(truths, 0.8 * truths + 25, jitter=2, seed=4), angle(0, 1, 2), 15,
+              resamples=100)  # fmt: skip
+    text = r.summary()
+    assert "p(gain <= jitter)" in text and "labels make p small" in text
+    assert "p(squash)" not in text + r.to_markdown()
+    assert "jitter_p" in r.to_dict()  # the JSON key stays

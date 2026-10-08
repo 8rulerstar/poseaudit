@@ -9,7 +9,7 @@ observed: mean 19.48°, 43.2% off by 15° or more, gain 0.731
 
 honest models on the same arms, 30 runs each (spreads in units of sigma*s per axis)
 
-| label spread | model spread | mean gap | p(squash) <= 0.05 | Deming, ratio 1 |
+| label spread | model spread | mean gap | p(gain <= jitter) <= 0.05 | Deming, ratio 1 |
 |---|---|---|---|---|
 | 0.0 | 0.71 | +0.002 | 0% | 1.018 |
 | 0.5 | 0.5 | -0.021 | 23% | 0.998 |
