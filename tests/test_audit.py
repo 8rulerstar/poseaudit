@@ -1157,3 +1157,18 @@ def test_one_side_normalised_explains_why_nothing_pairs(
         and "cannot pair" in w
         for w in r.warnings
     )
+
+
+def test_a_flat_truth_has_no_ba_slope_icc_or_ccc() -> None:
+    """With no spread in the truth the BA slope is exactly 2 and ICC and CCC
+    are 0 whatever the model does: figures about nothing."""
+    t = np.full(20, 50.0)
+    p = 50 + np.random.default_rng(0).normal(0, 5, 20)
+    assert np.isnan([ag.ba_slope(t, p), ag.icc_a1(t, p), ag.ccc(t, p)]).all()
+    assert np.isnan(ag.deming(t, p, 1.0))
+
+
+def test_large_values_with_a_real_spread_are_not_flat() -> None:
+    t = 1e13 + np.linspace(0, 1000, 10)
+    assert ag.gain(t, t)[0] == pytest.approx(1.0)
+    assert ag.ccc(t, t) == pytest.approx(1.0)

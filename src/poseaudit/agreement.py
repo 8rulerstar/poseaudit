@@ -51,15 +51,15 @@ def ba_slope(t: np.ndarray, p: np.ndarray) -> float:
     noisier prediction pushes it upward and can hide real compression.
     """
     m = (t + p) / 2
-    if len(t) < 3 or np.ptp(m) == 0:
-        return float("nan")
+    if len(t) < 3 or _flat(t) or np.ptp(m) == 0:
+        return float("nan")  # a flat truth would give exactly 2 whatever p is
     return float(np.polyfit(m, p - t, 1)[0])
 
 
 def deming(t: np.ndarray, p: np.ndarray, noise_ratio: float) -> float:
     """Slope of predicted on truth when both carry noise, `noise_ratio` being
     var(prediction noise) / var(truth noise). Infinity gives `gain`."""
-    if len(t) < 3:
+    if len(t) < 3 or _flat(t):
         return float("nan")
     sxx, syy = np.var(t, ddof=1), np.var(p, ddof=1)
     sxy = np.cov(t, p, ddof=1)[0, 1]
@@ -73,10 +73,11 @@ def deming(t: np.ndarray, p: np.ndarray, noise_ratio: float) -> float:
 
 def icc_a1(t: np.ndarray, p: np.ndarray) -> float:
     """ICC(A,1): two-way, absolute agreement, single measurement
-    (McGraw and Wong 1996)."""
+    (McGraw and Wong 1996). NaN when the truth does not vary: there is nothing
+    to agree on, not an agreement of 0."""
     y = np.column_stack([t, p])
     n, k = y.shape
-    if n < 2:
+    if n < 2 or _flat(t):
         return float("nan")
     grand = y.mean()
     ss_rows = k * ((y.mean(axis=1) - grand) ** 2).sum()
@@ -90,8 +91,9 @@ def icc_a1(t: np.ndarray, p: np.ndarray) -> float:
 
 
 def ccc(t: np.ndarray, p: np.ndarray) -> float:
-    """Lin's concordance correlation coefficient."""
-    if len(t) < 2:
+    """Lin's concordance correlation coefficient; NaN when the truth does not
+    vary."""
+    if len(t) < 2 or _flat(t):
         return float("nan")
     cov = np.mean((t - t.mean()) * (p - p.mean()))
     denominator = t.var() + p.var() + (t.mean() - p.mean()) ** 2
@@ -135,5 +137,6 @@ def repeated_limits(e: np.ndarray, clusters: np.ndarray) -> tuple[float, float]:
 
 
 def _flat(t: np.ndarray) -> bool:
-    """No spread to fit a slope on: a range that is only rounding noise."""
-    return bool(np.ptp(t) <= 1e-9 * max(1.0, float(np.abs(t).max())))
+    """No spread to fit a slope on: a range that is only rounding noise, a few
+    thousand times the spacing of doubles at the values' size."""
+    return bool(np.ptp(t) <= 1e-12 * max(1.0, float(np.abs(t).max())))

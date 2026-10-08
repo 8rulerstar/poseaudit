@@ -625,7 +625,9 @@ def _fill(result, bands, size_bands, noise_ratio, resamples, seed, jitter) -> No
     result.icc = ag.icc_a1(t, p)
     result.ccc = ag.ccc(t, p)
     result.pearson = (
-        float(np.corrcoef(t, p)[0, 1]) if np.ptp(t) and np.ptp(p) else float("nan")
+        float(np.corrcoef(t, p)[0, 1])
+        if not (ag._flat(t) or ag._flat(p))
+        else float("nan")
     )
     if noise_ratio is not None:
         result.deming = ag.deming(t, p, noise_ratio)
