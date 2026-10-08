@@ -34,6 +34,8 @@ def _range(low: float, high: float, fmt: str, u: str) -> str:
 
 def _ci(interval, fmt: str) -> str:
     low, high = interval
+    if not (np.isfinite(low) and np.isfinite(high)):  # e.g. one cluster only
+        return "[no interval]"
     return f"[{low:{fmt}} to {high:{fmt}}]"
 
 

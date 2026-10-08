@@ -1201,3 +1201,36 @@ def test_repeated_limits_interval_covers_the_estimate() -> None:
     assert r.repeated_limits is not None and r.repeated_upper_ci is not None
     low, high = r.repeated_upper_ci
     assert low - 1e-6 <= r.repeated_limits[1] <= high + 1e-6
+
+
+def test_one_image_gives_no_interval_rather_than_a_point() -> None:
+    """Every resample of a single image holds the same readings: an interval
+    from them is a point, which reads as certainty."""
+    t = np.linspace(-10, 10, 30)
+    r = audit(pairing(t, t + np.linspace(-2, 3, 30), ["one"] * 30), tilt(0, 1), 5,
+              resamples=100, jitter_repeats=0)  # fmt: skip
+    assert np.isnan(r.bias_ci).all() and np.isnan(r.gain_ci).all()
+    assert "[no interval]" in r.summary()
+    assert any("Only one image" in w for w in r.warnings)
+
+
+def test_one_cluster_gives_no_rate_interval_either() -> None:
+    """Wilson's interval would treat the readings of one image as independent:
+    with one cluster the rates get no interval, like every other figure."""
+    t = np.linspace(-10, 10, 30)
+    r = audit(pairing(t, t + 1, ["one"] * 30), tilt(0, 1), 5, thresholds=[5],
+              threshold_side="above", resamples=100, jitter_repeats=0)  # fmt: skip
+    assert np.isnan(r.big_error_rate_ci).all()
+    assert all(np.isnan(b.big_error_rate_ci).all() for b in r.size_bands)
+    th = r.thresholds[0]
+    assert np.isnan(th.sensitivity_ci).all() and np.isnan(th.precision_ci).all()
+    assert "[no interval]" in r.to_markdown()
+    from poseaudit.cli import _finite
+
+    assert _finite(r.to_dict())["big_error_rate_ci"] == [None, None]
+
+
+def test_too_few_images_are_flagged_like_too_few_clusters() -> None:
+    r = audit(pairing([0] * 40, [1] * 40, [f"img{i % 5}" for i in range(40)]),
+              tilt(0, 1), 5, resamples=100, jitter_repeats=0)  # fmt: skip
+    assert any("Only 5 images" in w for w in r.warnings)

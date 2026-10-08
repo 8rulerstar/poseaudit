@@ -2,7 +2,7 @@
 
 import re
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from typing import Literal
 
 import numpy as np
@@ -356,7 +356,9 @@ def audit(
     # resampled whole: Wilson would treat every reading as independent
     grouped = result.clusters < result.n
     _decide(result, thresholds, side, predicted_thresholds, grouped)
-    if grouped:
+    if result.clusters < 2:  # nothing to resample, and Wilson would treat the
+        result.big_error_rate_ci = NAN  # readings as independent
+    elif grouped:
         large = np.array([abs(r.error) >= result.big_error for r in readings])
         low, high = clustered_bootstrap(
             [r.cluster for r in readings],
@@ -661,10 +663,13 @@ def _fill(result, bands, size_bands, noise_ratio, resamples, seed, jitter) -> No
 
     rng = np.random.default_rng(seed + 1)
 
-    lows, highs = clustered_bootstrap(
-        clusters, statistics, resamples=resamples, seed=seed, copies=True
-    )
-    ci = [(float(a), float(b)) for a, b in zip(lows, highs, strict=True)]
+    if result.clusters < 2:  # every resample would hold the same readings
+        ci = [NAN] * (15 + count)
+    else:
+        lows, highs = clustered_bootstrap(
+            clusters, statistics, resamples=resamples, seed=seed, copies=True
+        )
+        ci = [(float(a), float(b)) for a, b in zip(lows, highs, strict=True)]
     result.bias_ci, result.lower_limit_ci, result.upper_limit_ci = ci[0], ci[1], ci[2]
     result.mean_abs_error_ci, result.rmse_ci = ci[3], ci[4]
     result.gain_ci, result.ba_slope_ci = ci[5], ci[6]
@@ -679,6 +684,10 @@ def _fill(result, bands, size_bands, noise_ratio, resamples, seed, jitter) -> No
     edges = None if isinstance(bands, int) else sorted(bands)
     result.bands = _bands(level, e, band_index, count, ci[15:], edges)
     result.size_bands = _size_bands(sizes, t, p, e, size_bands, result.big_error)
+    if result.clusters < 2:  # Wilson's would treat the readings as independent
+        result.size_bands = [
+            replace(b, big_error_rate_ci=NAN) for b in result.size_bands
+        ]
 
 
 def _decide(result, thresholds, side, predicted_thresholds, grouped=False) -> None:
@@ -704,7 +713,9 @@ def _decide(result, thresholds, side, predicted_thresholds, grouped=False) -> No
                     "predictions set the count, not the model's scale. Try "
                     "thresholds of your own with --pred-threshold."
                 )
-    if grouped and rows:
+    if result.clusters < 2:
+        rows = [replace(row, sensitivity_ci=NAN, precision_ci=NAN) for row in rows]
+    elif grouped and rows:
         rows = _clustered_rates(result, t, p, rows)
     result.thresholds = rows
 
@@ -713,8 +724,6 @@ def _clustered_rates(result, t, p, rows):
     """With several readings to an image or a named cluster, the catch and
     precision intervals resample whole clusters: Wilson intervals treat every
     reading as independent."""
-    from dataclasses import replace
-
     from poseaudit.thresholds import flagged
 
     groups = [r.cluster for r in result.readings]
@@ -881,10 +890,16 @@ def _warnings(result: AuditResult, bands, named_clusters: bool) -> list[str]:
             (f"Only {_count(big, 'large error')}" if big else "No large errors")
             + ": judge the rate by its interval."
         )
-    if named_clusters and result.clusters < 20:
+    kind = "cluster" if named_clusters else "image"
+    if result.clusters < 2:
         notes.append(
-            f"Only {_count(result.clusters, 'cluster')}: bootstrap intervals are "
-            "too narrow with this few."
+            f"Only one {kind}: resampling it gives the same readings every time, "
+            "so there are no intervals."
+        )
+    elif result.clusters < 20:
+        notes.append(
+            f"Only {_count(result.clusters, kind)}: bootstrap intervals are too "
+            "narrow with this few."
         )
     r = result.not_read
     lost = r.missed + r.no_predicted_point + r.unmeasurable
