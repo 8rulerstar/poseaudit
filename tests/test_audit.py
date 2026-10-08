@@ -1537,3 +1537,15 @@ def test_aliases_name_the_figures_as_the_summary_does() -> None:
     doc = AuditResult.__doc__ or ""
     assert all(name in doc for name in ("percentile_limits", "slope", "theil_sen"))
     assert "slope" not in r.to_dict()  # the JSON keeps its keys
+
+
+def test_named_clusters_show_repeated_limits_by_default() -> None:
+    names = [f"s{k // 2}_f{k}" for k in range(80)]
+    t = np.zeros(80)
+    p = np.tile([5.0, -5.0], 40)
+    named = audit(pairing(t, p, names), tilt(0, 1), 10, resamples=50,
+                  jitter_repeats=0, cluster=lambda n: n.split("_")[0])  # fmt: skip
+    assert "  repeated     " in named.summary()
+    plain = audit(pairing(t, p, names), tilt(0, 1), 10, resamples=50,
+                  jitter_repeats=0)  # fmt: skip
+    assert "repeated" not in plain.summary(full=True)

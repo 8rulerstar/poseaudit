@@ -135,7 +135,7 @@ def summary(result: "AuditResult", full: bool = False) -> str:
         lines.append(
             f"  normal       {_range(lo, hi, f2, u)} (bias +/- 1.96 SD; JSON limits)"
         )
-    if full and result.repeated_limits is not None:
+    if result.repeated_limits is not None:  # only with named clusters
         rlo, rhi = result.repeated_limits
         lines.append(f"  repeated     {_range(rlo, rhi, f2, u)} (clusters)")
     lines += [
