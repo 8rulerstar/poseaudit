@@ -1550,3 +1550,13 @@ def test_named_clusters_show_repeated_limits_by_default() -> None:
     plain = audit(pairing(t, p, names), tilt(0, 1), 10, resamples=50,
                   jitter_repeats=0)  # fmt: skip
     assert "repeated" not in plain.summary(full=True)
+
+
+def test_to_rows_gives_one_flat_row_of_headline_figures() -> None:
+    r = audit(pairing(np.linspace(0, 30, 40), np.linspace(1, 28, 40)), tilt(0, 1),
+              5, resamples=50, jitter_repeats=0)  # fmt: skip
+    (row,) = r.to_rows()
+    assert row["measure"] == "tilt 0,1" and row["n"] == 40
+    assert row["mean_abs_error"] == r.mean_abs_error and row["slope"] == r.gain
+    assert (row["limits_low"], row["limits_high"]) == r.percentile_limits
+    assert all(not isinstance(v, (list, tuple, dict)) for v in row.values())

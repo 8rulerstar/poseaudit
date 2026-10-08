@@ -538,3 +538,35 @@ def csv_rows(result: "AuditResult") -> str:
             ["" if getattr(r, c) is None else getattr(r, c) for c in CSV_COLUMNS]
         )
     return buffer.getvalue()
+
+
+def label(result: "AuditResult") -> str:
+    """The measure as given on the command line: angle 5,7,9."""
+    m = result.measure
+    return f"{m.name} {','.join(str(p) for p in m.points)}"
+
+
+def row(result: "AuditResult") -> dict:
+    """The headline figures as one flat row, for tables of several measures or
+    models. Floats as computed, NaN where a figure is not defined."""
+    lo, hi = _percentile_limits(result)
+    return {
+        "measure": label(result),
+        "unit": result.measure.unit,
+        "n": result.n,
+        "bias": result.bias,
+        "bias_ci_low": result.bias_ci[0],
+        "bias_ci_high": result.bias_ci[1],
+        "limits_low": lo,
+        "limits_high": hi,
+        "mean_abs_error": result.mean_abs_error,
+        "mean_abs_error_ci_low": result.mean_abs_error_ci[0],
+        "mean_abs_error_ci_high": result.mean_abs_error_ci[1],
+        "rmse": result.rmse,
+        "big_error": result.big_error,
+        "big_error_rate": result.big_error_rate,
+        "big_error_rate_ci_low": result.big_error_rate_ci[0],
+        "big_error_rate_ci_high": result.big_error_rate_ci[1],
+        "slope": result.gain,
+        "icc": result.icc,
+    }

@@ -192,6 +192,15 @@ class AuditResult:
 
         return _written(markdown(self), path)
 
+    def to_rows(self) -> list[dict]:
+        """The headline figures as a flat row (a list of one), to stack with
+        other measures or models into a table: measure, n, bias, percentile
+        limits, mean |error|, RMSE, large-error rate, slope and ICC, with the
+        bounds of their intervals as `*_ci_low` and `*_ci_high`."""
+        from poseaudit.report import row
+
+        return [row(self)]
+
     def to_csv(self, path: str | None = None) -> str:
         """One row per reading, for another tool to recompute anything here."""
         from poseaudit.report import csv_rows
