@@ -24,6 +24,32 @@ off the angle you compute from them is. `poseaudit` computes the same angle
 (or tilt, or length) from your labels and from your model, compares the two,
 and tells you how large the disagreement is, how often it is large, and where.
 
+- The figures are agreement with one human label, not error against the world.
+- 2D angles read off an image are not 3D joint angles.
+
+**For a validation paper**: run with `--full --json figures.json --report
+report.md` and report the bias with its 95% limits of agreement
+(`bias`, `percentile_limits`), the mean absolute error (`mean_abs_error`),
+ICC(A,1) (`icc`) and the large-error rate (`big_error_rate`), each with its
+interval (the `_ci` keys). For the demo below: "Against COCO's labels, the
+elbow angle had a bias of +2.3° (95% CI -1.2 to +6.2) with limits of agreement
+of -50.9° to +80.0° (2.5th to 97.5th percentiles), a mean absolute error of
+19.5°, ICC(A,1) 0.76, and 43% of readings off by 15° or more."
+
+```bash
+poseaudit audit --format coco --gt gt.json --pred res.json --angle 5,7,9 \
+    --big-error 15 --full --json figures.json --report report.md
+```
+
+**As a CI gate**: write the JSON and fail on a figure, treating a `null`
+interval (a single cluster gives one) as a failure:
+
+```bash
+poseaudit audit --format coco --gt gt.json --pred res.json --angle 5,7,9 \
+    --big-error 15 --json figures.json
+jq -e '(.mean_abs_error_ci[1] // 1e9) <= 25 and (.big_error_rate_ci[1] // 1) <= 0.5' figures.json
+```
+
 ## Install
 
 ```bash

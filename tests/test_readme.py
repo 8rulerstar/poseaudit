@@ -51,3 +51,20 @@ def test_the_size_table_matches_the_report(capsys, monkeypatch, tmp_path) -> Non
     for row in rows:
         cells = row.split("|")[2:]  # n onwards: the README names the sizes in words
         assert "|".join(cells) in readme
+
+
+def test_the_paper_recipe_quotes_the_demo(tmp_path, capsys, monkeypatch) -> None:
+    import json
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    printed(capsys, monkeypatch, "--json", str(tmp_path / "f.json"))
+    d = json.loads((tmp_path / "f.json").read_text(encoding="utf-8"))
+    (low, high), (blo, bhi) = d["percentile_limits"], d["bias_ci"]
+    sentence = (
+        f"bias of {d['bias']:+.1f}° (95% CI {blo:.1f} to {bhi:+.1f}) with limits "
+        f"of agreement\nof {low:.1f}° to {high:+.1f}° (2.5th to 97.5th "
+        f"percentiles), a mean absolute error of\n{d['mean_abs_error']:.1f}°, "
+        f"ICC(A,1) {d['icc']:.2f}, and {d['big_error_rate']:.0%} of readings off"
+    )
+    assert sentence in readme
+    assert d["mean_abs_error_ci"][1] <= 25 and d["big_error_rate_ci"][1] <= 0.5
