@@ -73,6 +73,28 @@ class NotRead:
 
 @dataclass
 class AuditResult:
+    """What `audit` returns. Errors are predicted minus truth, in the
+    measure's unit; every `*_ci` is a 95% interval (NaN when it cannot be
+    computed, as with a single cluster).
+
+    - `n`, `measurable`, `not_read`: readings made, labelled instances that
+      could be read, and why the others were not.
+    - `bias`, `median_error`: mean and median error.
+    - `percentile_limits` (`empirical_limits`): 2.5th and 97.5th percentiles
+      of the errors; `limits`: the normal ones, bias +/- 1.96 SD;
+      `repeated_limits`: for repeated readings of named clusters.
+    - `mean_abs_error`, `median_abs_error`, `p95_abs_error`, `rmse`.
+    - `big_error_rate`: share of errors of `big_error` or more.
+    - `slope` (`gain`): least-squares slope of predicted on truth, 1 ideal;
+      `theil_sen` (`robust_gain`): the same, barely moved by gross failures.
+    - `icc` (ICC(A,1)), `ccc`, `pearson`: agreement, 1 at best.
+    - `jitter_gain`, `gain_gap`, `jitter_p`: the slope that keypoint jitter
+      alone gives, the gap to it, and the one-sided p of the gap.
+    - `size_bands`, `bands`, `thresholds`: by object size, by level, and
+      decision rates; `readings`: one per pair, `worst()` the largest errors.
+    - `warnings`, `settings`.
+    """
+
     measure: Measure
     big_error: float
     band_by: BandBy
@@ -128,6 +150,21 @@ class AuditResult:
     @property
     def n(self) -> int:
         return len(self.readings)
+
+    @property
+    def percentile_limits(self) -> Interval:
+        """The 2.5th and 97.5th percentiles of the errors (`empirical_limits`)."""
+        return self.empirical_limits
+
+    @property
+    def slope(self) -> float:
+        """Least-squares slope of predicted on truth (`gain`)."""
+        return self.gain
+
+    @property
+    def theil_sen(self) -> float:
+        """Theil-Sen slope of predicted on truth (`robust_gain`)."""
+        return self.robust_gain
 
     @property
     def measurable(self) -> int:

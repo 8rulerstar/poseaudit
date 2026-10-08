@@ -1525,3 +1525,15 @@ def test_a_flat_truth_is_explained_and_prints_n_a() -> None:
     text = r.summary(full=True) + r.to_markdown()
     assert "nan" not in text
     assert "  slope        n/a" in text and "ICC(A,1)     n/a" in text
+
+
+def test_aliases_name_the_figures_as_the_summary_does() -> None:
+    from poseaudit import AuditResult
+
+    r = audit(pairing(np.linspace(0, 30, 40), np.linspace(1, 28, 40)), tilt(0, 1),
+              5, resamples=50, jitter_repeats=0)  # fmt: skip
+    assert r.percentile_limits == r.empirical_limits
+    assert r.slope == r.gain and r.theil_sen == r.robust_gain
+    doc = AuditResult.__doc__ or ""
+    assert all(name in doc for name in ("percentile_limits", "slope", "theil_sen"))
+    assert "slope" not in r.to_dict()  # the JSON keeps its keys

@@ -152,6 +152,24 @@ large error rather than as unmatched:
 pa.Instance(bbox=np.array([x1, y1, x2, y2]), keypoints=xy_pred, visible=visible_pred)
 ```
 
+## Python API
+
+- Loaders give `{image name: [Instance, ...]}`: `load_coco(annotations)`,
+  `load_coco_results(results, annotations, min_confidence=0.5)`,
+  `load_yolo(folder, image_size, num_keypoints)`, `from_supervision(...)`, or
+  `Instance.from_keypoints(xy, visible)` for your own arrays.
+- `pair(truth, predicted)` matches people image by image (box IoU, or keypoint
+  similarity without boxes) and returns a `Pairing`.
+- Measures: `angle(a, b, c)`, `tilt(a, b)`, `length(a, b)`,
+  `ratio(a, b, c, d)`, with keypoint indices counted from 0.
+- `audit(pairing, measure, big_error=...)` returns an `AuditResult`. Its main
+  fields: `n`; `bias` and `median_error`; `percentile_limits` and the normal
+  `limits`; `mean_abs_error`, `rmse`; `big_error_rate`; `slope` and
+  `theil_sen` (`gain` and `robust_gain` in the JSON); `icc`, `ccc`;
+  `size_bands`; `readings` and `worst()`; `warnings`. Most figures have a
+  `_ci` interval. `summary()`, `to_markdown()`, `to_csv()`,
+  `to_dict()` and `plot()` write it out.
+
 ## Reading the demo
 
 The Quick start output is the left elbow angle (COCO keypoints 5, 7, 9: shoulder, elbow, wrist;
