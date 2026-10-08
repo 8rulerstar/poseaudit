@@ -2,6 +2,7 @@
 
 from poseaudit._version import __version__
 from poseaudit.audit import AuditResult, Band, NotRead, Reading, audit
+from poseaudit.compare import Comparison, Difference, compare
 from poseaudit.io import from_supervision, load_coco, load_coco_results, load_yolo
 from poseaudit.measures import Measure, angle, length, ratio, tilt
 from poseaudit.pairing import Pair, Pairing, pair
@@ -11,7 +12,9 @@ from poseaudit.types import Dataset, Instance
 __all__ = [
     "AuditResult",
     "Band",
+    "Comparison",
     "Dataset",
+    "Difference",
     "Instance",
     "Measure",
     "NotRead",
@@ -22,6 +25,7 @@ __all__ = [
     "__version__",
     "angle",
     "audit",
+    "compare",
     "from_supervision",
     "length",
     "load_coco",

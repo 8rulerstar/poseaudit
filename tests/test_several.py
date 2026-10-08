@@ -94,3 +94,77 @@ def test_several_measures_refuse_what_they_cannot_do(tmp_path, extra, message):
     with pytest.raises(SystemExit) as stop:
         _run(tmp_path, *extra)
     assert message in str(stop.value)
+
+
+def _sets(errors_by_model, missing=None, images=40, seed=0):
+    """Truth tilts and, per model, the same tilts plus its errors; `missing`
+    lists the images a model has no prediction for."""
+    from test_audit import leaning
+
+    rng = np.random.default_rng(seed)
+    t = rng.uniform(-30, 30, images)
+    truth = {f"im{i}": [leaning(t[i])] for i in range(images)}
+    predictions = {}
+    for name, errors in errors_by_model.items():
+        skip = (missing or {}).get(name, ())
+        predictions[name] = {
+            f"im{i}": [leaning(t[i] + errors[i])]
+            for i in range(images)
+            if i not in skip
+        }
+    return truth, predictions
+
+
+def test_a_known_difference_is_inside_its_paired_interval() -> None:
+    import poseaudit as pa
+
+    rng = np.random.default_rng(1)
+    a = rng.uniform(0.5, 1.5, 40)
+    b = a + 2.0  # every reading 2 degrees further off
+    truth, predictions = _sets({"small": a, "large": b})
+    c = pa.compare(predictions, truth, pa.tilt(0, 1), big_error=2.5, resamples=200,
+                   jitter_repeats=0)  # fmt: skip
+    (d,) = c.differences
+    assert (d.a, d.b, d.n_shared, d.n_a, d.n_b) == ("small", "large", 40, 40, 40)
+    assert d.mean_abs_error_diff == pytest.approx(-2.0)
+    low, high = d.mean_abs_error_diff_ci
+    assert low == pytest.approx(-2.0) and high == pytest.approx(-2.0)
+    assert d.big_error_rate_diff == pytest.approx(-1.0)
+
+    noisy = rng.normal(0, 3, 40)
+    truth, predictions = _sets({"x": noisy, "y": noisy + rng.normal(0, 1, 40)})
+    (e,) = pa.compare(predictions, truth, pa.tilt(0, 1), 5, resamples=400,
+                      jitter_repeats=0).differences  # fmt: skip
+    low, high = e.mean_abs_error_diff_ci
+    assert low < e.mean_abs_error_diff < high and high - low < 2
+
+
+def test_only_readings_both_models_made_are_compared() -> None:
+    import poseaudit as pa
+
+    errors = np.linspace(-2, 2, 40)
+    truth, predictions = _sets({"all": errors, "some": errors * 2},
+                               missing={"some": range(5)})  # fmt: skip
+    c = pa.compare(predictions, truth, [pa.tilt(0, 1)], 3, resamples=100,
+                   jitter_repeats=0)  # fmt: skip
+    (d,) = c.differences
+    assert (d.n_shared, d.n_a, d.n_b) == (35, 40, 35)
+    shared = np.abs(errors[5:])
+    assert d.mean_abs_error_diff == pytest.approx(shared.mean() - 2 * shared.mean())
+    rows = c.table()
+    assert rows[0]["n_shared"] == 35 and "mean_abs_error_diff_ci_low" in rows[0]
+    assert c.to_csv().splitlines()[0].startswith("measure,a,b,n_shared")
+    assert c.results["all"][0].n == 40
+
+
+def test_one_image_gives_no_paired_interval() -> None:
+    from test_audit import leaning
+
+    import poseaudit as pa
+
+    truth = {"one": [leaning(0), leaning(20)]}
+    preds = {"a": {"one": [leaning(1), leaning(21)]},
+             "b": {"one": [leaning(3), leaning(23)]}}  # fmt: skip
+    (d,) = pa.compare(preds, truth, pa.tilt(0, 1), 5, resamples=50,
+                      jitter_repeats=0).differences  # fmt: skip
+    assert np.isnan(d.mean_abs_error_diff_ci).all()
