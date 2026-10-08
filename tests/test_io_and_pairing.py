@@ -354,3 +354,19 @@ def test_a_nan_yolo_score_is_dropped_by_a_score_filter(tmp_path) -> None:
     with pytest.warns(UserWarning, match="1 rows with a NaN score"):
         found = load_yolo(tmp_path, (100, 100), 2, min_confidence=0.5, min_score=0.5)
     assert len(found["x"]) == 1
+
+
+@pytest.mark.parametrize(
+    ("xy", "visible", "message"),
+    [
+        (np.zeros((33, 3)), np.ones(33, bool), r"shape \(K, 2\).*xy\[:, :2\]"),
+        (np.zeros(66), np.ones(66, bool), r"shape \(K, 2\)"),
+        (np.zeros((33, 2)), np.ones(30, bool), r"shape \(K,\).*\(33,\)"),
+    ],
+)
+def test_arrays_of_the_wrong_shape_name_the_shapes_expected(xy, visible, message):
+    """x, y, v rows were accepted as they were and read as x, y."""
+    with pytest.raises(ValueError, match=message):
+        Instance.from_keypoints(xy, visible)
+    with pytest.raises(ValueError, match=message):
+        Instance(np.zeros(4), xy, visible)

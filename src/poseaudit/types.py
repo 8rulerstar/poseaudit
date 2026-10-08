@@ -25,11 +25,7 @@ class Instance:
                 f"visible must be boolean, got {visible.dtype}; for COCO-style "
                 "flags pass flags > 0"
             )
-        if visible.shape != (len(self.keypoints),):
-            raise ValueError(
-                f"visible has shape {visible.shape}, keypoints "
-                f"{np.shape(self.keypoints)}"
-            )
+        _check_shapes(np.asarray(self.keypoints), visible)
         _check_finite(np.asarray(self.keypoints, float), visible)
         box = np.asarray(self.bbox, float)
         if box.shape != (4,) or box[2] < box[0] or box[3] < box[1]:
@@ -48,6 +44,7 @@ class Instance:
                 f"visible must be boolean, got {visible.dtype}; for COCO-style "
                 "flags pass flags > 0, for a visibility score e.g. score > 0.5"
             )
+        _check_shapes(keypoints, visible)
         _check_finite(keypoints, visible)
         points = keypoints[visible] if visible.any() else keypoints
         x1, y1 = points.min(axis=0)
@@ -56,9 +53,26 @@ class Instance:
         return cls(box, keypoints, visible, boxed=False, class_id=class_id)
 
 
-def _check_finite(keypoints: np.ndarray, visible: np.ndarray) -> None:
+def _check_shapes(keypoints: np.ndarray, visible: np.ndarray) -> None:
+    """Keypoints (K, 2) and one flag per keypoint. Other shapes would fail
+    later with an unpacking error, or pass and read the wrong numbers."""
+    if keypoints.ndim != 2 or keypoints.shape[1] != 2:
+        hint = (
+            "; for x, y, v rows pass xy[:, :2]" if keypoints.shape[1:] == (3,) else ""
+        )
+        raise ValueError(
+            "keypoints must have shape (K, 2), x and y of each point; got "
+            f"{keypoints.shape}{hint}"
+        )
     if visible.shape != (len(keypoints),):
-        return  # the shape check reports it
+        raise ValueError(
+            f"visible must have shape (K,), one flag per keypoint: "
+            f"({len(keypoints)},) for keypoints of shape {keypoints.shape}; got "
+            f"{visible.shape}"
+        )
+
+
+def _check_finite(keypoints: np.ndarray, visible: np.ndarray) -> None:
     bad = np.flatnonzero(visible & ~np.isfinite(keypoints).all(axis=-1))
     if len(bad):
         raise ValueError(
