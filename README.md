@@ -167,6 +167,55 @@ large error rather than as unmatched:
 pa.Instance(bbox=np.array([x1, y1, x2, y2]), keypoints=xy_pred, visible=visible_pred)
 ```
 
+### Several joints
+
+Repeat `--angle`, `--tilt`, `--length` or `--ratio` to read several measures
+off the same pairing. The output is one row per measure; `--full` prints each
+measure's full block instead. Both elbows and both knees on the demo data:
+
+```text
+$ poseaudit audit --format coco --gt gt_200.json --pred pred_yolo11n.json \
+    --angle 5,7,9 --angle 6,8,10 --angle 11,13,15 --angle 12,14,16 --big-error 15
+measure         n    bias    limits              mean |error|             RMSE    >= 15°                  slope  ICC(A,1)
+angle 5,7,9     322  +2.27°  -50.90° to +79.99°  19.48° [17.05 to 22.13]  29.57°  43.2% [37.9% to 48.6%]  0.731  0.762
+angle 6,8,10    308  +3.74°  -54.10° to +75.45°  18.07° [15.54 to 20.67]  30.11°  34.7% [29.5% to 40.2%]  0.751  0.803
+angle 11,13,15  243  +5.19°  -38.92° to +80.06°  16.40° [12.93 to 20.26]  29.80°  30.5% [24.4% to 37.2%]  0.715  0.794
+angle 12,14,16  242  +4.63°  -37.07° to +69.46°  14.62° [11.87 to 17.66]  24.38°  31.8% [25.0% to 39.0%]  0.796  0.871
+  ! angle 5,7,9: 2.5% of errors fall below the normal limits and 4.3% above them, against 2.5% each for a normal error: use the percentile limits.
+  ! angle 6,8,10: 2.3% of errors fall below the normal limits and 4.2% above them, against 2.5% each for a normal error: use the percentile limits.
+  ! angle 11,13,15: 1.6% of errors fall below the normal limits and 4.1% above them, against 2.5% each for a normal error: use the percentile limits.
+  ! angle 12,14,16: 1.7% of errors fall below the normal limits and 5.0% above them, against 2.5% each for a normal error: use the percentile limits.
+```
+
+### Compare models
+
+Give each model as `--pred NAME=PATH`. Each model gets its table, and every
+pair of models is compared on the readings both made of the same labelled
+instance: the difference in mean |error| and in the large-error rate (first
+model minus second, so below 0 the first is closer to the truth), with paired
+intervals that resample whole images, the number of shared readings and each
+model's own count.
+
+```bash
+poseaudit audit --format coco --gt gt.json --angle 5,7,9 --angle 6,8,10 \
+    --pred yolo11n=res_n.json --pred yolo11s=res_s.json --big-error 15 \
+    --csv differences.csv
+```
+
+In Python:
+
+```python
+c = pa.compare(
+    {"yolo11n": predicted_n, "yolo11s": predicted_s},
+    truth,
+    measures=[pa.angle(5, 7, 9), pa.angle(6, 8, 10)],
+    big_error=15,
+)
+print(c.summary())
+rows = c.table()  # one dict per measure and pair of models
+c.to_csv("differences.csv")
+```
+
 ## Python API
 
 - Loaders give `{image name: [Instance, ...]}`: `load_coco(annotations)`,
@@ -183,7 +232,11 @@ pa.Instance(bbox=np.array([x1, y1, x2, y2]), keypoints=xy_pred, visible=visible_
   `theil_sen` (`gain` and `robust_gain` in the JSON); `icc`, `ccc`;
   `size_bands`; `readings` and `worst()`; `warnings`. Most figures have a
   `_ci` interval. `summary()`, `to_markdown()`, `to_csv()`,
-  `to_dict()` and `plot()` write it out.
+  `to_dict()` and `plot()` write it out, and `to_rows()` gives the headline
+  figures as a flat row to stack into a table.
+- `compare({name: predicted}, truth, measures, big_error)` returns a
+  `Comparison`: `results` (each model's `AuditResult`s, one per measure),
+  `differences`, `table()` (flat rows) and `to_csv()`.
 
 ## Reading the demo
 
@@ -548,6 +601,14 @@ old name), both `null` under 10 readings. Warnings, including those raised while
 loading, are in `warnings`. `--csv` writes one row per reading:
 `image, truth_index, predicted_index, class_id, cluster, size, truth,
 predicted, error, mean`. Same inputs and seed, same bytes.
+
+With several measures the JSON is `{"poseaudit", "schema", "settings",
+"measures": [...]}`, each entry of `measures` what a single measure's JSON
+would be, and the CSV leads each row with a `measure` column. With one measure
+the JSON is as above, unchanged. Comparing models, it is `{"poseaudit",
+"schema", "settings", "models": {name: [one entry per measure]},
+"differences": [...]}`, the differences being the rows of `Comparison.table()`,
+which `--csv` writes.
 
 The command exits 0 on success (warnings included); 1 on bad input or
 settings, a failed write, or nothing read (the JSON and CSV are still

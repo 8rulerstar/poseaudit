@@ -97,3 +97,13 @@ def test_the_arrays_snippet_runs() -> None:
     space: dict = {}
     exec(snippet, space)
     assert space["result"].n == 1
+
+
+def test_the_several_joints_block_is_what_the_demo_prints(capsys, monkeypatch):
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    (block,) = [b for b in _blocks(readme) if "--angle 6,8,10" in b]
+    command, _, output = block.partition("\n    ")[2].partition("\n")
+    monkeypatch.chdir(DEMO)
+    main(BASE[:-4] + command.split())
+    lines = capsys.readouterr().out.rstrip("\n").splitlines()
+    assert output == "\n".join(lines) + "\n"
