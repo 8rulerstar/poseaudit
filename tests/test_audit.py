@@ -1249,3 +1249,63 @@ def test_the_summary_qualifies_p_and_says_what_it_compares() -> None:
     assert "p(gain <= jitter)" in text and "labels make p small" in text
     assert "p(squash)" not in text + r.to_markdown()
     assert "jitter_p" in r.to_dict()  # the JSON key stays
+
+
+
+def test_the_report_opens_in_words_and_ends_with_a_settings_table() -> None:
+    r = audit(pairing([0, 5, 10, 20], [1, 4, 18, 21]), tilt(0, 1), 5,
+              resamples=60, jitter_repeats=0, settings={"note": "a|b"})  # fmt: skip
+    text = r.to_markdown()
+    lead = text.split("\n")[2]
+    assert lead.startswith("On average the tilt is 2.8 degrees off; 25% of readings")
+    assert "An error is predicted minus truth" in lead
+    settings = text.split("## Settings")[1]
+    assert "| seed | 0 |" in settings and "| thresholds | none |" in settings
+    assert r"| note | a\|b |" in settings  # escaped, or the row splits
+    assert "{'" not in text  # no Python dict
+
+
+
+def lead(result) -> str:
+    return result.to_markdown().split("\n")[2]
+
+
+def test_the_lead_says_which_way_a_tilt_error_points() -> None:
+    """A tilt's error is folded: a truth of +88 read as -88 is 4 degrees off,
+    the axis turned clockwise, so "the prediction is larger" would be false."""
+    t, p = np.r_[np.zeros(299), 88.0], np.r_[np.full(299, 0.5), -88.0]
+    r = audit(pairing(t, p), tilt(0, 1), 1, resamples=60, jitter_repeats=0)
+    assert r.worst(1)[0].error == pytest.approx(4.0)
+    assert "turned clockwise from the true one" in lead(r)
+    assert "prediction is larger" not in lead(r)
+    elbows = audit(arms([90] * 30, [92] * 30), angle(0, 1, 2), 5, resamples=60,
+                   jitter_repeats=0)  # fmt: skip
+    assert "a positive error means the prediction is larger." in lead(elbows)
+
+
+def test_the_lead_names_a_relative_reading() -> None:
+    t, p = np.zeros(30), np.linspace(-2, 2, 30)
+    images = [f"img{i // 5}" for i in range(30)]
+    r = audit(pairing(t, p, images), tilt(0, 1), 1, relative_to="median",
+              resamples=60, jitter_repeats=0)  # fmt: skip
+    assert lead(r).startswith(
+        "On average the tilt relative to the median of the rest of its image is"
+    )
+    sizes = audit(pairing(t, p, images), tilt(0, 1), 1, relative_to="p20",
+                  relative_abs=True, resamples=60, jitter_repeats=0)  # fmt: skip
+    assert lead(sizes).startswith("On average |tilt| minus the p20 of the others'")
+    assert "|value|, less its image's baseline, is larger" in lead(sizes)
+
+
+def test_the_lead_never_rounds_a_rare_error_away() -> None:
+    t, p = np.r_[np.zeros(299), 88.0], np.r_[np.full(299, 0.5), -88.0]
+    r = audit(pairing(t, p), tilt(0, 1), 1, resamples=60, jitter_repeats=0)
+    assert "; <1% of readings are off by 1 degree or more." in lead(r)
+    flipped = audit(pairing(t, t + np.r_[np.full(299, 3.0), 0.5]), tilt(0, 1), 1,
+                    resamples=60, jitter_repeats=0)  # fmt: skip
+    assert "; >99% of readings are off by 1 degree or more." in lead(flipped)
+
+
+def test_a_report_with_nothing_read_still_ends_with_a_newline() -> None:
+    r = audit(Pairing(missed=[("a", leaning(0))]), tilt(0, 1), 5)
+    assert r.n == 0 and r.to_markdown().endswith("|\n")

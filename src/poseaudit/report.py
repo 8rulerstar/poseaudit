@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from poseaudit._version import __version__
+from poseaudit.measures import Tilt
 
 if TYPE_CHECKING:
     from poseaudit.audit import AuditResult
@@ -223,14 +224,93 @@ def _limit_row(name, low, high, low_ci, high_ci, u, d=2) -> str:
     )
 
 
+def _amount(value: float, unit: str, fmt: str = "g") -> str:
+    """A value and its unit in words: 1 degree, 15 degrees, 2.5 px."""
+    text = f"{value:{fmt}}"
+    word = {"deg": "degree" if text == "1" else "degrees", "px": "px"}.get(unit)
+    return f"{text} {word}" if word else text
+
+
+def _share(rate: float) -> str:
+    """Whole percent, but a rare event never shows as 0% nor a near-certain
+    one as 100%."""
+    text = f"{rate:.0%}"
+    if text == "0%" and rate > 0:
+        return "<1%"
+    if text == "100%" and rate < 1:
+        return ">99%"
+    return text
+
+
+def _subject(result: "AuditResult") -> str:
+    m = result.measure
+    rel = result.settings.get("relative_to")
+    if not rel:
+        return f"the {m.name}"
+    base = "a baseline" if rel == "custom" else f"the {rel}"
+    if result.settings.get("relative_abs"):
+        return f"|{m.name}| minus {base} of the others' |{m.name}| in its image"
+    return f"the {m.name} relative to {base} of the rest of its image"
+
+
+def _sign(result: "AuditResult") -> str:
+    """Which way a positive error points. A tilt's error is folded into
+    [-90, 90): a truth of +88 read as -88 is +4, the axis turned 4 degrees
+    clockwise, not -176."""
+    relative = result.settings.get("relative_to") is not None
+    against = ", each measured against the rest of its image" if relative else ""
+    if result.settings.get("relative_abs"):
+        return (
+            "An error is predicted minus truth: a positive error means the "
+            "prediction's |value|, less its image's baseline, is larger."
+        )
+    if isinstance(result.measure, Tilt):
+        return (
+            "An error is predicted minus truth, taken the short way round: a "
+            "positive error means the predicted axis is turned clockwise from the "
+            f"true one as seen in the image{against}."
+        )
+    return (
+        "An error is predicted minus truth: a positive error means the prediction "
+        f"is larger{against}."
+    )
+
+
+def _lead(result: "AuditResult") -> str:
+    """The headline in words, and which way an error points."""
+    m = result.measure
+    d = 1 if m.unit else _digits(result)
+    return (
+        f"On average {_subject(result)} is "
+        f"{_amount(result.mean_abs_error, m.unit, f'.{d}f')} off; "
+        f"{_share(result.big_error_rate)} of readings are off by "
+        f"{_amount(result.big_error, m.unit)} or more. {_sign(result)}"
+    )
+
+
+def _cell(value) -> str:
+    if value is None:
+        return "none"
+    if isinstance(value, (list, tuple)):
+        value = ", ".join(str(v) for v in value) or "none"
+    return str(value).replace("|", "\\|")  # a regex may hold one
+
+
+def _settings(result: "AuditResult") -> list[str]:
+    return ["## Settings", "", "| setting | value |", "|---|---|"] + [
+        f"| {key} | {_cell(value)} |" for key, value in result.settings.items()
+    ]
+
+
 def markdown(result: "AuditResult", worst: int = 10) -> str:
     u = _unit(result)
     d = _digits(result)
-    out = [
-        f"# poseaudit {__version__}: {_what(result)}",
-        "",
-        f"big error >= {result.big_error:g}{u}, bands cut on the {result.band_by}, "
-        f"settings {result.settings}",
+    out = [f"# poseaudit {__version__}: {_what(result)}", ""]
+    if result.n:
+        out += [_lead(result), ""]
+    out += [
+        f"big error >= {result.big_error:g}{u}, bands cut on the {result.band_by}; "
+        "the settings are listed at the end.",
         "",
         "```",
         summary(result, full=True),
@@ -238,7 +318,7 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
         "",
     ]
     if result.n == 0:
-        return "\n".join(out)
+        return "\n".join(out + _settings(result)) + "\n"
     cluster = "image" if result.settings.get("cluster") == "image" else "cluster"
     out.append(
         GUIDE.format(
@@ -354,6 +434,7 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
             f"| {r.image} | {r.truth_index} | {r.size:.0f} px | {r.truth:.{d}f}{u} "
             f"| {r.predicted:.{d}f}{u} | {r.error:+.{d}f}{u} |"
         )
+    out += ["", *_settings(result)]
     return "\n".join(out) + "\n"
 
 
