@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Several measures in one run: `--angle`, `--tilt`, `--length` and `--ratio`
+  may be repeated. The output is one table with a row per measure (n, bias,
+  percentile limits, mean |error|, RMSE, the large-error rate, slope, ICC);
+  `--full` prints each measure in full. The JSON then holds the shared
+  settings and a `measures` list of single-measure entries; with one measure
+  it is unchanged.
+- Model comparison: `pa.compare({name: predicted}, truth, measures,
+  big_error)` and repeated `--pred NAME=PATH`. For each measure and pair of
+  models, the differences in mean |error| and in the large-error rate on the
+  readings both made, with paired bootstrap intervals over images (or named
+  clusters) and the shared and per-model counts. `Comparison.table()` gives
+  flat rows and `to_csv()` writes them.
+- `AuditResult.to_rows()`: the headline figures as a flat row.
 - `Instance` and `Instance.from_keypoints` refuse keypoints not of shape
   (K, 2), such as x, y, v rows, and a `visible` not of shape (K,), naming the
   shape expected.
