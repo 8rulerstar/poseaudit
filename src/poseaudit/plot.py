@@ -1,4 +1,4 @@
-"""Two panels a reviewer asks for first. Needs `pip install poseaudit[plot]`."""
+"""Two panels a reviewer asks for first. Needs `pip install "poseaudit[plot]"`."""
 
 from typing import TYPE_CHECKING
 
@@ -13,7 +13,7 @@ def needs_matplotlib() -> None:
         import matplotlib.figure  # noqa: F401
     except ImportError as error:
         raise ImportError(
-            "plotting needs matplotlib: pip install poseaudit[plot]"
+            "plotting needs matplotlib: pip install "poseaudit[plot]""
         ) from error
 
 

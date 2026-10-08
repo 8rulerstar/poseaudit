@@ -68,3 +68,32 @@ def test_the_paper_recipe_quotes_the_demo(tmp_path, capsys, monkeypatch) -> None
     )
     assert sentence in readme
     assert d["mean_abs_error_ci"][1] <= 25 and d["big_error_rate_ci"][1] <= 0.5
+
+
+def _blocks(readme: str) -> list[str]:
+    """The text blocks that show the demo command and what it prints."""
+    blocks = [b.split("```")[0] for b in readme.split("```text\n")[1:]]
+    return [b for b in blocks if b.startswith("$ poseaudit audit --format coco")]
+
+
+@pytest.mark.parametrize(("index", "extra"), [(0, []), (1, ["--full"])])
+def test_the_quick_start_blocks_are_exactly_what_the_demo_prints(
+    capsys, monkeypatch, index, extra
+) -> None:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    block = _blocks(readme)[index]
+    command, _, output = block.partition("\n    ")[2].partition("\n")
+    assert command.split() == ["--angle", "5,7,9", "--big-error", "15",
+                               "--size-bands", "30,60", *extra]  # fmt: skip
+    lines = printed(capsys, monkeypatch, "--size-bands", "30,60", *extra)
+    assert output == "\n".join(lines) + "\n"
+
+
+def test_the_arrays_snippet_runs() -> None:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    (snippet,) = [
+        b.split("```")[0] for b in readme.split("```python\n")[1:] if "xy_true = " in b
+    ]
+    space: dict = {}
+    exec(snippet, space)
+    assert space["result"].n == 1

@@ -70,23 +70,6 @@ the repository or download that folder):
 $ poseaudit audit --format coco --gt gt_200.json --pred pred_yolo11n.json \
     --angle 5,7,9 --big-error 15 --size-bands 30,60
 angle (5, 7, 9): read 322 of 380 labelled instances
-  bias         +2.27° [-1.21 to +6.15], median +0.52°
-  limits       -50.90° to +79.99° (percentile, 2.5th to 97.5th; JSON percentile_limits)
-  |error|      mean 19.48° [17.05 to 22.13], median 12.59°, 95th pct 68.99°
-  RMSE         29.57° [25.30 to 33.94]
-  >= 15°       43.2% [37.9% to 48.6%]
-  by size      0-30 px 58% (n 134), 30-60 px 37% (n 112), 60+ px 26% (n 76)
-  slope        0.731 [0.639 to 0.814] (pred on truth, 1 is ideal); Theil-Sen 0.786
-  ICC(A,1)     0.762 [0.677 to 0.827]
-```
-
-<details>
-<summary>Full output</summary>
-
-```text
-$ poseaudit audit --format coco --gt gt_200.json --pred pred_yolo11n.json \
-    --angle 5,7,9 --big-error 15 --size-bands 30,60
-angle (5, 7, 9): read 322 of 380 labelled instances
   not read     no matching prediction 35, prediction lacked a point 23, unmeasurable 0
   not counted  206 with a point unlabelled in the truth, 79 unmatched predictions
   bias         +2.27° [-1.21 to +6.15], median +0.52°
@@ -97,6 +80,32 @@ angle (5, 7, 9): read 322 of 380 labelled instances
   by size      0-30 px 58% (n 134), 30-60 px 37% (n 112), 60+ px 26% (n 76)
   slope        0.731 [0.639 to 0.814] (pred on truth, 1 is ideal); Theil-Sen 0.786
   ICC(A,1)     0.762 [0.677 to 0.827]
+  ! 2.5% of errors fall below the normal limits and 4.3% above them, against 2.5% each for a normal error: use the percentile limits.
+```
+
+<details>
+<summary>With --full: the jitter reference and every agreement statistic</summary>
+
+```text
+$ poseaudit audit --format coco --gt gt_200.json --pred pred_yolo11n.json \
+    --angle 5,7,9 --big-error 15 --size-bands 30,60 --full
+angle (5, 7, 9): read 322 of 380 labelled instances
+  not read     no matching prediction 35, prediction lacked a point 23, unmeasurable 0
+  not counted  206 with a point unlabelled in the truth, 79 unmatched predictions
+  bias         +2.27° [-1.21 to +6.15], median +0.52°
+  limits       -50.90° to +79.99° (percentile, 2.5th to 97.5th; JSON percentile_limits)
+  normal       -55.60° to +60.14° (bias +/- 1.96 SD; JSON limits)
+  |error|      mean 19.48° [17.05 to 22.13], median 12.59°, 95th pct 68.99°
+  RMSE         29.57° [25.30 to 33.94]
+  >= 15°       43.2% [37.9% to 48.6%]
+  by size      0-30 px 58% (n 134), 30-60 px 37% (n 112), 60+ px 26% (n 76)
+  slope        0.731 [0.639 to 0.814] (pred on truth, 1 is ideal); Theil-Sen 0.786
+  ICC(A,1)     0.762 [0.677 to 0.827]
+  vs jitter    0.871 from keypoint jitter alone; gap -0.140 [-0.199 to -0.076], p(slope <= jitter) <= 0.002*
+               * swaps and gross failures lower the slope too, and noisy
+                 labels make p small for an honest model: read the gap
+  BA slope     -0.049 [-0.119 to +0.016]
+  agreement    CCC 0.761 [0.677 to 0.826], r 0.763
   ! 2.5% of errors fall below the normal limits and 4.3% above them, against 2.5% each for a normal error: use the percentile limits.
 ```
 
@@ -136,6 +145,12 @@ and a boolean `visible` of shape (K,) per object, here a 33-point skeleton:
 
 ```python
 import numpy as np
+import poseaudit as pa
+
+rng = np.random.default_rng(0)
+xy_true = rng.uniform(100, 500, (33, 2))  # your labelled points, in pixels
+xy_pred = xy_true + rng.normal(0, 3, (33, 2))  # your model's points
+visible_pred = np.ones(33, bool)
 
 truth = {"frame_001": [pa.Instance.from_keypoints(xy_true, np.ones(33, bool))]}
 predicted = {"frame_001": [pa.Instance.from_keypoints(xy_pred, visible_pred)]}

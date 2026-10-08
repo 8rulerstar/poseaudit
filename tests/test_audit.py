@@ -1418,6 +1418,7 @@ def test_a_plot_without_matplotlib_fails_before_the_audit(tmp_path, monkeypatch)
     with pytest.raises(SystemExit) as stop:
         _cli(tmp_path, "--tilt", "0,1", "--plot", str(tmp_path / "p.png"))
     assert "plotting needs matplotlib" in str(stop.value)
+    assert 'pip install "poseaudit[plot]"' in str(stop.value)
 
 
 def test_an_interval_never_prints_negative_zero() -> None:
