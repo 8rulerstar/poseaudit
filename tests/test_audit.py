@@ -1387,3 +1387,21 @@ def test_audit_help_explains_band_by_and_gives_examples(capsys) -> None:
     out = capsys.readouterr().out
     assert "examples:" in out and "poseaudit audit --format coco --gt" in out
     assert "bias bands" in out  # --band-by
+
+
+def test_the_readme_gate_fails_on_a_null_interval(tmp_path, monkeypatch) -> None:
+    """One image gives null intervals; the README's Python gate must not pass."""
+    from pathlib import Path
+
+    from poseaudit.cli import _finite
+
+    readme = (Path(__file__).parents[1] / "README.md").read_text(encoding="utf-8")
+    blocks = readme.split("```python\n")[1:]
+    (gate,) = [b.split("```")[0] for b in blocks if "gate failed" in b]
+    t = np.linspace(-10, 10, 30)
+    r = audit(pairing(t, t + 0.5, ["one"] * 30), tilt(0, 1), 5, resamples=50,
+              jitter_repeats=0)  # fmt: skip
+    (tmp_path / "figures.json").write_text(json.dumps(_finite(r.to_dict())))
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(SystemExit, match="gate failed"):
+        exec(gate, {})

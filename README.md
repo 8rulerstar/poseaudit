@@ -81,6 +81,9 @@ poseaudit audit --format coco --gt annotations.json --pred results.json \
     --report report.md --plot panels.png --csv readings.csv
 ```
 
+The commands here continue lines with bash's `\`; in PowerShell put the
+command on one line, or end each line with a backtick instead.
+
 `--big-error` is required: the error, in the measure's unit, that counts as
 large. `report.md` explains every line of the summary. In Python:
 
@@ -421,7 +424,9 @@ regions are skipped as they load, so they appear in no count.
   decision rates resample whole clusters too when some hold several readings
   (never narrower than Wilson's); with one reading to each they use Wilson
   intervals, which treat readings as independent. Rates per size band stay
-  Wilson.
+  Wilson. With a single cluster there is nothing to resample, and every
+  interval, Wilson's included, is left out (`null` in the JSON) rather than
+  shown as a point or as if the readings were independent.
 
 ## The jitter reference
 
@@ -482,8 +487,22 @@ predicted, error, mean`. Same inputs and seed, same bytes.
 
 The command exits 0 on success (warnings included); 1 on bad input or
 settings, a failed write, or nothing read (the JSON and CSV are still
-written); and 2 when the arguments cannot be parsed. There is no pass or fail threshold built in; gate on the JSON, for
-example `jq -e '.mean_abs_error_ci[1] <= 3 and .n / .measurable >= 0.9'`.
+written); and 2 when the arguments cannot be parsed. There is no pass or fail
+threshold built in; gate on the JSON. An interval that cannot be computed is
+`null` (every interval is, with a single cluster), and in jq `null <= 3` is
+true, so make a gate fail on `null`: for example
+`jq -e '(.mean_abs_error_ci[1] // 1e9) <= 3 and .n / .measurable >= 0.9'`, or
+without jq, in Python:
+
+```python
+import json
+
+r = json.load(open("figures.json", encoding="utf-8"))  # written by --json
+high = r["mean_abs_error_ci"][1]  # None when the interval is null
+if not (high is not None and high <= 3 and r["n"] / r["measurable"] >= 0.9):
+    raise SystemExit("poseaudit gate failed")
+```
+
 `--resamples` and `--jitter-repeats` trade precision for speed: 50,000
 readings take about three minutes at the defaults.
 
