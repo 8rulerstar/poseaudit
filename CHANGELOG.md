@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.4
 
 - Pairing: a warning when unmatched truth images share their last name (after
   the last `/` or `\`, without an image extension) with unmatched predicted
