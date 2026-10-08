@@ -318,20 +318,6 @@ def audit(
     result.warnings = list(pairing.warnings)
     beside, boxed = _missed_beside_extra(pairing, measure)
     classes = sorted({r.class_id for r in readings if r.class_id is not None})
-    if raw:
-        used = list(measure.points)
-        coords = np.concatenate(
-            [
-                np.r_[p.truth.keypoints[used], p.predicted.keypoints[used]]
-                for p, *_ in raw
-            ]
-        )
-        if np.abs(coords).max() <= 1.0:
-            result.warnings.append(
-                "Every coordinate read lies within 0 to 1: normalised coordinates? "
-                "They squeeze an image's longer side, so angles, tilts and lengths "
-                "come out wrong. Multiply x by the image width and y by its height."
-            )
     if len(classes) > 1 and not mixed_classes:
         raise ValueError(
             f"readings mix classes {classes}: audit one class at a time (classes=, "
@@ -342,6 +328,9 @@ def audit(
             f"Relative readings of {type(measure).__name__.lower()}s: a camera "
             "roll moves tilts, not angles or lengths, so this rarely means much."
         )
+    units = _units_warning(pairing)
+    if units:
+        result.warnings.append(units)
     if not readings:
         result.warnings.append("No readable pair: nothing to report.")
         return result
@@ -502,6 +491,44 @@ def _check_indices(pairing: Pairing, measure: Measure) -> None:
                 f"{image} has {k} keypoints (indices 0-{k - 1}); indices count "
                 "from 0"
             )
+
+
+def _normalised(instances) -> bool | None:
+    """Every visible coordinate within about [0, 1]: fractions of the image
+    size, it seems, not pixels. A little slack, as in the YOLO loader: MediaPipe
+    lets points run past the frame. None with no visible point to go by."""
+    seen = [i.keypoints[i.visible] for i in instances]
+    xy = np.concatenate([np.zeros((0, 2)), *seen])
+    if not len(xy):
+        return None
+    return bool(((xy >= -0.05) & (xy <= 1.05)).all())
+
+
+def _units_warning(pairing: Pairing) -> str | None:
+    """Coordinates that look normalised, on both sides or on one only. Judged
+    on every instance, paired or not: with one side normalised nothing pairs."""
+    looks = {
+        name: _normalised([i for _image, s, i in _instances(pairing) if s == side])
+        for name, side in (("ground-truth", "truth"), ("predicted", "prediction"))
+    }
+    normalised = [name for name, v in looks.items() if v]
+    pixels = [name for name, v in looks.items() if v is False]
+    if not normalised:
+        return None
+    if not pixels:
+        return (
+            "Every visible coordinate lies within 0 to 1 (give or take 0.05): "
+            "normalised coordinates? They squeeze an image's longer side, so "
+            "angles, tilts and lengths come out wrong. Multiply x by the image "
+            "width and y by its height."
+        )
+    return (
+        f"The {normalised[0]} coordinates look normalised (every visible one lies "
+        f"within 0 to 1) but the {pixels[0]} ones look like pixels: the two "
+        "sides are in different units, so they cannot pair, which is why little "
+        f"or nothing was read. Multiply the {normalised[0]} x by the image width "
+        "and y by its height."
+    )
 
 
 def _read_pairs(pairing: Pairing, measure: Measure):

@@ -1109,3 +1109,51 @@ def test_a_noise_ratio_must_be_above_0(ratio) -> None:
     """The CLI refuses these already; the function gave a NaN or negative slope."""
     with pytest.raises(ValueError, match="noise_ratio must be above 0"):
         audit(pairing([0, 5, 10], [1, 4, 9]), tilt(0, 1), 5, noise_ratio=ratio)
+
+
+def landmarks(truth_scale, predicted_scale, past_frame=False):
+    """Forty frames of 33 MediaPipe-style landmarks, fractions of the frame,
+    each side multiplied by its own scale."""
+    rng = np.random.default_rng(0)
+    xy = rng.uniform(0.2, 0.8, (40, 33, 2))
+    moved = xy + rng.normal(0, 0.01, xy.shape)
+    if past_frame:  # MediaPipe lets points run a little past the edges
+        xy[0, 25], moved[1, 27] = (1.01, 0.5), (0.4, -0.002)
+    seen = np.ones(33, bool)
+    truth = {f"f{k}": [Instance.from_keypoints(xy[k] * truth_scale, seen)]
+             for k in range(40)}  # fmt: skip
+    predicted = {f"f{k}": [Instance.from_keypoints(moved[k] * predicted_scale, seen)]
+                 for k in range(40)}  # fmt: skip
+    return audit(pair(truth, predicted), angle(23, 25, 27), big_error=10,
+                 resamples=100, jitter_repeats=0)  # fmt: skip
+
+
+FRAME = np.array([1280.0, 720.0])
+
+
+def test_points_just_past_the_frame_still_look_normalised() -> None:
+    r = landmarks(np.ones(2), np.ones(2), past_frame=True)
+    assert any("within 0 to 1" in w for w in r.warnings)
+    assert not any("normalised" in w for w in landmarks(FRAME, FRAME).warnings)
+
+
+@pytest.mark.parametrize(
+    ("truth_scale", "predicted_scale", "odd", "other"),
+    [
+        (FRAME, np.ones(2), "predicted", "ground-truth"),
+        (np.ones(2), FRAME, "ground-truth", "predicted"),
+    ],
+)
+def test_one_side_normalised_explains_why_nothing_pairs(
+    truth_scale, predicted_scale, odd, other
+) -> None:
+    """Pixel labels against MediaPipe or Ultralytics xyn predictions: nothing
+    pairs, and the warning says why."""
+    r = landmarks(truth_scale, predicted_scale)
+    assert r.n == 0
+    assert any(
+        w.startswith(f"The {odd} coordinates look normalised")
+        and f"the {other} ones look like pixels" in w
+        and "cannot pair" in w
+        for w in r.warnings
+    )
