@@ -38,13 +38,23 @@
   (`gain`, `robust_gain`, `jitter_p`) are unchanged.
 - The JSON also gives the percentile limits as `percentile_limits` (the same
   as `empirical_limits`); `limits` stay the normal ones.
-- With fewer than 10 readings the percentile limits print as n/a.
+- With fewer than 10 readings the percentile limits print as n/a, and are
+  `null` in the JSON (`percentile_limits` and `empirical_limits` both).
+- When the truth hardly varies, a warning gives its range and says the slope,
+  ICC and CCC are not defined; any figure that is not defined prints as n/a
+  in the summary and the report, never as nan.
+- With named clusters the repeated-readings limits are in the default
+  summary, not only under `--full`.
+- `AuditResult.percentile_limits`, `.slope` and `.theil_sen` are aliases of
+  `empirical_limits`, `gain` and `robust_gain`, and `AuditResult` has a
+  docstring listing its main fields.
 - The warning that coordinates look normalised comes before any figure, in
   the summary and the report, and sizes are then not labelled in px.
 - Intervals and limits never print as -0.000.
 - CLI: `--plot` without matplotlib fails before the audit runs. On a console
   that is not UTF-8 (Git Bash on Korean Windows, for one) the degree sign
-  prints as " deg".
+  prints as " deg", with the columns kept aligned. The plot hint reads
+  `pip install "poseaudit[plot]"`.
 - `report.md` opens with the headline in words, naming a relative reading as
   such and never rounding a rare large error to 0%, and says which way an
   error points. The settings are a table at the end instead of a Python dict.
@@ -52,7 +62,10 @@
 - CLI: `--image-size` also takes `WxH`, and an error names a malformed size
   such as `1280x`; `--band-by` has a help line; `poseaudit audit --help` ends
   with examples.
-- README: recipes for a validation paper and a CI gate under the intro; the
+- README: the Quick start shows the exact default output, and the block
+  below it the real `--full` output (both checked by a test); a Python API
+  section; a runnable arrays snippet; recipes for a validation paper and a CI
+  gate under the intro; the
   JSON gates fail on a `null` interval (in jq `null <= 3` is
   true), with a Python alternative to `jq`, and a note on line continuations
   in PowerShell.
