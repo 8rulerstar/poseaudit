@@ -1501,3 +1501,13 @@ def test_a_normalised_warning_comes_before_any_figure() -> None:
     assert " px" not in sizes
     pixels = landmarks(FRAME, FRAME)
     assert " px" in pixels.summary() or len(pixels.size_bands) < 2
+
+
+def test_the_json_has_no_percentile_limits_under_10_readings() -> None:
+    from poseaudit.cli import _finite
+
+    r = audit(pairing(np.zeros(9), np.linspace(-3, 3, 9)), tilt(0, 1), 5,
+              resamples=50, jitter_repeats=0)  # fmt: skip
+    d = _finite(r.to_dict())
+    assert d["percentile_limits"] == [None, None] == d["empirical_limits"]
+    assert d["limits"][0] is not None

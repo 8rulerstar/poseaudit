@@ -510,7 +510,8 @@ The Theil-Sen slope uses every pair of readings up to about 1,000 readings and
 `--json` writes every figure, with `poseaudit` (the version) and `schema`
 (1) at the top and the settings used. NaN and infinity become `null`. Note
 that `limits` there are the normal limits; the percentile limits the summary
-prints are `empirical_limits`. Warnings, including those raised while
+prints are `percentile_limits` (`empirical_limits` is the same pair under its
+old name), both `null` under 10 readings. Warnings, including those raised while
 loading, are in `warnings`. `--csv` writes one row per reading:
 `image, truth_index, predicted_index, class_id, cluster, size, truth,
 predicted, error, mean`. Same inputs and seed, same bytes.
