@@ -493,6 +493,9 @@ def _console(text: str, stream) -> str:
     encoding = (getattr(stream, "encoding", None) or "").lower().replace("-", "")
     if encoding in ("utf8", "utf8sig"):
         return text
+    # padding after a sign (the ">= 15°" label) gives up the three columns
+    # " deg" adds, so the figures stay aligned
+    text = re.sub(r"°( {4,})", lambda m: " deg" + m.group(1)[3:], text)
     text = text.replace("°", " deg")
     if encoding:  # never fail on a character the console cannot show
         text = text.encode(encoding, errors="replace").decode(encoding)

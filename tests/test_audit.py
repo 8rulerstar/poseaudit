@@ -1447,6 +1447,9 @@ def test_the_degree_sign_falls_back_on_a_console_not_in_utf8(
     assert f"  >= 5{sign}" in text
     if sign != "°":
         assert "°" not in text and raw.getvalue().isascii()
+    rows = [x for x in text.splitlines() if x.startswith(("  bias", "  >= 5"))]
+    assert len({len(x[:15].rstrip(" ")) <= 14 for x in rows}) == 1
+    assert {x[15] != " " and x[14] == " " for x in rows} == {True}
 
 
 def test_the_json_names_the_percentile_limits() -> None:
