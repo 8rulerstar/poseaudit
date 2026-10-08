@@ -169,7 +169,8 @@ class AuditResult:
 
     def to_dict(self) -> dict:
         """Every figure. `limits` are the normal ones (bias ± 1.96 SD);
-        `empirical_limits` are the percentile ones the summary prints."""
+        `percentile_limits` (also under their old name, `empirical_limits`)
+        are the 2.5th and 97.5th percentiles of the errors."""
         from poseaudit._version import __version__
 
         skip = ("measure", "readings")
@@ -180,6 +181,7 @@ class AuditResult:
             "points": list(self.measure.points),
             "unit": self.measure.unit,
         }
+        out["percentile_limits"] = tuple(self.empirical_limits)
         out["n"] = self.n
         out["measurable"] = self.measurable
         return out

@@ -1447,3 +1447,11 @@ def test_the_degree_sign_falls_back_on_a_console_not_in_utf8(
     assert f"  >= 5{sign}" in text
     if sign != "°":
         assert "°" not in text and raw.getvalue().isascii()
+
+
+def test_the_json_names_the_percentile_limits() -> None:
+    r = audit(pairing(np.zeros(50), np.linspace(-3, 3, 50)), tilt(0, 1), 5,
+              resamples=50, jitter_repeats=0)  # fmt: skip
+    d = r.to_dict()
+    assert d["percentile_limits"] == tuple(r.empirical_limits)
+    assert d["limits"] == tuple(r.limits) and "empirical_limits" in d
