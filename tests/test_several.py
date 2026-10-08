@@ -168,3 +168,39 @@ def test_one_image_gives_no_paired_interval() -> None:
     (d,) = pa.compare(preds, truth, pa.tilt(0, 1), 5, resamples=50,
                       jitter_repeats=0).differences  # fmt: skip
     assert np.isnan(d.mean_abs_error_diff_ci).all()
+
+
+def test_the_cli_compares_models_given_by_name(tmp_path, capsys) -> None:
+    import shutil
+
+    _labels(tmp_path)
+    shutil.copytree(tmp_path / "gt", tmp_path / "exact")
+    main(["audit", "--format", "yolo", "--gt", str(tmp_path / "gt"),
+          "--pred", f"off={tmp_path / 'pred'}", "--pred", f"exact={tmp_path / 'exact'}",
+          "--image-size", "640", "480", "--keypoints", "3", "--big-error", "5",
+          "--resamples", "50", "--jitter-repeats", "0", "--angle", "0,1,2",
+          "--tilt", "0,1", "--json", str(tmp_path / "c.json"),
+          "--csv", str(tmp_path / "c.csv")])  # fmt: skip
+    out = capsys.readouterr().out
+    assert "off:" in out and "exact:" in out and "off - exact" in out
+    data = json.loads((tmp_path / "c.json").read_text(encoding="utf-8"))
+    assert list(data["models"]) == ["off", "exact"]
+    assert sorted(data["models"]["off"][0]) == SINGLE_KEYS
+    assert [d["measure"] for d in data["differences"]] == ["angle 0,1,2", "tilt 0,1"]
+    assert all(d["mean_abs_error_diff"] > 0 for d in data["differences"])
+    assert data["models"]["exact"][0]["settings"]["pred"].endswith("exact")
+    assert (tmp_path / "c.csv").read_text(encoding="utf-8").startswith("measure,a,b")
+
+
+@pytest.mark.parametrize(
+    ("preds", "message"),
+    [(["a=x", "y"], "NAME=PATH"), (["a=x", "a=y"], "share a name")],
+)
+def test_compared_models_need_distinct_names(tmp_path, preds, message) -> None:
+    _labels(tmp_path)
+    args = [a for p in preds for a in ("--pred", p)]
+    with pytest.raises(SystemExit) as stop:
+        main(["audit", "--format", "yolo", "--gt", str(tmp_path / "gt"), *args,
+              "--image-size", "640", "480", "--keypoints", "3",
+              "--big-error", "5", "--angle", "0,1,2"])  # fmt: skip
+    assert message in str(stop.value)

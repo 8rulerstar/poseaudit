@@ -312,7 +312,13 @@ def _parser() -> argparse.ArgumentParser:
     )
     data = run.add_argument_group("data")
     data.add_argument("--gt", required=True, help="YOLO label folder or COCO json")
-    data.add_argument("--pred", required=True, help="YOLO folder or COCO results json")
+    data.add_argument(
+        "--pred",
+        required=True,
+        action="append",
+        help="YOLO folder or COCO results json; to compare models, repeat it as "
+        "--pred NAME=PATH",
+    )
     data.add_argument(
         "--format", choices=["yolo", "coco"], help="format of both --gt and --pred"
     )
@@ -491,6 +497,11 @@ def main(argv: list[str] | None = None) -> None:
         text = str(w.message).replace("min_confidence", "--min-conf")
         loader_notes.append(text)
         print(_console(f"poseaudit: warning: {text}", sys.stderr), file=sys.stderr)
+    from poseaudit.compare import Comparison
+
+    if isinstance(result, Comparison):
+        _finish_compare(result, args, caught)
+        return
     results = result
     if len(results) == 1:
         text = results[0].summary(full=args.full)
@@ -510,6 +521,39 @@ def main(argv: list[str] | None = None) -> None:
     except OSError as error:
         sys.exit(f"poseaudit: could not write: {error}")
     if all(r.n == 0 for r in results):
+        sys.exit("poseaudit: nothing was read")
+
+
+def _finish_compare(comparison, args, caught) -> None:
+    notes = [str(w.message).replace("min_confidence", "--min-conf") for w in caught]
+    for text in dict.fromkeys(notes):
+        print(_console(f"poseaudit: warning: {text}", sys.stderr), file=sys.stderr)
+    if args.full:
+        blocks = [
+            f"{name}:\n" + "\n\n".join(r.summary(full=True) for r in results)
+            for name, results in comparison.results.items()
+        ]
+        from poseaudit.compare import differences_table
+
+        text = (
+            "\n\n".join(blocks)
+            + "\n\n"
+            + differences_table(comparison.differences, comparison.results)
+        )
+    else:
+        text = comparison.summary("°" if _utf8(sys.stdout) else " deg")
+    print(_console(text, sys.stdout))
+    try:
+        if args.json:
+            Path(args.json).write_text(
+                json.dumps(_finite(comparison.to_dict()), indent=2, default=str),
+                encoding="utf-8",
+            )
+        if args.csv:
+            comparison.to_csv(args.csv)
+    except OSError as error:
+        sys.exit(f"poseaudit: could not write: {error}")
+    if all(r.n == 0 for rs in comparison.results.values() for r in rs):
         sys.exit("poseaudit: nothing was read")
 
 
@@ -556,6 +600,28 @@ def _write(result, args) -> None:
             sys.exit(f"poseaudit: {error}")
 
 
+def _run_compare(args, models):
+    from poseaudit.compare import Comparison, _difference
+
+    for flag in ("report", "plot"):
+        if getattr(args, flag):
+            raise UsageError(f"--{flag} takes one model; leave it out to compare")
+    results = {}
+    for name, path in models:
+        args.pred = path
+        results[name] = _run(args)
+        for r in results[name]:
+            r.settings["model"] = name
+    names = list(results)
+    differences = [
+        _difference(results[a][k], results[b][k], a, b, args.resamples, args.seed)
+        for k in range(len(results[names[0]]))
+        for i, a in enumerate(names)
+        for b in names[i + 1 :]
+    ]
+    return Comparison(results, differences)
+
+
 def several(results) -> dict:
     """The JSON for several measures: the shared settings once, and each
     measure's figures as a single measure's JSON would give them."""
@@ -583,7 +649,31 @@ def _write_many(results, args) -> None:
         )
 
 
+def _models(given: list[str]) -> list[tuple[str, str]]:
+    """--pred PATH once, or --pred NAME=PATH for each model compared. A value
+    that names an existing file or folder is a path even if it holds an =."""
+    models = []
+    for value in given:
+        found = re.fullmatch(r"([^=/\\]+)=(.+)", value)
+        if found and not Path(value).exists():
+            models.append((found.group(1), found.group(2)))
+        else:
+            models.append(("", value))
+    if len(models) > 1:
+        if any(not name for name, _ in models):
+            raise UsageError("to compare models give each as --pred NAME=PATH")
+        names = [name for name, _ in models]
+        if len(set(names)) < len(names):
+            raise UsageError("two models given to --pred share a name")
+    return models
+
+
 def _run(args):
+    if isinstance(args.pred, list):  # as parsed; a string once a model is chosen
+        models = _models(args.pred)
+        args.pred = models[0][1]
+        if len(models) > 1:
+            return _run_compare(args, models)
     args.gt_format = args.gt_format or args.format
     args.pred_format = args.pred_format or args.format
     if not (args.gt_format and args.pred_format):
