@@ -27,6 +27,14 @@ class Measure:
             )
         if any(i < 0 for i in self.points):
             raise ValueError(f"{self.name}: keypoint indices must be 0 or more")
+        if self._repeats():
+            raise ValueError(
+                f"{self.name} {self.points}: a keypoint is repeated, which leaves "
+                "nothing to measure"
+            )
+
+    def _repeats(self) -> bool:
+        return len(set(self.points)) < len(self.points)
 
     def read(self, keypoints: np.ndarray) -> float:
         raise NotImplementedError
@@ -117,6 +125,11 @@ class Length(Measure):
 @dataclass(frozen=True)
 class Ratio(Measure):
     """|a-b| / |c-d|: scale-free, so a far and a near object compare."""
+
+    def _repeats(self) -> bool:
+        # two segments may share a point (upper arm over forearm), not be one
+        a, b, c, d = self.points
+        return a == b or c == d or {a, b} == {c, d}
 
     def read(self, keypoints: np.ndarray) -> float:
         a, b, c, d = (keypoints[i] for i in self.points)

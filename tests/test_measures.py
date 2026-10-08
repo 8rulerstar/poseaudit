@@ -66,3 +66,28 @@ def test_angles_near_straight_and_near_closed_keep_their_digits() -> None:
     assert angle(0, 1, 2).read(nearly_straight) == pytest.approx(expected, abs=1e-9)
     folded = points((3, 0), (0, 3), (3, 0))
     assert angle(0, 1, 2).read(folded) == 0.0
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda: angle(25, 25, 27),
+        lambda: angle(25, 27, 25),
+        lambda: tilt(3, 3),
+        lambda: length(1, 1),
+        lambda: ratio(0, 0, 1, 2),
+        lambda: ratio(0, 1, 1, 0),
+    ],
+)
+def test_a_repeated_keypoint_is_refused_at_once(make) -> None:
+    """angle(25, 25, 27) has no angle to read: every instance would end up
+    unmeasurable, with no word why."""
+    with pytest.raises(ValueError, match="repeated"):
+        make()
+
+
+def test_a_ratio_may_share_a_point_between_its_segments() -> None:
+    upper_over_fore = ratio(5, 7, 7, 9)
+    kp = np.zeros((10, 2))
+    kp[5], kp[7], kp[9] = (0, 0), (0, 2), (0, 3)
+    assert upper_over_fore.read(kp) == pytest.approx(2.0)

@@ -256,6 +256,7 @@ def audit(
     if relative_abs and relative_to is None:
         raise ValueError("relative_abs needs relative_to")
     cluster_of = _cluster_function(cluster)
+    _check_indices(pairing, measure)
     raw, counts = _read_pairs(pairing, measure)
     relative = _baseline(relative_to)
     raw, too_few = _relative(raw, measure, relative, relative_abs, min_in_frame)
@@ -477,17 +478,35 @@ def _unlabelled(missed, measure: Measure) -> int:
     return sum(1 for _image, t in missed if not t.visible[needed].all())
 
 
+def _instances(pairing: Pairing):
+    """Every instance in a pairing, with its image and side."""
+    return [
+        *((p.image, "truth", p.truth) for p in pairing.pairs),
+        *((p.image, "prediction", p.predicted) for p in pairing.pairs),
+        *((image, "truth", t) for image, t in pairing.missed),
+        *((image, "prediction", x) for image, x in pairing.extra),
+    ]
+
+
+def _check_indices(pairing: Pairing, measure: Measure) -> None:
+    """Unpaired instances too: an index past the end would otherwise only
+    show up as instances that were never read."""
+    highest = max(measure.points)
+    for image, side, instance in _instances(pairing):
+        k = len(instance.keypoints)
+        if highest >= k:
+            raise ValueError(
+                f"{measure.name} uses keypoint {highest}, but a {side} instance in "
+                f"{image} has {k} keypoints (indices 0-{k - 1}); indices count "
+                "from 0"
+            )
+
+
 def _read_pairs(pairing: Pairing, measure: Measure):
     needed = list(measure.points)
     counts = {"unlabelled": 0, "no_predicted_point": 0, "unmeasurable": 0}
     raw = []
     for p in pairing.pairs:
-        for side, instance in (("truth", p.truth), ("prediction", p.predicted)):
-            if max(needed) >= len(instance.keypoints):
-                raise ValueError(
-                    f"{measure.name} uses keypoint {max(needed)}, but a {side} "
-                    f"instance in {p.image} has {len(instance.keypoints)}"
-                )
         if not p.truth.visible[needed].all():
             counts["unlabelled"] += 1
             continue

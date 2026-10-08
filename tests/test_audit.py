@@ -342,6 +342,7 @@ def test_cli_reads_sizes_from_an_image_folder(tmp_path, capsys) -> None:
         (["--tilt", "0,1", "--bands", "abc"], "--bands"),
         (["--tilt", "0,1", "--bands", "0"], "--bands"),
         (["--tilt", "0,1", "--cluster", "("], "--cluster"),
+        (["--tilt", "1,1"], "repeated"),
     ],
 )
 def test_cli_errors_are_messages_not_tracebacks(tmp_path, extra, message) -> None:
@@ -1091,3 +1092,13 @@ def test_normalised_coordinates_are_flagged() -> None:
         return any("within 0 to 1" in w for w in r.warnings)
 
     assert run(1.0) and not run(640.0)
+
+
+def test_an_index_out_of_range_says_how_indices_count() -> None:
+    """MediaPipe's 33 points are 0 to 32: counted from 1, the last is 33."""
+    with pytest.raises(
+        ValueError, match=r"has 2 keypoints \(indices 0-1\); indices count from 0"
+    ):
+        audit(pairing([0], [1]), tilt(0, 2), big_error=5)
+    with pytest.raises(ValueError, match="has 2 keypoints"):
+        audit(Pairing(missed=[("a", leaning(0))]), tilt(0, 2), big_error=5)
