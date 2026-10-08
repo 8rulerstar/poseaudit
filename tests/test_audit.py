@@ -1102,3 +1102,10 @@ def test_an_index_out_of_range_says_how_indices_count() -> None:
         audit(pairing([0], [1]), tilt(0, 2), big_error=5)
     with pytest.raises(ValueError, match="has 2 keypoints"):
         audit(Pairing(missed=[("a", leaning(0))]), tilt(0, 2), big_error=5)
+
+
+@pytest.mark.parametrize("ratio", [0.0, -1.0, float("nan")])
+def test_a_noise_ratio_must_be_above_0(ratio) -> None:
+    """The CLI refuses these already; the function gave a NaN or negative slope."""
+    with pytest.raises(ValueError, match="noise_ratio must be above 0"):
+        audit(pairing([0, 5, 10], [1, 4, 9]), tilt(0, 1), 5, noise_ratio=ratio)

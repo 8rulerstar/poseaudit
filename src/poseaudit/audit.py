@@ -253,6 +253,8 @@ def audit(
         )
     if not big_error > 0:
         raise ValueError(f"big_error must be above 0, got {big_error}")
+    if noise_ratio is not None and not noise_ratio > 0:
+        raise ValueError(f"noise_ratio must be above 0, got {noise_ratio}")
     if relative_abs and relative_to is None:
         raise ValueError("relative_abs needs relative_to")
     cluster_of = _cluster_function(cluster)
