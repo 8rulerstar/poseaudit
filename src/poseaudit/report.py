@@ -26,18 +26,27 @@ def _digits(result: "AuditResult") -> int:
     return int(min(6, max(2, 1 - np.floor(np.log10(scale)))))
 
 
+def _f(value: float, fmt: str) -> str:
+    """`value` formatted, but never as -0.000: a value that rounds to zero
+    has no sign worth printing."""
+    text = f"{value:{fmt}}"
+    if text.startswith("-") and not text.strip("-0.%"):
+        text = ("+" if fmt.startswith("+") else "") + text[1:]
+    return text
+
+
 def _range(low: float, high: float, fmt: str, u: str) -> str:
     """Limits, or n/a when too few readings give none."""
     if np.isnan(low) or np.isnan(high):
         return "n/a"
-    return f"{low:{fmt}}{u} to {high:{fmt}}{u}"
+    return f"{_f(low, fmt)}{u} to {_f(high, fmt)}{u}"
 
 
 def _ci(interval, fmt: str) -> str:
     low, high = interval
     if not (np.isfinite(low) and np.isfinite(high)):  # e.g. one cluster only
         return "[no interval]"
-    return f"[{low:{fmt}} to {high:{fmt}}]"
+    return f"[{_f(low, fmt)} to {_f(high, fmt)}]"
 
 
 def _p(p: float, repeats) -> str:
@@ -228,8 +237,8 @@ def _size_labels(bands, joint: str = "-") -> list[str]:
 
 def _limit_row(name, low, high, low_ci, high_ci, u, d=2) -> str:
     return (
-        f"| {name} | {low:+.{d}f}{u} | {_ci(low_ci, f'+.{d}f')} "
-        f"| {high:+.{d}f}{u} | {_ci(high_ci, f'+.{d}f')} |"
+        f"| {name} | {_f(low, f'+.{d}f')}{u} | {_ci(low_ci, f'+.{d}f')} "
+        f"| {_f(high, f'+.{d}f')}{u} | {_ci(high_ci, f'+.{d}f')} |"
     )
 
 

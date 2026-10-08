@@ -1418,3 +1418,12 @@ def test_a_plot_without_matplotlib_fails_before_the_audit(tmp_path, monkeypatch)
     with pytest.raises(SystemExit) as stop:
         _cli(tmp_path, "--tilt", "0,1", "--plot", str(tmp_path / "p.png"))
     assert "plotting needs matplotlib" in str(stop.value)
+
+
+def test_an_interval_never_prints_negative_zero() -> None:
+    from poseaudit.report import _ci, _range
+
+    assert _ci((-0.0001, 0.2), "+.3f") == "[+0.000 to +0.200]"
+    assert _ci((-0.0004, 0.2), ".3f") == "[0.000 to 0.200]"
+    assert _ci((-0.002, 0.2), ".3f") == "[-0.002 to 0.200]"
+    assert _range(-0.0, 1.0, "+.2f", "") == "+0.00 to +1.00"
