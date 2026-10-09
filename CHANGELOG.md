@@ -40,7 +40,7 @@
   the command line, `--csv` writes the differences, one row per measure and
   pair, not the readings; `--json` writes `models`, `differences` and
   `warnings` (the loader's warnings included, each printed once);
-  `--report` and `--plot` are refused.
+  `--report` writes the comparison as Markdown and `--plot` is refused.
 - Comparing models, each difference counts the shared readings the two models
   read differently (`n_differing`, a new column in the comparison CSV and in
   the JSON rows), and a warning says when fewer than 20 differ: the paired
@@ -77,6 +77,27 @@
   `empirical_limits`, `gain` and `robust_gain`, and `AuditResult` has a
   docstring listing its main fields.
 - `AuditResult.to_rows()`: the headline figures as a flat row.
+- A comparison as tables for a paper, a blog or a leaderboard:
+  `--report` with several `--pred` (until now refused) and
+  `Comparison.to_markdown()` write one Markdown table of every model's
+  figures on every measure, one of the differences on shared readings, the
+  warnings and the settings; `Comparison.to_rows()` gives the first table as
+  flat rows led by `model`, for a CSV. With 3 models and 4 joints the
+  per-model figures were only in three space-aligned text tables or nested
+  in the JSON.
+- docs/README.md, an index of which page holds what, and how to install the
+  extras (`poseaudit[plot]`, `[images]`, `[supervision]`), which no page
+  named: the README's own `--plot` step failed after its
+  `pip install poseaudit`. Every docs page starts with links to the others;
+  json.md, python.md and statistics.md linked to none.
+- docs/cli.md lists every option of `poseaudit audit` in tables by group, as
+  the README said it did; `--band-by`, `--jitter-repeats`, `--min-in-frame`,
+  `--noise-ratio`, `--resamples` and `--seed` were in no page. A test keeps
+  the tables in step with the parser.
+- docs/json.md gives each figure's name in the summary, the JSON, Python and
+  `to_rows()` side by side (the summary's `limits` are the JSON's
+  `percentile_limits`, its `normal` the JSON's `limits`, its `slope` the
+  JSON's `gain`), and a test checks the keys exist.
 - The README figures are drawn by the new plot code, and
   `docs/social-preview.png` (1280 x 640, with an SVG) is a plain card for the
   repository's social preview. `examples/coco_elbow/figures.py` makes all
@@ -198,6 +219,25 @@
   has the same ticks on both axes, as does the Bland-Altman panel's x-axis;
   on lengths the y-axis had 0, 50, 100, 150, 200 beside an x-axis of 0, 100,
   200. `docs/trap.png` has the same angle axis as `docs/panels.png`.
+- The comparison CSV and `Comparison.table()` put each interval beside its
+  estimate (`mean_abs_error_diff`, then its `_ci_low` and `_ci_high`) and
+  give each row's large-error threshold, `big_error`, which a run with a
+  threshold for each kind of measure left out. `Difference.big_error` holds
+  it.
+- `compare()` records each model's name in its results' settings, as the
+  command line did, and the JSON's top-level `settings` are those every
+  model shares: they named the first model and its file.
+- `audit()` takes `big_error` as a mapping by kind or unit, as `compare()`
+  does, and keeps it as a float, so the JSON reads `15.0` from Python as
+  from the command line.
+- The report says "An error of 15 degrees or more counts as large" where
+  it said "big error >= 15°", the one place outside code that called a
+  large error big.
+- "What the outputs reveal" and the runtime at 50,000 readings moved to
+  where a reader looks for them: docs/json.md and the option tables in
+  docs/cli.md.
+- `--images` without Pillow says `pip install "poseaudit[images]"`, as
+  `--plot` names its extra.
 - docs/statistics.md says how to recompute the figures from the CSV: z is
   1.959964, percentiles are NumPy's default (type 7), CCC uses population
   moments, Theil-Sen leaves out pairs with the same true value, and a tilt's
@@ -286,6 +326,26 @@
 - `audit(noise_ratio=...)` refuses a ratio of 0 or less, as the CLI does.
 - The CI gate in docs/json.md no longer divides by zero when nothing was
   measurable.
+- Python: `big_error` in a wrong form stopped with an internal error. The
+  command line's `"angle:15,length:10"` passed to `compare` gave
+  `Unknown format code 'g' for object of type 'str'`, a mapping passed to
+  `audit` gave `'>' not supported between instances of 'dict' and 'int'`,
+  and a list of measures passed to `audit` an `AttributeError`. Each now
+  says what to pass. A mapping key that is neither a kind nor a unit
+  (`lenght`, `ANGLE`) is refused, as the command line refuses it; it was
+  dropped silently when no measure needed it.
+- `--plot` with two measures and no Matplotlib asked for Matplotlib, and
+  once it was installed said `--plot draws one measure`; the second comes
+  first now.
+- `skeletons differ: truth has [17] keypoints, predictions [5]` reads
+  `truth has 17 keypoints, predictions 5`.
+- Nine tests failed without Pillow or Matplotlib instead of skipping, as
+  the others do; they skip, or leave out only the step that needs the
+  extra.
+- docs/cli.md: the error table says that a message about a file may start
+  with its name, and lists the refusal of `--threshold`, `--pred-threshold`
+  and `--bands` edges across units. The demo notebook calls the instances
+  labelled, as the summary does, and prints what was not read in words.
 - README: the paper text says the interval of the share of large errors spans
   both the bootstrap interval and Wilson's score interval. The demo notebook
   links into docs/statistics.md instead of README sections that moved, and

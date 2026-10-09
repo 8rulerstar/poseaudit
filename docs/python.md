@@ -1,5 +1,7 @@
 # Python
 
+[README](../README.md) · [index](README.md) · [command line](cli.md) · **Python** · [statistics](statistics.md) · [JSON, CSV and exit codes](json.md)
+
 ```python
 import poseaudit as pa
 
@@ -66,7 +68,24 @@ c = pa.compare(
 print(c.summary())
 rows = c.table()  # one dict per measure and pair of models
 c.to_csv("differences.csv")
+c.to_markdown("comparison.md")  # both tables, for a paper or a blog
 ```
+
+For a leaderboard of your own, `c.to_rows()` gives every model's headline
+figures as flat rows led by `model`, measure by measure:
+
+```python
+import csv
+
+with open("leaderboard.csv", "w", newline="", encoding="utf-8") as f:
+    rows = c.to_rows()
+    writer = csv.DictWriter(f, fieldnames=list(rows[0]))
+    writer.writeheader()
+    writer.writerows(rows)
+```
+
+Each model's row covers the readings it made, so rank models on the
+differences, which use only the readings both made.
 
 The same model under two detection-score filters shows why comparing on shared
 readings matters. Run from `examples/coco_elbow`:
@@ -114,10 +133,14 @@ worse. A plain mean over each set would call that a 2° improvement.
   `load_yolo(folder, image_size, num_keypoints)`, `from_supervision(...)`, or
   `Instance.from_keypoints(xy, visible)` for your own arrays.
 - `pair(truth, predicted)` matches people image by image (box IoU, or keypoint
-  similarity without boxes) and returns a `Pairing`.
+  similarity without boxes) and returns a `Pairing`; the rules are in
+  [cli.md](cli.md#how-pairs-counts-and-intervals-are-made), and what each
+  loader reads in [Inputs](cli.md#inputs).
 - Measures: `angle(a, b, c)`, `tilt(a, b)`, `length(a, b)`,
   `ratio(a, b, c, d)`, with keypoint indices counted from 0.
-- `audit(pairing, measure, big_error=...)` returns an `AuditResult`. Its main
+- `audit(pairing, measure, big_error=...)` returns an `AuditResult`;
+  `big_error` is a number in the measure's unit, or a mapping by kind or
+  unit as `compare` takes. Its main
   fields: `n`; `bias` and `median_error`; `percentile_limits` and the normal
   `limits`; `mean_abs_error`, `rmse`; `big_error_rate`; `slope` and
   `theil_sen` (`gain` and `robust_gain` in the JSON); `icc`, `ccc`;
@@ -131,9 +154,12 @@ worse. A plain mean over each set would call that a 2° improvement.
   `Comparison`. With measures in different units `big_error` is a mapping
   by kind (`angle`, `tilt`, `length`, `ratio`) or unit (`deg`, `px`), such
   as `{"angle": 15, "length": 10, "ratio": 0.1}`; one number for degrees and
-  pixels alike is refused. The `Comparison` holds `results` (each model's
-  `AuditResult`s, one per measure), `differences`, `table()` (flat rows) and
-  `to_csv()`. It too shows its summary in Jupyter.
+  pixels alike is refused, and so is a key that is neither. The `Comparison`
+  holds `results` (each model's `AuditResult`s, one per measure),
+  `differences`, `table()` (the differences as flat rows), `to_csv()`,
+  `to_rows()` (each model's figures as flat rows), `to_markdown()` and
+  `settings()` (those every model shares). It too shows its summary in
+  Jupyter.
 - Types: a `Dataset` is `{image name: [Instance, ...]}`. `Pairing` holds the
   `Pair`s made by `pair()`. A `Measure` is what `angle()` and the others
   return. An `AuditResult` holds its `readings` (each a `Reading`), why
@@ -143,12 +169,7 @@ worse. A plain mean over each set would call that a 2° improvement.
   models.
 - `pa.__version__` is the installed version; the JSON and the report record
   it, with every setting and the `seed`, for a methods section.
-- What the outputs reveal: the report and the JSON record `--gt`, `--pred`
-  and `--images` as typed, so an absolute path shows your user name; pass
-  relative paths before sharing them. The CSV, the JSON and the report's
-  largest-error table name images by file name. The PNG holds only the plot
-  and Matplotlib's version.
-- The same inputs and `seed` give the same CSV and the same figures on any
-  Python version. A different NumPy can change the last digit or two of a
-  float in the JSON (seen: the Bland-Altman slope, around 1e-17), never a
-  reported figure.
+- What the outputs reveal (paths, image names) and how far they agree from
+  one machine to another: [json.md](json.md#what-the-outputs-reveal). Which
+  name a figure has in the summary, the JSON and here:
+  [json.md](json.md#names).

@@ -1,5 +1,7 @@
 # Command line
 
+[README](../README.md) · [index](README.md) · **command line** · [Python](python.md) · [statistics](statistics.md) · [JSON, CSV and exit codes](json.md)
+
 All examples run from [`examples/coco_elbow`](../examples/coco_elbow), on the
 demo data. The commands continue lines with bash's `\`; in PowerShell put the
 command on one line, or end each line with a backtick instead.
@@ -14,7 +16,8 @@ poseaudit audit --format coco --gt annotations.json --pred results.json \
 
 `--big-error` is required: the error, in the measure's unit, that counts as
 large. `report.md` explains every line of the summary. `poseaudit audit --help`
-lists every option with examples.
+lists every option with examples, and so does [Every option](#every-option)
+below.
 
 `--plot` draws predicted against true values and a Bland-Altman plot, 7 inches
 wide with 12 point text at 300 dpi: the full width of a two-column paper, or
@@ -111,8 +114,15 @@ poseaudit audit --format coco --gt gt.json --angle 5,7,9 --angle 6,8,10 \
     --csv differences.csv
 ```
 
-`--report` and `--plot` describe one model, so with several `--pred` they are
-refused; `--csv` and `--json` hold the comparison.
+`--plot` draws one model, so with several `--pred` it is refused. `--report`
+writes the comparison as Markdown, ready for a paper or a blog: one table of
+every model's figures on every measure, measure by measure in the order
+given, then the differences, the warnings and the settings. Each model's
+figures cover the readings it made; rank models on the differences, which
+use only the readings both made. `--csv` writes the differences, with the
+large-error threshold of each row and each interval beside its estimate, and
+`--json` everything ([json.md](json.md#comparing-models)); in Python,
+`Comparison.to_rows()` gives each model's figures as rows for a CSV.
 
 The `--pred NAME=PATH` form compares prediction files. To compare one file
 under two settings (a score filter, a confidence threshold), use Python:
@@ -168,6 +178,75 @@ not supported. With named groups the jitter reference gives no p: it treats
 readings as independent, and when a subject carries the same error from
 reading to reading it would flag honest models as squashed far more often than
 it says. Read the gap's interval, which resamples whole groups.
+
+## Every option
+
+`poseaudit audit --help` prints them too. Values in the measure's unit are
+degrees for an angle or a tilt, pixels for a length, and plain numbers for a
+ratio.
+
+**Data**
+
+| option | what it does |
+|---|---|
+| `--gt PATH` | required: the truth, a YOLO label folder or COCO keypoint annotations |
+| `--pred PATH` | required: the predictions, a YOLO folder or a COCO results file; repeated as `--pred NAME=PATH`, it [compares models](#compare-models) |
+| `--format yolo\|coco` | the format of both |
+| `--gt-format yolo\|coco` | the format of `--gt`, over `--format` |
+| `--pred-format yolo\|coco` | the format of `--pred`, over `--format` |
+| `--image-size W H` | YOLO: the image width then height in pixels, or `WxH` ([why](#inputs)) |
+| `--images DIR` | YOLO: each image's size read from its file (needs `pip install "poseaudit[images]"`) |
+| `--keypoints K` | YOLO: keypoints per instance |
+| `--classes ID ...` | keep only these class ids, on both sides |
+| `--min-conf C` | a predicted point counts as seen above this confidence (default 0) |
+| `--min-score S` | drop predicted detections scored below this (default 0); matching ignores scores |
+| `--min-iou IOU` | the smallest box IoU that pairs a prediction with a truth (default 0.3) |
+| `--min-similarity OKS` | the smallest keypoint similarity that pairs them when a side has no box (default 0.5) |
+
+**Measure** (repeat these for [several](#several-joints); keypoints by index, counted from 0)
+
+| option | what it does |
+|---|---|
+| `--angle A,B,C` | the angle at B, 0 to 180° ([measures](#measures)) |
+| `--tilt A,B` | the tilt of the axis A-B from vertical, -90 to 90° |
+| `--length A,B` | the distance from A to B, in pixels |
+| `--ratio A,B,C,D` | length A-B over length C-D |
+| `--relative-to median\|pNN` | each value read against the rest of its image ([why](#tilts-relative-to-the-rest-of-the-photo)) |
+| `--relative-abs` | with `--relative-to`: \|value\| minus the baseline of the others' \|values\| |
+| `--min-in-frame N` | with `--relative-to`: the fewest readings an image needs (default 3) |
+
+**Analysis**
+
+| option | what it does |
+|---|---|
+| `--big-error E` or `KIND:E` | required: the error, in the measure's unit, that counts as large; by kind or unit when the measures' units differ ([how](#several-joints)) |
+| `--bands N\|EDGES` | bands of the measured value for the bias by band: a count (default 4), or edges in the measure's unit |
+| `--band-by truth\|mean\|predicted` | what those bands sort readings by (default the truth; [why it matters](statistics.md#which-way-you-sort-decides-the-story)) |
+| `--size-bands N\|EDGES` | bands by the size of the measured part: a count (default 3), or pixel edges such as `30,60` |
+| `--cluster REGEX` | readings grouped by the regex's first capture group in the image name ([why](#several-readings-of-one-subject)) |
+| `--threshold T ...` | [decision thresholds](#decisions-at-a-threshold) applied to the truth, in the measure's unit |
+| `--pred-threshold T ...` | the prediction held to these thresholds as well |
+| `--side above\|below\|outside` | which side of a threshold is flagged (default outside for a tilt, else above) |
+| `--noise-ratio R` | the variance of the prediction's noise over that of the labels', when known: adds a Deming slope |
+| `--mixed-classes` | readings of several classes allowed in one audit |
+| `--seed N` | the seed for resampling and the jitter rebuilds (default 0) |
+| `--resamples N` | bootstrap resamples for every interval (default 2000, at least 50) |
+| `--jitter-repeats N` | rebuilds for the jitter reference (default 500; 0 turns it off) |
+
+**Output**
+
+| option | what it does |
+|---|---|
+| `--report FILE` | a Markdown report that explains every line; comparing models, their figures and differences as Markdown tables |
+| `--csv FILE` | one row per reading; comparing models, one per difference ([columns](json.md)) |
+| `--json FILE` | every figure ([keys](json.md#names)) |
+| `--plot FILE` | the two panels, PNG, SVG or PDF by the extension (needs `pip install "poseaudit[plot]"`) |
+| `--full` | every statistic in the summary |
+
+`--resamples` and `--jitter-repeats` trade precision for speed: 50,000
+readings took about four and a half minutes for each measure at the
+defaults on one desktop, and just under a minute with `--jitter-repeats 0`.
+Before a run that long, poseaudit says so on stderr.
 
 ## Measures
 
@@ -288,13 +367,15 @@ unmatched truths beside unmatched predictions with this in mind: a lower
 ## When it stops
 
 Errors print on stderr after `poseaudit:`, and the run exits with 1 (2, with
-the usage, when the options themselves cannot be read). The start of each
-message, `...` standing for a name or a number:
+the usage, when the options themselves cannot be read). A message about one
+file may start with its name (and a YOLO label's line number); after that,
+each starts as below, `...` standing for a name or a number:
 
 | message | what to do |
 |---|---|
 | `--big-error ... would count an error of ... as large alike` | Measures in different units: give each kind its own value, as in `--big-error angle:15,length:10,ratio:0.1` ([Several joints](#several-joints)). |
 | `--big-error has no value for ...` | Add `KIND:VALUE` for that measure, or a bare number for every measure the others do not name. |
+| `... in the measure's unit and would apply to every measure` | `--threshold`, `--pred-threshold` and `--bands` edges hold one unit: audit the angles and the lengths in runs of their own. |
 | `YOLO labels need --image-size W H or --images DIR` | YOLO coordinates are fractions of the image: give its size, width first, or the image folder ([Inputs](#inputs)). |
 | `give --format, or both --gt-format and --pred-format` | `--format coco` or `--format yolo` for both files; `--gt-format` and `--pred-format` when they differ. |
 | `COCO results name images by id: --gt must be COCO annotations` | A COCO results file needs the COCO annotations its image ids come from; YOLO labels cannot be paired with it. Convert one side, or give YOLO predictions. |

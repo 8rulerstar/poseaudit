@@ -1,5 +1,7 @@
 # Statistics
 
+[README](../README.md) · [index](README.md) · [command line](cli.md) · [Python](python.md) · **statistics** · [JSON, CSV and exit codes](json.md)
+
 What the figures mean, what the demo shows, and where they stop being valid.
 
 ## Reading the demo

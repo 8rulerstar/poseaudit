@@ -1,5 +1,7 @@
 # JSON, CSV and exit codes
 
+[README](../README.md) · [index](README.md) · [command line](cli.md) · [Python](python.md) · [statistics](statistics.md) · **JSON, CSV and exit codes**
+
 `--json` writes every figure, with `poseaudit` (the version) and `schema`
 (1) at the top and the settings used. NaN and infinity become `null`.
 `limits` there are the normal limits; the percentile limits the summary
@@ -13,12 +15,57 @@ predicted, error, mean`. Same inputs and seed, same bytes.
 With several measures the JSON is `{"poseaudit", "schema", "settings",
 "measures": [...]}`, each entry of `measures` what a single measure's JSON
 would be, and the CSV leads each row with a `measure` column. With one measure
-the JSON is as above, unchanged. Comparing models, it is `{"poseaudit",
-"schema", "settings", "models": {name: [one entry per measure]},
-"differences": [...], "warnings": [...]}`, the differences being the rows of
-`Comparison.table()`, which `--csv` writes, and the warnings those about
-paired intervals (too few shared images, or none, or too few shared readings
-read differently: `n_differing` counts those) and the loaders' warnings.
+the JSON is as above, unchanged.
+
+## Comparing models
+
+Comparing models, the JSON is `{"poseaudit", "schema", "settings", "models":
+{name: [one entry per measure]}, "differences": [...], "warnings": [...]}`.
+`settings` are those every model shares; each entry under `models` has its
+own, with `model` (its name) and, from the command line, `pred` (its file).
+The warnings are those about paired intervals (too few shared images, or
+none, or too few shared readings read differently: `n_differing` counts
+those) and the loaders' warnings.
+
+`--csv` writes the differences, one row per measure and pair of models, as
+`Comparison.table()` gives them: `measure, a, b, n_shared, n_a, n_b,
+clusters, n_differing, big_error`, then `mean_abs_error_a`, `_b`, `_diff`
+and its interval `mean_abs_error_diff_ci_low`, `_high`, then the same five
+for `big_error_rate`. `--report` writes the comparison as Markdown, for a
+paper or a blog: one table of every model's figures on every measure, one of
+the differences, the warnings and the settings. In Python,
+`Comparison.to_rows()` gives the first table as flat rows, led by `model`,
+for a CSV of your own.
+
+## Names
+
+A figure is named for its reader: the summary and the report use words
+("large errors"), the JSON, the CSV and Python use keys ("big_error_rate"),
+after the flag `--big-error`. The same figure in each:
+
+| summary line | JSON key | Python `AuditResult` | `to_rows()` column |
+|---|---|---|---|
+| read ... of ... labelled instances | `n`, `measurable` | `n`, `measurable` | `n` |
+| not read, not counted | `not_read` | `not_read` | |
+| bias, median | `bias`, `bias_ci`, `median_error` | the same | `bias`, `bias_ci_low`, `bias_ci_high` |
+| limits (percentile) | `percentile_limits`, `empirical_lower_ci`, `empirical_upper_ci` | `percentile_limits` | `limits_low`, `limits_high` |
+| normal (bias +/- 1.96 SD) | `limits`, `lower_limit_ci`, `upper_limit_ci` | `limits` | |
+| \|error\| mean, median, 95th pct | `mean_abs_error`, `mean_abs_error_ci`, `median_abs_error`, `p95_abs_error` | the same | `mean_abs_error`, `mean_abs_error_ci_low`, `mean_abs_error_ci_high` |
+| RMSE | `rmse`, `rmse_ci` | the same | `rmse` |
+| `>= 15°` (in a table of measures that differ in it, `large if` and `large errors`) | `big_error_rate`, `big_error_rate_ci`; the threshold `big_error` | the same | `big_error`, `big_error_rate`, `big_error_rate_ci_low`, `big_error_rate_ci_high` |
+| by size | `size_bands` | `size_bands` | |
+| slope; Theil-Sen | `gain`, `gain_ci`; `robust_gain` | `slope` (also `gain`); `theil_sen` (also `robust_gain`) | `slope` |
+| ICC(A,1) | `icc`, `icc_ci` | the same | `icc` |
+| vs jitter (`--full`) | `jitter_gain`, `gain_gap`, `gain_gap_ci`, `jitter_p` | the same | |
+| BA slope (`--full`) | `ba_slope`, `ba_slope_ci` | the same | |
+| Deming (with `--noise-ratio`) | `deming`, `deming_ci` | the same | |
+| agreement: CCC, r (`--full`) | `ccc`, `ccc_ci`, `pearson` | the same | |
+
+Comparing models, the summary's `mean |error| a - b` and `large-error rate
+a - b` are `mean_abs_error_diff` and `big_error_rate_diff` in the JSON's
+`differences`, in the CSV and on a `Difference`.
+
+## Exit codes and gating
 
 The command exits 0 on success (warnings included); 1 on bad input or
 settings, a failed write, or nothing read (the JSON, CSV and report are
@@ -42,6 +89,14 @@ if not ok:
     raise SystemExit("poseaudit gate failed")
 ```
 
-`--resamples` and `--jitter-repeats` trade precision for speed: 50,000
-readings took about four and a half minutes for each measure at the
-defaults on one desktop, and just under a minute with `--jitter-repeats 0`.
+## What the outputs reveal
+
+The report and the JSON record `--gt`, `--pred` and `--images` as typed, so
+an absolute path shows your user name; pass relative paths before sharing
+them. The CSV, the JSON and the report's largest-error table name images by
+file name. The PNG holds only the plot and Matplotlib's version.
+
+The same inputs and `seed` give the same CSV and the same figures on any
+Python version. A different NumPy can change the last digit or two of a
+float in the JSON (seen: the Bland-Altman slope, around 1e-17), never a
+reported figure.
