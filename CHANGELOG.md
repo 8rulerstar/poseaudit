@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- A figure undefined in more than 2.5% of bootstrap resamples, such as the
+  ICC of two images when a draw repeats one, now has no interval instead of
+  one drawn from the resamples where it happened to be defined.
+- `length` and `ratio` stay finite on huge coordinates.
+- A COCO annotation file that lists an image id twice, or one file name
+  under two ids, is refused: the people of two images would be paired
+  together.
 - Several measures in one run: `--angle`, `--tilt`, `--length` and `--ratio`
   may be repeated. The output is one table with a row per measure (n, bias,
   percentile limits, mean |error|, RMSE, the large-error rate, slope, ICC);

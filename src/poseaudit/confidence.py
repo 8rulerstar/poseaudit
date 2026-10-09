@@ -49,5 +49,12 @@ def clustered_bootstrap(
     tail = (1.0 - level) / 2.0 * 100.0
     with np.errstate(all="ignore"), warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)  # a band absent from a resample
-        low, high = np.nanpercentile(np.array(stats), [tail, 100.0 - tail], axis=0)
+        values = np.array(stats)
+        low, high = np.nanpercentile(values, [tail, 100.0 - tail], axis=0)
+    # a quantity undefined in more resamples than one tail holds (a slope or
+    # an ICC when a draw repeats one of two images) has no interval: the
+    # percentiles of the draws where it is defined would describe those alone
+    undefined = np.isnan(values).mean(axis=0) > (1.0 - level) / 2.0
+    low = np.where(undefined, np.nan, low)
+    high = np.where(undefined, np.nan, high)
     return low, high

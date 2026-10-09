@@ -124,7 +124,7 @@ class Length(Measure):
 
     def read(self, keypoints: np.ndarray) -> float:
         a, b = (keypoints[i] for i in self.points)
-        value = float(np.linalg.norm(b - a))
+        value = _norm(b - a)
         return value if value > 0 else float("nan")
 
 
@@ -139,10 +139,16 @@ class Ratio(Measure):
 
     def read(self, keypoints: np.ndarray) -> float:
         a, b, c, d = (keypoints[i] for i in self.points)
-        denominator = np.linalg.norm(d - c)
+        denominator = _norm(d - c)
         if denominator == 0:
             return float("nan")
-        return float(np.linalg.norm(b - a) / denominator)
+        return _norm(b - a) / denominator
+
+
+def _norm(vector: np.ndarray) -> float:
+    """The length of an (x, y) step; hypot does not overflow on huge
+    coordinates the way squaring them does."""
+    return float(np.hypot(*vector))
 
 
 def _fold(degrees: float) -> float:

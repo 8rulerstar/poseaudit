@@ -42,7 +42,7 @@ def load_coco(annotations: str | Path, classes: Iterable[int] | None = None) -> 
     data = _annotation_file(annotations)
     wanted = _wanted(classes)
     seen: set = set()
-    names = {image["id"]: image["file_name"] for image in data["images"]}
+    names = _names(data["images"], annotations)
     dataset: Dataset = {name: [] for name in names.values()}
     for ann in data["annotations"]:
         if ann.get("iscrowd", 0) or ann.get("num_keypoints", 1) == 0:
@@ -80,8 +80,7 @@ def load_coco_results(
     visibility flag: set `min_confidence` (for example 0.5), or every point a
     model returns counts as seen.
     """
-    images = _annotation_file(annotations)["images"]
-    names = {image["id"]: image["file_name"] for image in images}
+    names = _names(_annotation_file(annotations)["images"], annotations)
     dataset: Dataset = {}
     looks_like_confidence = False
     wanted = _wanted(classes)
@@ -123,6 +122,24 @@ def load_coco_results(
         warnings.warn(CONFIDENCE_WARNING.format(where=results), stacklevel=2)
     _nothing_kept(results, wanted, seen)
     return dataset
+
+
+def _names(images, annotations) -> dict:
+    """Image id to file name. A repeated id or file name would silently put
+    the people of two images into one, where they get paired across images."""
+    names: dict = {}
+    for image in images:
+        if image["id"] in names:
+            raise ValueError(f"{annotations}: image id {image['id']} is listed twice")
+        names[image["id"]] = image["file_name"]
+    seen: set = set()
+    for name in names.values():
+        if name in seen:
+            raise ValueError(
+                f"{annotations}: file name {name} is listed under two image ids"
+            )
+        seen.add(name)
+    return names
 
 
 def _name(names: dict, image_id, annotations) -> str:
