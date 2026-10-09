@@ -1390,12 +1390,13 @@ def test_audit_help_explains_band_by_and_gives_examples(capsys) -> None:
 
 
 def test_the_readme_gate_fails_on_a_null_interval(tmp_path, monkeypatch) -> None:
-    """One image gives null intervals; the README's Python gate must not pass."""
+    """One image gives null intervals; the Python gate in docs/json.md must not pass."""
     from pathlib import Path
 
     from poseaudit.cli import _finite
 
-    readme = (Path(__file__).parents[1] / "README.md").read_text(encoding="utf-8")
+    doc = Path(__file__).parents[1] / "docs" / "json.md"
+    readme = doc.read_text(encoding="utf-8")
     blocks = readme.split("```python\n")[1:]
     (gate,) = [b.split("```")[0] for b in blocks if "gate failed" in b]
     t = np.linspace(-10, 10, 30)

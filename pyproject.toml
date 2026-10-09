@@ -63,4 +63,4 @@ select = ["E", "F", "I", "B", "UP"]
 "*.ipynb" = ["E402", "E501", "I001"]
 
 [tool.hatch.build.targets.sdist]
-include = ["/src/poseaudit", "/tests", "/README.md", "/LICENSE", "/CHANGELOG.md", "/CITATION.cff"]
+include = ["/src/poseaudit", "/tests", "/README.md", "/docs/*.md", "/LICENSE", "/CHANGELOG.md", "/CITATION.cff"]

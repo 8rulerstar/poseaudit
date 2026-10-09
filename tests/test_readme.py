@@ -1,4 +1,4 @@
-"""The README quotes the demo's output; it must stay what the code prints."""
+"""The README and docs/ quote the demo's output; it must stay what the code prints."""
 
 from pathlib import Path
 
@@ -17,6 +17,10 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+def doc(name: str) -> str:
+    return (ROOT / name).read_text(encoding="utf-8")
+
+
 def printed(capsys, monkeypatch, *extra: str) -> list[str]:
     monkeypatch.chdir(DEMO)
     main(BASE + list(extra))
@@ -30,7 +34,7 @@ def test_the_headline_output_is_what_the_demo_prints(capsys, monkeypatch) -> Non
 
 
 def test_the_decision_lines_are_what_the_demo_prints(capsys, monkeypatch) -> None:
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme = doc("docs/cli.md")
     lines = printed(
         capsys, monkeypatch, "--threshold", "90", "--side", "below",
         "--pred-threshold", "100",
@@ -40,7 +44,7 @@ def test_the_decision_lines_are_what_the_demo_prints(capsys, monkeypatch) -> Non
 
 
 def test_the_size_table_matches_the_report(capsys, monkeypatch, tmp_path) -> None:
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme = doc("docs/statistics.md")
     printed(
         capsys, monkeypatch, "--size-bands", "30,60", "--report", str(tmp_path / "r.md")
     )
@@ -76,12 +80,13 @@ def _blocks(readme: str) -> list[str]:
     return [b for b in blocks if b.startswith("$ poseaudit audit --format coco")]
 
 
-@pytest.mark.parametrize(("index", "extra"), [(0, []), (1, ["--full"])])
+@pytest.mark.parametrize(
+    ("name", "extra"), [("README.md", []), ("docs/cli.md", ["--full"])]
+)
 def test_the_quick_start_blocks_are_exactly_what_the_demo_prints(
-    capsys, monkeypatch, index, extra
+    capsys, monkeypatch, name, extra
 ) -> None:
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    block = _blocks(readme)[index]
+    block = _blocks(doc(name))[0]
     command, _, output = block.partition("\n    ")[2].partition("\n")
     assert command.split() == ["--angle", "5,7,9", "--big-error", "15",
                                "--size-bands", "30,60", *extra]  # fmt: skip
@@ -90,7 +95,7 @@ def test_the_quick_start_blocks_are_exactly_what_the_demo_prints(
 
 
 def test_the_arrays_snippet_runs() -> None:
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme = doc("docs/python.md")
     (snippet,) = [
         b.split("```")[0] for b in readme.split("```python\n")[1:] if "xy_true = " in b
     ]
@@ -100,10 +105,25 @@ def test_the_arrays_snippet_runs() -> None:
 
 
 def test_the_several_joints_block_is_what_the_demo_prints(capsys, monkeypatch):
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme = doc("docs/cli.md")
     (block,) = [b for b in _blocks(readme) if "--angle 6,8,10" in b]
     command, _, output = block.partition("\n    ")[2].partition("\n")
     monkeypatch.chdir(DEMO)
     main(BASE[:-4] + command.split())
     lines = capsys.readouterr().out.rstrip("\n").splitlines()
     assert output == "\n".join(lines) + "\n"
+
+
+def test_the_score_filter_comparison_is_what_the_demo_prints(capsys, monkeypatch):
+    text = doc("docs/python.md")
+    (snippet,) = [
+        b.split("```")[0] for b in text.split("```python\n")[1:] if "min_score=s" in b
+    ]
+    shown = text.split(snippet)[1].split("```text\n")[1].split("```")[0]
+    monkeypatch.chdir(DEMO)
+    exec(snippet, {})
+    assert capsys.readouterr().out.rstrip("\n") == shown.rstrip("\n")
+    readme = doc("README.md")
+    for figure in ("19.48°", "17.32°", "-0.06° [-0.20 to +0.00]", "254 people"):
+        assert figure in readme
+    assert "dropped 68 people" in readme
