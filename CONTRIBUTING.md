@@ -40,7 +40,7 @@ ruff mypy` in a virtual environment does the same.
 - The README and the files in `docs/` quote the demo's real output, and
   `tests/test_readme.py` checks those blocks. If your change alters what the
   demo prints, run the command from `examples/coco_elbow` and paste the new
-  output.
+  output, and remake the README's GIFs there with `python gifs.py ../../docs`.
 - Add a line to `CHANGELOG.md` under Unreleased, in Added, Changed or Fixed,
   saying what a user will notice.
 - Messages and docs use plain words: say what happened and what to do, with

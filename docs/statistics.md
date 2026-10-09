@@ -6,7 +6,7 @@ What the figures mean, what the demo shows, and where they stop being valid.
 
 ## Reading the demo
 
-The README's output is the left elbow angle (COCO keypoints 5, 7, 9: shoulder, elbow, wrist;
+The README's demo reads the left elbow angle (COCO keypoints 5, 7, 9: shoulder, elbow, wrist;
 indices count from 0) of `yolo11n-pose` against COCO's human labels on 200
 val2017 images. The data is in
 [`examples/coco_elbow`](https://github.com/8rulerstar/poseaudit/tree/main/examples/coco_elbow);
@@ -69,6 +69,25 @@ more often occluded, blurred and loosely labelled.
 | 0 to 30 px | 134 | 25.55° | 58.2% [49.7% to 66.2%] | 0.526 |
 | 30 to 60 px | 112 | 16.57° | 36.6% [28.3% to 45.8%] | 0.791 |
 | 60+ px | 76 | 13.06° | 26.3% [17.7% to 37.2%] | 0.909 |
+
+## Writing it up
+
+For a validation paper, run with `--full --json figures.json --report report.md`
+and report how many were read, the bias with its limits of agreement, the mean
+absolute error, ICC and the large-error rate, each with its interval. For the
+demo: "Against COCO's labels, the elbow angle was read on 322 of 380 labelled
+arms. It had a bias of +2.3° (95% CI -1.2 to +6.2) with limits of agreement of
+-50.9° to +80.0° (2.5th to 97.5th percentiles), a mean absolute error of 19.5°
+(95% CI 17.1 to 22.1), ICC(A,1) 0.76 (95% CI 0.68 to 0.83), and 43% (95% CI 38
+to 49%) of readings off by 15° or more. Intervals are percentile bootstraps
+over images (Davison and Hinkley 1997); limits of agreement follow Bland and
+Altman (1999); ICC(A,1) follows McGraw and Wong (1996); the interval of the
+share of large errors spans both the bootstrap interval and Wilson's score
+interval (Wilson 1927)." The full references are [below](#references).
+
+Frames of one video are not independent. Name the subject or clip with
+`--cluster`, or the intervals come out far too narrow
+([why](cli.md#several-readings-of-one-subject)).
 
 ## Which way you sort decides the story
 

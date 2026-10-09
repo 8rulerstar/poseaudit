@@ -45,7 +45,7 @@
   read differently (`n_differing`, a new column in the comparison CSV and in
   the JSON rows), and a warning says when fewer than 20 differ: the paired
   intervals rest on those alone. In the demo's score-filter comparison one of
-  254 does; the README and docs/python.md now say so.
+  254 does; docs/python.md now says so.
 - In Jupyter or IPython a result (`AuditResult`) or a `Comparison` on its own
   shows its summary, and `repr()` of either, or of a `Pairing`, is one line.
   The dataclass repr listed every reading and keypoint array: 80,000
@@ -191,13 +191,17 @@
   the JSON can differ in their last two or three digits, up to about 1e-13
   relative (the demo's median error moves from 0.5241505123347991 to
   0.5241505123348205). No figure changes at the precision printed.
-- README: the Quick start shows the exact default output, and the block
-  below it the real `--full` output (both checked by a test); recipes for a
-  validation paper and a CI gate. The options, the Python API (with a
-  runnable arrays snippet), the statistics and the JSON moved to docs/; the
-  JSON gates fail on a `null` interval (in jq `null <= 3` is
-  true), with a Python alternative to `jq`, and a note on line continuations
-  in PowerShell.
+- README: 100 lines. It opens on a GIF of the demo command typed in a
+  terminal and the summary it prints, and a second GIF draws the
+  score-filter comparison person by person; `examples/coco_elbow/gifs.py`
+  makes both from the demo data, and a test checks the first shows the
+  Quick start's command and output. Commands are on one line, so they paste
+  into PowerShell as they are. Short recipes for a validation paper and a
+  CI gate; the worked paper paragraph is in docs/statistics.md (Writing it
+  up) and the real `--full` output in docs/cli.md, both checked by a test.
+  The options, the Python API (with a runnable arrays snippet), the
+  statistics and the JSON moved to docs/; the JSON gates fail on a `null`
+  interval (in jq `null <= 3` is true), with a Python alternative to `jq`.
 - docs/python.md covers every public name, says what the outputs reveal
   (paths as typed, image names) and how far results agree across machines.
   Its box snippet runs.

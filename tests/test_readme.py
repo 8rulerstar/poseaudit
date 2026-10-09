@@ -1,5 +1,7 @@
 """The README and docs/ quote the demo's output; it must stay what the code prints."""
 
+import importlib.util
+import re
 from pathlib import Path
 
 import pytest
@@ -27,10 +29,44 @@ def printed(capsys, monkeypatch, *extra: str) -> list[str]:
     return capsys.readouterr().out.rstrip("\n").splitlines()
 
 
-def test_the_headline_output_is_what_the_demo_prints(capsys, monkeypatch) -> None:
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    for line in printed(capsys, monkeypatch, "--size-bands", "30,60"):
-        assert line in readme
+def quick_start(readme: str) -> list[str]:
+    """The demo command in the README's Quick start, word by word."""
+    (line,) = [x for x in readme.splitlines() if x.startswith("poseaudit audit")
+               and "gt_200.json" in x]  # fmt: skip
+    return line.split()
+
+
+def test_the_quick_start_runs_the_demo_command() -> None:
+    expected = ["poseaudit", *BASE, "--size-bands", "30,60"]
+    assert quick_start(doc("README.md")) == expected
+
+
+def test_the_readme_quotes_what_the_demo_prints(capsys, monkeypatch) -> None:
+    readme = " ".join(doc("README.md").split())
+    out = "\n".join(printed(capsys, monkeypatch, "--size-bands", "30,60"))
+    mean = re.search(r"\|error\| +mean (\S+)° ", out)
+    assert mean and f"from {mean.group(1)}° to" in readme
+    bands = re.search(r"0-30 px (\d+)% .* 60\+ px (\d+)% ", out)
+    assert bands
+    small, large = bands.groups()
+    assert f"{small}% of elbows are off by 15° or more" in readme
+    assert f"against {large}% above 60 px" in readme
+
+
+def test_the_demo_gif_shows_what_the_quick_start_prints(capsys, monkeypatch):
+    """docs/demo.gif is drawn from gifs.printed(): the README's command, and
+    what the demo prints for it, fitted to the GIF's terminal width."""
+    pytest.importorskip("matplotlib")
+    pytest.importorskip("PIL")
+    spec = importlib.util.spec_from_file_location("gifs", DEMO / "gifs.py")
+    assert spec and spec.loader
+    gifs = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gifs)
+    assert " ".join(gifs.COMMAND).split() == quick_start(doc("README.md"))
+    piped = printed(capsys, monkeypatch, "--size-bands", "30,60")
+    shown = gifs.printed(gifs.COLUMNS)
+    assert all(len(line) < gifs.COLUMNS for line in shown)
+    assert " ".join(shown).split() == " ".join(piped).split()
 
 
 def test_the_decision_lines_are_what_the_demo_prints(capsys, monkeypatch) -> None:
@@ -60,7 +96,7 @@ def test_the_size_table_matches_the_report(capsys, monkeypatch, tmp_path) -> Non
 def test_the_paper_recipe_quotes_the_demo(tmp_path, capsys, monkeypatch) -> None:
     import json
 
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme = doc("docs/statistics.md")
     printed(capsys, monkeypatch, "--json", str(tmp_path / "f.json"))
     d = json.loads((tmp_path / "f.json").read_text(encoding="utf-8"))
     (low, high), (blo, bhi) = d["percentile_limits"], d["bias_ci"]
@@ -86,17 +122,12 @@ def _blocks(readme: str) -> list[str]:
     return [b for b in blocks if b.startswith("$ poseaudit audit --format coco")]
 
 
-@pytest.mark.parametrize(
-    ("name", "extra"), [("README.md", []), ("docs/cli.md", ["--full"])]
-)
-def test_the_quick_start_blocks_are_exactly_what_the_demo_prints(
-    capsys, monkeypatch, name, extra
-) -> None:
-    block = _blocks(doc(name))[0]
+def test_the_full_block_is_exactly_what_the_demo_prints(capsys, monkeypatch) -> None:
+    block = _blocks(doc("docs/cli.md"))[0]
     command, _, output = block.partition("\n    ")[2].partition("\n")
     assert command.split() == ["--angle", "5,7,9", "--big-error", "15",
-                               "--size-bands", "30,60", *extra]  # fmt: skip
-    lines = printed(capsys, monkeypatch, "--size-bands", "30,60", *extra)
+                               "--size-bands", "30,60", "--full"]  # fmt: skip
+    lines = printed(capsys, monkeypatch, "--size-bands", "30,60", "--full")
     assert output == "\n".join(lines) + "\n"
 
 
