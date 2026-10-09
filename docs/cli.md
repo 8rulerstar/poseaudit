@@ -81,6 +81,9 @@ poseaudit audit --format coco --gt gt.json --angle 5,7,9 --angle 6,8,10 \
     --csv differences.csv
 ```
 
+`--report` and `--plot` describe one model, so with several `--pred` they are
+refused; `--csv` and `--json` hold the comparison.
+
 The `--pred NAME=PATH` form compares prediction files. To compare one file
 under two settings (a score filter, a confidence threshold), use Python:
 [python.md](python.md#compare-models).
