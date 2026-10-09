@@ -34,4 +34,5 @@ python select_images.py data/person_keypoints_val2017.json data   # writes gt_20
 pip install ultralytics==8.4.150
 python predict.py gt_200.json data/images pred_yolo11n.json
 python figures.py ../../docs                                        # README figures
+python gifs.py ../../docs                                           # README GIFs
 ```
