@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Keypoints given as unsigned integers (such as uint8) no longer wrap round
+  when subtracted: an `Instance` and every measure read them as float64.
+  float32 keypoints are widened the same way.
+- A measure given twice with its keypoints listed the other way round
+  (`--angle 5,7,9 --angle 9,7,5`) is refused like any other duplicate.
+- The CI gate in docs/json.md no longer divides by zero when nothing was
+  measurable.
 - A figure undefined in more than 2.5% of bootstrap resamples, such as the
   ICC of two images when a draw repeats one, now has no interval instead of
   one drawn from the resamples where it happened to be defined.

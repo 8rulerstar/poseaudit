@@ -25,7 +25,7 @@ written); and 2 when the arguments cannot be parsed. There is no pass or fail
 threshold built in; gate on the JSON. An interval that cannot be computed is
 `null` (every interval is, with a single cluster), and in jq `null <= 3` is
 true, so make a gate fail on `null`: for example
-`jq -e '(.mean_abs_error_ci[1] // 1e9) <= 3 and .n / .measurable >= 0.9'`, or
+`jq -e '(.mean_abs_error_ci[1] // 1e9) <= 3 and .measurable > 0 and .n / .measurable >= 0.9'`, or
 without jq, in Python:
 
 ```python
@@ -33,7 +33,9 @@ import json
 
 r = json.load(open("figures.json", encoding="utf-8"))  # written by --json
 high = r["mean_abs_error_ci"][1]  # None when the interval is null
-if not (high is not None and high <= 3 and r["n"] / r["measurable"] >= 0.9):
+ok = high is not None and high <= 3
+ok = ok and r["measurable"] > 0 and r["n"] / r["measurable"] >= 0.9
+if not ok:
     raise SystemExit("poseaudit gate failed")
 ```
 

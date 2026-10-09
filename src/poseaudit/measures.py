@@ -36,6 +36,11 @@ class Measure:
     def _repeats(self) -> bool:
         return len(set(self.points)) < len(self.points)
 
+    def key(self) -> tuple:
+        """What the measure reads, the same however its points are listed
+        when the order does not change the reading."""
+        return (type(self).__name__, self.points)
+
     def read(self, keypoints: np.ndarray) -> float:
         raise NotImplementedError
 
@@ -65,7 +70,7 @@ class Tilt(Measure):
     """
 
     def read(self, keypoints: np.ndarray) -> float:
-        a, b = (keypoints[i] for i in self.points)
+        a, b = (_floats(keypoints)[i] for i in self.points)
         dx, dy = b - a
         if dx == 0 and dy == 0:
             return float("nan")
@@ -73,10 +78,13 @@ class Tilt(Measure):
         return _fold(float(np.degrees(np.arctan2(dx, -dy))))
 
     def read_many(self, keypoints: np.ndarray) -> np.ndarray:
-        a, b = (keypoints[:, i] for i in self.points)
+        a, b = (_floats(keypoints)[:, i] for i in self.points)
         dx, dy = (b - a).T
         out = (np.degrees(np.arctan2(dx, -dy)) + 90.0) % 180.0 - 90.0
         return np.where((dx == 0) & (dy == 0), np.nan, out)
+
+    def key(self) -> tuple:
+        return (type(self).__name__, tuple(sorted(self.points)))
 
     def difference(self, predicted: float, truth: float) -> float:
         return _fold(predicted - truth)
@@ -92,8 +100,12 @@ class Tilt(Measure):
 class Angle(Measure):
     """Interior angle at b between b->a and b->c, 0 to 180 degrees."""
 
+    def key(self) -> tuple:
+        a, b, c = self.points
+        return (type(self).__name__, (min(a, c), b, max(a, c)))
+
     def read(self, keypoints: np.ndarray) -> float:
-        a, b, c = (keypoints[i] for i in self.points)
+        a, b, c = (_floats(keypoints)[i] for i in self.points)
         u, v = a - b, c - b
         if not (u.any() and v.any()):
             return float("nan")
@@ -104,7 +116,7 @@ class Angle(Measure):
         return float(np.degrees(np.arctan2(abs(cross), np.dot(u, v))))
 
     def read_many(self, keypoints: np.ndarray) -> np.ndarray:
-        a, b, c = (keypoints[:, i] for i in self.points)
+        a, b, c = (_floats(keypoints)[:, i] for i in self.points)
         u, v = a - b, c - b
         empty = ~u.any(axis=1) | ~v.any(axis=1)
         # the angle does not depend on length: scaling keeps huge values finite
@@ -123,9 +135,12 @@ class Length(Measure):
     no length."""
 
     def read(self, keypoints: np.ndarray) -> float:
-        a, b = (keypoints[i] for i in self.points)
+        a, b = (_floats(keypoints)[i] for i in self.points)
         value = _norm(b - a)
         return value if value > 0 else float("nan")
+
+    def key(self) -> tuple:
+        return (type(self).__name__, tuple(sorted(self.points)))
 
 
 @dataclass(frozen=True)
@@ -137,12 +152,21 @@ class Ratio(Measure):
         a, b, c, d = self.points
         return a == b or c == d or {a, b} == {c, d}
 
+    def key(self) -> tuple:
+        a, b, c, d = self.points
+        return (type(self).__name__, (min(a, b), max(a, b), min(c, d), max(c, d)))
+
     def read(self, keypoints: np.ndarray) -> float:
-        a, b, c, d = (keypoints[i] for i in self.points)
+        a, b, c, d = (_floats(keypoints)[i] for i in self.points)
         denominator = _norm(d - c)
         if denominator == 0:
             return float("nan")
         return _norm(b - a) / denominator
+
+
+def _floats(keypoints) -> np.ndarray:
+    """Keypoints as float64: unsigned coordinates would wrap on subtraction."""
+    return np.asarray(keypoints, float)
 
 
 def _norm(vector: np.ndarray) -> float:

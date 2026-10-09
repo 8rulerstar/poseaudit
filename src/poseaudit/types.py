@@ -25,9 +25,15 @@ class Instance:
                 f"visible must be boolean, got {visible.dtype}; for COCO-style "
                 "flags pass flags > 0"
             )
-        _check_shapes(np.asarray(self.keypoints), visible)
-        _check_finite(np.asarray(self.keypoints, float), visible)
+        # float64 throughout: unsigned pixel coordinates would wrap on
+        # subtraction, and float32 loses digits far from the origin
+        keypoints = np.asarray(self.keypoints, float)
+        _check_shapes(keypoints, visible)
+        _check_finite(keypoints, visible)
         box = np.asarray(self.bbox, float)
+        object.__setattr__(self, "keypoints", keypoints)
+        object.__setattr__(self, "visible", visible)
+        object.__setattr__(self, "bbox", box)
         if box.shape != (4,) or box[2] < box[0] or box[3] < box[1]:
             raise ValueError(
                 f"bbox must be x1, y1, x2, y2 with x1 <= x2, y1 <= y2: {box}"

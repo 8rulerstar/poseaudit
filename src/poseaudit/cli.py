@@ -46,9 +46,12 @@ def _measures(args: argparse.Namespace) -> list[Measure]:
     if not chosen:
         raise UsageError("give at least one of --tilt, --angle, --length, --ratio")
     made = [_measure(kind, spec) for kind, spec in chosen]
-    names = [(m.name, m.points) for m in made]
-    if len(set(names)) < len(names):
-        raise UsageError("a measure is given twice")
+    keys = [m.key() for m in made]
+    if len(set(keys)) < len(keys):
+        raise UsageError(
+            "a measure is given twice (listing its keypoints the other way "
+            "round reads the same)"
+        )
     return made
 
 
