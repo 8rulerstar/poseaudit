@@ -74,6 +74,26 @@ angle 12,14,16  242  +4.63°  -37.07° to +69.46°  14.62° [11.87 to 17.66]  24
   ! angle 12,14,16: 1.7% of errors fall below the normal limits and 5.0% above them, against 2.5% each for a normal error: use the percentile limits.
 ```
 
+Measures in different units each take their own large error: by kind
+(`angle`, `tilt`, `length`, `ratio`) or by unit (`deg` for angles and tilts,
+`px` for lengths), comma-separated or with `--big-error` repeated. A kind
+wins over its unit, and a bare number covers what the others do not name, as
+long as those measures share one unit: a single 15 would count 15° on an
+angle and 15 on a ratio as large alike, where no ratio ever is, so it is
+refused. With more than one threshold the table gives each row its own
+before the rate:
+
+```bash
+poseaudit audit --format coco --gt gt_200.json --pred pred_yolo11n.json     --angle 5,7,9 --tilt 5,11 --length 5,7 --ratio 5,7,7,9     --big-error angle:15,tilt:5,length:10,ratio:0.5
+```
+
+`--threshold`, `--pred-threshold` and the edges given to `--bands` are in the
+measure's unit as well and apply to every measure, so with measures in
+different units they are refused; audit each unit in a run of its own. A
+warning that several measures raise alike comes once under the table,
+naming them, and so does the advice that ends a warning several measures
+raise with counts of their own.
+
 ## Compare models
 
 Give each model as `--pred NAME=PATH`. Each model gets its table, and every
@@ -265,5 +285,30 @@ unmatched truths beside unmatched predictions with this in mind: a lower
   interval, Wilson's included, is left out (`null` in the JSON) rather than
   shown as a point or as if the readings were independent.
 
+## When it stops
+
+Errors print on stderr after `poseaudit:`, and the run exits with 1 (2, with
+the usage, when the options themselves cannot be read). The start of each
+message, `...` standing for a name or a number:
+
+| message | what to do |
+|---|---|
+| `--big-error ... would count an error of ... as large alike` | Measures in different units: give each kind its own value, as in `--big-error angle:15,length:10,ratio:0.1` ([Several joints](#several-joints)). |
+| `--big-error has no value for ...` | Add `KIND:VALUE` for that measure, or a bare number for every measure the others do not name. |
+| `YOLO labels need --image-size W H or --images DIR` | YOLO coordinates are fractions of the image: give its size, width first, or the image folder ([Inputs](#inputs)). |
+| `give --format, or both --gt-format and --pred-format` | `--format coco` or `--format yolo` for both files; `--gt-format` and `--pred-format` when they differ. |
+| `COCO results name images by id: --gt must be COCO annotations` | A COCO results file needs the COCO annotations its image ids come from; YOLO labels cannot be paired with it. Convert one side, or give YOLO predictions. |
+| `... uses keypoint ..., but a ... instance in ... has ... keypoints` | Keypoints count from 0: COCO's 17 run 0 to 16. Check the indices and the skeleton. |
+| `... takes comma-separated keypoint indices counted from 0, not names` | Give numbers: the COCO left elbow is `--angle 5,7,9` (shoulder, elbow, wrist). |
+| `... keypoint values fit neither ... x 2 nor ... x 3` | `--keypoints` does not match the label files: count the values after the box and divide by 3 (or 2). |
+| `coordinates outside the image: YOLO values are fractions of the image size` | Usually a wrong `--keypoints`, or labels in pixels rather than fractions. |
+| `skeletons differ: truth has ... keypoints, predictions ...` | The two sides use different skeletons (17 COCO points against 133 whole-body, say): use predictions of the labels' skeleton. |
+| `this is a results file (a list of detections), not an annotation file` | `--gt` and `--pred` are swapped. |
+| `this is an annotation file, not a results file` | `--gt` and `--pred` are swapped, or `--pred` should be the model's results. |
+| `... has no ...: these look like a box detector's results` | The results have boxes and no keypoints: run a pose model, not a detector. |
+| `image_id ... is not listed in ...` | The results were made on images of another annotation file or split; give the annotations the model was run on. |
+| `readings mix classes ...: audit one class at a time` | Keep one class with `--classes`, or allow the mix with `--mixed-classes`. |
+| `--plot draws one measure` | Leave out `--plot`, or give one measure. |
+| `nothing was read` | The summary above it says why: no pairs, points not labelled or not predicted. The JSON, CSV and report are still written. |
 
 Exit codes and gating on the output are in [json.md](json.md).

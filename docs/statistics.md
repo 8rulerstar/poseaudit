@@ -175,7 +175,17 @@ angle) and set the reference too low.
 | intervals | percentile bootstrap over clusters (Davison and Hinkley 1997); a rate's interval spans both that and Wilson's score interval (Wilson 1927), and Wilson's alone when every cluster holds one reading and for rates per size band; a figure undefined in more than 2.5% of resamples (a slope or ICC when a draw repeats one of two images) has no interval |
 
 The Theil-Sen slope uses every pair of readings up to about 1,000 readings and
-500,000 random pairs above that.
+500,000 random pairs above that, leaving out pairs with the same true value.
+
+To recompute these from the readings CSV: the normal limits use z =
+1.959964 (the 97.5th normal percentile), not 1.96, which moves them by about
+0.001 SD; percentiles are NumPy's default (linear, Hyndman and Fan type 7);
+CCC uses population moments as Lin did, the Deming slope sample ones. For a
+tilt, the predicted value in the slopes, ICC and CCC is truth plus error, so
+a reading either side of the +90 to -90 wrap is not 180° away; the CSV's
+`predicted` column is the value as read, folded into -90 to 90. With
+`--relative-abs`, the error is the difference of the two relative
+|values|.
 
 ### References
 

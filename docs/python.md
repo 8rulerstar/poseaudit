@@ -15,6 +15,10 @@ result.to_csv("readings.csv")  # one row per reading, to recompute anything
 result.plot("panels.png")  # predicted against true, and a Bland-Altman plot
 ```
 
+In a notebook, `result.plot()` with no file shows the figure inline. It
+returns a Matplotlib figure, with or without a file, to change or save
+yourself (`fig.savefig("panels.pdf")`); pyplot is not needed.
+
 ## Your own arrays
 
 From your own arrays: `xy` of shape (K, 2) in pixel coordinates (not 0 to 1)
@@ -119,13 +123,17 @@ worse. A plain mean over each set would call that a 2° improvement.
   `theil_sen` (`gain` and `robust_gain` in the JSON); `icc`, `ccc`;
   `size_bands`; `readings` and `worst()`; `warnings`. Most figures have a
   `_ci` interval. `summary()`, `to_markdown()`, `to_csv()`,
-  `to_dict()` and `plot()` write it out, and `to_rows()` gives the headline
-  figures as a flat row to stack into a table. In Jupyter or IPython a
-  result on its own shows its summary; `repr()` is one line.
+  `to_dict()` and `plot()` write it out (`plot()` also returns the
+  Matplotlib figure, shown inline in a notebook), and `to_rows()` gives the
+  headline figures as a flat row to stack into a table. In Jupyter or
+  IPython a result on its own shows its summary; `repr()` is one line.
 - `compare({name: predicted}, truth, measures, big_error)` returns a
-  `Comparison`: `results` (each model's `AuditResult`s, one per measure),
-  `differences`, `table()` (flat rows) and `to_csv()`. It too shows its
-  summary in Jupyter.
+  `Comparison`. With measures in different units `big_error` is a mapping
+  by kind (`angle`, `tilt`, `length`, `ratio`) or unit (`deg`, `px`), such
+  as `{"angle": 15, "length": 10, "ratio": 0.1}`; one number for degrees and
+  pixels alike is refused. The `Comparison` holds `results` (each model's
+  `AuditResult`s, one per measure), `differences`, `table()` (flat rows) and
+  `to_csv()`. It too shows its summary in Jupyter.
 - Types: a `Dataset` is `{image name: [Instance, ...]}`. `Pairing` holds the
   `Pair`s made by `pair()`. A `Measure` is what `angle()` and the others
   return. An `AuditResult` holds its `readings` (each a `Reading`), why

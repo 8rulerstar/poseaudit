@@ -9,9 +9,23 @@
   percentile limits, mean |error|, RMSE, the large-error rate, slope, ICC);
   `--full` prints each measure in full. The JSON then holds the shared
   settings and a `measures` list of single-measure entries; with one measure
-  it is unchanged. In the table the figures line up on the decimal point, and
-  the large-error column of measures in different units reads
-  `>= 15°, 15 px, 15`.
+  it is unchanged. In the table the figures line up on the decimal point.
+  When the measures share one large-error threshold the rate's header names
+  it (`>= 15°`); when they differ a `large if` column gives each row its own.
+- `--big-error` for each kind of measure,
+  `angle:15,tilt:5,length:10,ratio:0.1`, or by unit, `deg:15,px:10`,
+  comma-separated or repeated; a kind wins over its unit, and a bare number covers the measures the others do
+  not name. A bare number over measures in different units is refused, since
+  15 counts as large on an angle and never on a ratio: the table showed 0.0%
+  for every ratio. In Python, `compare(..., big_error=...)` takes the same
+  as a mapping, `{"angle": 15, "length": 10, "ratio": 0.1}`, and refuses one
+  number for measures in different units.
+- `AuditResult.plot()` without a file returns the figure, which a notebook
+  shows inline, sharp on a high-density screen, with or without pyplot
+  imported; with a file it saves it and returns it too. The demo notebook
+  shows it this way.
+- docs/cli.md lists the messages a run stops with and what to do about
+  each; a test checks that the code still says them.
 - With several measures, `--csv` leads each row with a `measure` column,
   and the run fails only when no measure read anything. Giving no measure
   now says "give at least one of".
@@ -170,9 +184,33 @@
   the model.
 - The demo notebook prints the slope under that name, as the summary does
   (`gain` stays in the JSON).
+- With several measures in different units, `--threshold`,
+  `--pred-threshold` and the edges given to `--bands`, which are in the
+  measure's unit and apply to every measure, are refused.
+- Under a table of several measures, a warning they raise alike comes once,
+  naming them ("every measure" for all), and the advice that ends the
+  near-miss warning or the warning about few readings for the jitter
+  reference comes once after each measure's counts. On the demo's tilt and
+  length the near-miss advice was printed twice, about 370 characters each.
+- Plot ticks step by 1, 2 or 5 times a power of ten (degrees across a joint's
+  range by 45), as many as the axis has room for: matplotlib's own choice
+  put the trap figure's at -8, 0, 8, 16. The predicted-against-truth panel
+  has the same ticks on both axes, as does the Bland-Altman panel's x-axis;
+  on lengths the y-axis had 0, 50, 100, 150, 200 beside an x-axis of 0, 100,
+  200. `docs/trap.png` has the same angle axis as `docs/panels.png`.
+- docs/statistics.md says how to recompute the figures from the CSV: z is
+  1.959964, percentiles are NumPy's default (type 7), CCC uses population
+  moments, Theil-Sen leaves out pairs with the same true value, and a tilt's
+  slopes use truth plus error.
 
 ### Fixed
 
+- A COCO results file without keypoints (a box detector's) stopped with
+  `a file is not in the format given: KeyError('keypoints')`; it now names
+  the file and the result and says a pose model's results are needed. A
+  missing `bbox`, `image_id`, `file_name` or `annotations` list is named
+  the same way, and an image id that is not in the annotations asks whether
+  the predictions come from another annotation file or split.
 - CLI: `--plot` without matplotlib fails before the audit runs. On a console
   that is not UTF-8 (Git Bash on Korean Windows, for one) the degree sign
   prints as " deg", with the columns kept aligned. The plot hint reads

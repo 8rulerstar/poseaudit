@@ -65,7 +65,8 @@ angle (5, 7, 9): read 322 of 380 labelled instances
 ```
 
 `--big-error` is required. It is the error, in the measure's unit, that counts
-as large. Add `--report report.md` for a report that explains every line,
+as large; measures in different units in one run each take their own, as in
+`--big-error angle:15,length:10,ratio:0.1`. Add `--report report.md` for a report that explains every line,
 `--plot panels.png` for the figure above, and `--full` for every statistic.
 `pip install` does not ship the demo data, hence the clone. The longer
 commands below continue lines with bash's `\`; in PowerShell put each on one
@@ -134,7 +135,8 @@ threshold, and comparing models on the readings they share.
 ## More
 
 - [docs/cli.md](https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md): every option, several joints, comparing
-  models, decisions at a threshold, inputs, pairing, exit codes
+  models, decisions at a threshold, inputs, pairing, what each error
+  message means and what to do
 - [docs/python.md](https://github.com/8rulerstar/poseaudit/blob/main/docs/python.md): the Python API, your own arrays, the
   comparison above in code
 - [docs/statistics.md](https://github.com/8rulerstar/poseaudit/blob/main/docs/statistics.md): reading the demo, label noise,

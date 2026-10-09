@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import matplotlib
+import numpy as np
 
 matplotlib.use("Agg")
 from matplotlib.figure import Figure  # noqa: E402
@@ -61,10 +62,13 @@ def trap(results: dict) -> Figure:
             ls=style, lw=2, ms=7, label=label,
         )  # fmt: skip
     ax.axhline(0, color=plot.MUTED, lw=0.8, zorder=0)
+    # the angle axis spans what panels.png shows, with the same ticks (0, 45,
+    # 90, 135, 180) and grid, so the two figures read alike side by side
+    readings = results["truth"].readings
+    ax.set_xlim(*plot._span(np.array([[r.truth, r.predicted] for r in readings])))
     ax.set(xlabel="elbow angle of the band (°)", ylabel="mean error in the band (°)")
     ax.set_title(f"The same {results['truth'].n} readings, sorted three ways")
-    ax.grid(True, color=plot.GRID, lw=0.8)
-    ax.set_axisbelow(True)
+    plot._finish(ax, "deg")
     key.axis("off")
     key.legend(
         *ax.get_legend_handles_labels(), loc="upper left", borderaxespad=0,
@@ -75,8 +79,6 @@ def trap(results: dict) -> Figure:
 
 def preview(result) -> Figure:
     """A plain card: the name, what it does, and the demo's Bland-Altman."""
-    import numpy as np
-
     from poseaudit.report import _percentile_limits
 
     fig = Figure(figsize=(12.8, 6.4))
