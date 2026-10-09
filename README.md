@@ -38,7 +38,8 @@ The mean |error| itself is one line of numpy. The work is around it:
 
 ```bash
 pip install poseaudit
-git clone https://github.com/8rulerstar/poseaudit && cd poseaudit/examples/coco_elbow
+git clone https://github.com/8rulerstar/poseaudit
+cd poseaudit/examples/coco_elbow
 poseaudit audit --format coco --gt gt_200.json --pred pred_yolo11n.json --angle 5,7,9 --big-error 15 --size-bands 30,60
 ```
 
@@ -65,7 +66,9 @@ angle (5, 7, 9): read 322 of 380 labelled instances
 `--big-error` is required. It is the error, in the measure's unit, that counts
 as large. Add `--report report.md` for a report that explains every line,
 `--plot panels.png` for the figure above, and `--full` for every statistic.
-`pip install` does not ship the demo data, hence the clone.
+`pip install` does not ship the demo data, hence the clone. The longer
+commands below continue lines with bash's `\`; in PowerShell put each on one
+line.
 
 Do not read 19.48° as the model's error. This is the weakest YOLO pose model,
 and COCO's own label spread alone puts 26 to 40% of these arms off by 15° or

@@ -172,7 +172,7 @@ angle) and set the reference too low.
 | repeated limits | bias ± 1.96 √(between + within variance) (Bland and Altman 2007) |
 | ICC(A,1) | two-way, absolute agreement, single rating (McGraw and Wong 1996); matches pingouin; its interval is the bootstrap, not the F interval |
 | CCC | Lin's concordance correlation (Lin 1989) |
-| intervals | percentile bootstrap over clusters (Davison and Hinkley 1997); Wilson score intervals for rates without named clusters (Wilson 1927) |
+| intervals | percentile bootstrap over clusters (Davison and Hinkley 1997); a rate's interval is the wider of that and Wilson's score interval (Wilson 1927), and Wilson's alone when every cluster holds one reading and for rates per size band |
 
 The Theil-Sen slope uses every pair of readings up to about 1,000 readings and
 500,000 random pairs above that.
@@ -225,7 +225,7 @@ The Theil-Sen slope uses every pair of readings up to about 1,000 readings and
   object's own frames. The p and the interval can disagree near the edge.
 - Matching is greedy and ignores scores (filter them first with `--min-score`);
   in dense crowds an optimal assignment may pair differently.
-- One measure per run, one level of clusters, no time series.
+- One level of clusters, no time series.
 
 ## Roadmap
 

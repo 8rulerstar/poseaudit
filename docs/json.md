@@ -1,7 +1,7 @@
 # JSON, CSV and exit codes
 
 `--json` writes every figure, with `poseaudit` (the version) and `schema`
-(1) at the top and the settings used. NaN and infinity become `null`. There
+(1) at the top and the settings used. NaN and infinity become `null`.
 `limits` there are the normal limits; the percentile limits the summary
 prints are `percentile_limits` (`empirical_limits` is the same pair under its
 old name),

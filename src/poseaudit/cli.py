@@ -306,7 +306,7 @@ def _parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
     run = sub.add_parser(
         "audit",
-        help="how far one measure read off predicted keypoints is from the truth",
+        help="how far measures read off predicted keypoints are from the truth",
         epilog=EXAMPLES,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
