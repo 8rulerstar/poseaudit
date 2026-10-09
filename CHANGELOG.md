@@ -196,7 +196,12 @@
   score-filter comparison person by person; `examples/coco_elbow/gifs.py`
   makes both from the demo data, and a test checks the first shows the
   Quick start's command and output. Commands are on one line, so they paste
-  into PowerShell as they are. Short recipes for a validation paper and a
+  into PowerShell as they are, and pip runs as `python -m pip`, so that
+  `python -m poseaudit` finds what it installed. It says in a few words what
+  bias, limits of agreement and ICC are, that brackets are 95% intervals,
+  how to compare two models (`--pred a=... --pred b=...`), which files
+  `--gt` and `--pred` take, how keypoints are numbered and how people are
+  matched, and what the CI gate checks. Short recipes for a validation paper and a
   CI gate; the worked paper paragraph is in docs/statistics.md (Writing it
   up) and the real `--full` output in docs/cli.md, both checked by a test.
   The options, the Python API (with a runnable arrays snippet), the
@@ -249,6 +254,11 @@
 
 ### Fixed
 
+- A `--cluster` regex that matches nothing in an image name stopped with the pattern's
+  repr, which printed `^(clip\d+)_` as `'^(clip\\d+)_'`, like an escaping
+  mistake. It now quotes the pattern as typed and says that the regex is
+  searched for in every image name and that its first group (or the whole
+  match) names the cluster. docs/cli.md lists the message.
 - A COCO results file without keypoints (a box detector's) stopped with
   `a file is not in the format given: KeyError('keypoints')`; it now names
   the file and the result and says a pose model's results are needed. A

@@ -226,9 +226,9 @@ def skipped(path: Path) -> None:
         ),
         (
             f"On the {d.n_shared} people both read: {d.mean_abs_error_a:.2f}° "
-            f"against {d.mean_abs_error_b:.2f}°",
-            f"a difference of {_signed(d.mean_abs_error_diff)}° "
-            f"[{_signed(lo)} to {_signed(hi)}]: the model did not get better",
+            f"against {d.mean_abs_error_b:.2f}°. No gain",
+            f"only {d.n_differing} of them read differently; the difference is "
+            f"{_signed(d.mean_abs_error_diff)}° [95%: {_signed(lo)} to {_signed(hi)}]",
         ),
     ]
     frames = []
