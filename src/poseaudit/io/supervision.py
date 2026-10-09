@@ -1,5 +1,6 @@
 """`sv.KeyPoints` from roboflow/supervision (0.30.6 or later), without importing it."""
 
+import math
 import warnings
 from collections.abc import Mapping
 from typing import Any
@@ -121,6 +122,8 @@ def from_supervision(
 
 def _class(name: str, value) -> int:
     number = float(value)
+    if not math.isfinite(number):
+        raise ValueError(f"{name}: class_id {value!r} is not a whole number")
     if number != int(number):
         raise ValueError(f"{name}: class_id {value!r} is not a whole number")
     return int(number)

@@ -45,7 +45,7 @@ def load_coco(annotations: str | Path, classes: Iterable[int] | None = None) -> 
     names = _names(data["images"], annotations)
     dataset: Dataset = {name: [] for name in names.values()}
     for ann in data["annotations"]:
-        if ann.get("iscrowd", 0) or ann.get("num_keypoints", 1) == 0:
+        if ann.get("iscrowd", 0) or not _labelled(ann):
             continue
         seen.add(ann.get("category_id"))
         if wanted is not None and ann.get("category_id") not in wanted:
@@ -182,8 +182,23 @@ def _wanted(classes) -> set[int] | None:
     return None if classes is None else {int(c) for c in classes}
 
 
+def _labelled(ann) -> bool:
+    """num_keypoints is a count derived from the points; a stale 0 beside
+    points flagged v > 0 must not drop a labelled person."""
+    if ann.get("num_keypoints", 1) != 0:
+        return True
+    flags = ann.get("keypoints", [])[2::3]
+    return any(isinstance(v, (int, float)) and v > 0 for v in flags)
+
+
 def _nothing_kept(where, wanted, seen) -> None:
-    if wanted is not None and seen and not seen & wanted:
+    if wanted is not None and seen == {None}:
+        warnings.warn(
+            f"{where}: no entry has a category_id, so keeping categories "
+            f"{sorted(wanted)} keeps nothing; leave the class filter out",
+            stacklevel=3,
+        )
+    elif wanted is not None and seen and not seen & wanted:
         present = sorted(x for x in seen if x is not None)
         warnings.warn(
             f"{where}: no entry has category {sorted(wanted)}; the categories "
