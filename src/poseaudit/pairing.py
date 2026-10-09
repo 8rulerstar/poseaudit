@@ -250,9 +250,10 @@ def _same_skeleton(truth: Dataset, predicted: Dataset) -> None:
         for side, data in (("truth", truth), ("predictions", predicted))
     }
     if len(sizes["truth"] | sizes["predictions"]) > 1:
+        counts = {k: " or ".join(map(str, sorted(v))) for k, v in sizes.items()}
         raise ValueError(
-            f"skeletons differ: truth has {sorted(sizes['truth'])} keypoints, "
-            f"predictions {sorted(sizes['predictions'])}"
+            f"skeletons differ: truth has {counts['truth']} keypoints, "
+            f"predictions {counts['predictions']}"
         )
 
 

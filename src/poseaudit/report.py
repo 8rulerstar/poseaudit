@@ -400,8 +400,9 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
     if result.n:
         out += [_lead(result), ""]
     out += [
-        f"big error >= {result.big_error:g}{u}, bands cut on the {result.band_by}; "
-        "the settings are listed at the end.",
+        f"An error of {_amount(result.big_error, result.measure.unit)} or more "
+        "counts as large (`--big-error`, `big_error` in the JSON); bands are cut "
+        f"on the {result.band_by}; the settings are listed at the end.",
         "",
         "## Summary",
         "",
@@ -694,18 +695,136 @@ def table(
     a column before it gives each measure's own when they differ. The
     warnings follow (`warning_lines`). With `width`, a table wider than that
     is cut into blocks of columns that fit."""
-    thresholds = list(dict.fromkeys(map(_threshold, results)))
-    one = len(thresholds) <= 1
-    rate = (
-        [f">= {thresholds[0]}"] if one and thresholds else ["large if", "large errors"]
-    )
-    head = [*TABLE_COLUMNS, *rate, "slope", "ICC(A,1)"]
+    head, one = _head(results)
     cells = [_cells(r, threshold=not one) for r in results]
     rows = [[c.replace("°", degree) for c in row] for row in [head, *cells]]
     slope = len(head) - 2
     figures = frozenset({1, 2, 5, slope, slope + 1})  # n, bias, RMSE, slope, ICC
     lines = layout(rows, figures, keep=1, width=width)
     return "\n".join(lines + warning_lines(results))
+
+
+def _head(results: "list[AuditResult]") -> tuple[list[str], bool]:
+    """The table's header, and whether every measure shares one large-error
+    threshold: then the rate's header names it, else a column before the
+    rate gives each measure's own."""
+    thresholds = list(dict.fromkeys(map(_threshold, results)))
+    one = len(thresholds) <= 1
+    rate = (
+        [f">= {thresholds[0]}"] if one and thresholds else ["large if", "large errors"]
+    )
+    return [*TABLE_COLUMNS, *rate, "slope", "ICC(A,1)"], one
+
+
+def _markdown_row(cells: list[str]) -> str:
+    return "| " + " | ".join(_cell(c) for c in cells) + " |"
+
+
+def _names(names: list[str]) -> str:
+    return " and ".join([", ".join(names[:-1]), names[-1]] if len(names) > 1 else names)
+
+
+# left-aligned columns of a Markdown table; the others hold figures
+_TEXT_COLUMNS = ("measure", "model", "limits", "large if", "a - b")
+
+
+def _markdown_head(head: list[str]) -> list[str]:
+    return [
+        _markdown_row(head),
+        "|" + "|".join("---" if h in _TEXT_COLUMNS else "---:" for h in head) + "|",
+    ]
+
+
+def comparison_markdown(comparison, notes: "list[str] | None" = None) -> str:
+    """`Comparison.to_markdown`: every model's figures in one table, the
+    differences on shared readings in another, then the warnings (`notes`
+    first: those raised while loading) and the settings."""
+    from poseaudit.compare import difference_cells, difference_warnings
+
+    names = list(comparison.results)
+    per_model = list(comparison.results.values())
+    first = per_model[0] if per_model else []
+    settings = comparison.settings()
+    head, one = _head(first)
+    head = ["mean abs error" if h == "mean |error|" else h for h in head]
+    head.insert(1, "model")
+    if one and first:
+        large = (
+            f"An error of {_amount(first[0].big_error, first[0].measure.unit)} "
+            "or more counts as large."
+        )
+    else:
+        large = "What counts as a large error differs by measure: see large if."
+    cluster = "image" if settings.get("cluster") == "image" else "cluster"
+    resamples = settings.get("resamples")
+    measures = f"{len(first)} {'measure' if len(first) == 1 else 'measures'}"
+    out = [
+        f"# poseaudit {__version__}: {_names(names)} compared",
+        "",
+        f"Each model read against the same labels, on {measures}. {large} {LABELS}",
+        "",
+        "## Each model",
+        "",
+        *_markdown_head(head),
+    ]
+    for k in range(len(first)):
+        for name, results in zip(names, per_model, strict=True):
+            cells = _cells(results[k], threshold=not one)
+            out.append(_markdown_row([cells[0], name, *cells[1:]]))
+    how = (
+        "Each row covers the readings that model made, which differ from model "
+        "to model when one skips people another reads: rank models on the "
+        "differences below, which use only the readings both made. n counts "
+        "readings; limits are the 2.5th to 97.5th percentiles of the errors; "
+        "slope is that of predicted on true values, 1 at best."
+    )
+    if isinstance(resamples, int):
+        how += (
+            f" Intervals are 95% percentile bootstraps over whole {cluster}s "
+            f"({resamples:,} resamples, seed {settings.get('seed')})."
+        )
+    out += ["", how]
+    if comparison.differences:
+        out += [
+            "",
+            "## Differences on shared readings",
+            "",
+            "Model a minus model b on the labelled instances both read, so below "
+            "0 a is the closer to the truth. The paired intervals resample whole "
+            f"{cluster}s.",
+            "",
+            *_markdown_head(
+                [
+                    "measure",
+                    "a - b",
+                    "shared",
+                    "n a",
+                    "n b",
+                    "mean abs error a - b",
+                    "large-error rate a - b",
+                ]  # fmt: skip
+            ),
+        ]
+        out += [
+            _markdown_row(cells)
+            for cells in difference_cells(comparison.differences, comparison.results)
+        ]
+    warned = [f"- loading: {n}" for n in notes or []]
+    for name, results in zip(names, per_model, strict=True):
+        warned += [f"- {name}, {line[4:]}" for line in warning_lines(results)]
+    warned += [f"- {w}" for w in difference_warnings(comparison.differences)]
+    if warned:
+        out += ["", "## Warnings", "", *warned]
+    rows = [f"| {key} | {_cell(value)} |" for key, value in settings.items()]
+    paths = [
+        f"{name}: {results[0].settings['pred']}"
+        for name, results in zip(names, per_model, strict=True)
+        if results and "pred" in results[0].settings
+    ]
+    if paths:
+        rows.append(f"| pred | {_cell('; '.join(paths))} |")
+    out += ["", "## Settings", "", "| setting | value |", "|---|---|", *rows]
+    return "\n".join(out) + "\n"
 
 
 def warning_lines(results: "list[AuditResult]") -> list[str]:

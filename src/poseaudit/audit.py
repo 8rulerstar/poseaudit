@@ -1,5 +1,6 @@
 """Read one measure off every matched pair and describe how far off it is."""
 
+import numbers
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
@@ -55,6 +56,49 @@ FEW_FOR_JITTER = (
     "not squash."
 )
 SHARED_ADVICE = (NEAR_MISS_BOXES, NEAR_MISS_POINTS, FEW_FOR_JITTER)
+
+# what a mapping given as big_error may name: a measure's kind, or a unit (deg
+# covers angles and tilts, px lengths); --big-error takes the same names
+BIG_ERROR_KEYS = ("angle", "tilt", "length", "ratio", "deg", "px")
+BIG_ERROR_MAPPING = "{'angle': 15, 'length': 10, 'ratio': 0.1}"
+
+
+def big_error_for(measure: Measure, big_error: "float | Mapping[str, float]") -> float:
+    """`big_error` itself, or from a mapping its value for the measure's kind
+    (angle, tilt, length, ratio), else for its unit (deg, px). Anything else,
+    such as the command line's "angle:15" or a key that is neither a kind nor
+    a unit, is refused with what to pass instead."""
+    value: object = big_error
+    if isinstance(big_error, Mapping):
+        unknown = [key for key in big_error if key not in BIG_ERROR_KEYS]
+        if unknown:
+            raise ValueError(
+                f"big_error names {unknown[0]!r}, which is neither a kind of "
+                f"measure nor a unit: use {', '.join(BIG_ERROR_KEYS)}, as in "
+                f"{BIG_ERROR_MAPPING}"
+            )
+        kind = type(measure).__name__.lower()
+        found = [big_error[key] for key in (kind, measure.unit) if key in big_error]
+        if not found:
+            raise ValueError(
+                f"big_error gives no value for {measure.name} {measure.points}: "
+                f"add {kind!r} to it, as in {BIG_ERROR_MAPPING}"
+            )
+        value = found[0]
+    if isinstance(value, bool) or not isinstance(value, numbers.Real):
+        form = (
+            " (KIND:VALUE is the command line's form)"
+            if isinstance(value, str) and ":" in value
+            else ""
+        )
+        raise TypeError(
+            "big_error is a number, or a mapping by kind or unit such as "
+            f"{BIG_ERROR_MAPPING}; got {value!r}{form}"
+        )
+    number = float(value)
+    if not number > 0:
+        raise ValueError(f"big_error must be above 0, got {value}")
+    return number
 
 
 @dataclass(frozen=True)
@@ -304,7 +348,7 @@ def _written(text: str, path: str | None) -> str:
 def audit(
     pairing: Pairing,
     measure: Measure,
-    big_error: float,
+    big_error: float | Mapping[str, float],
     bands: int | Sequence[float] = 4,
     band_by: BandBy = "truth",
     size_bands: int | Sequence[float] = 3,
@@ -324,6 +368,8 @@ def audit(
 ) -> AuditResult:
     """Describe how far `measure` read off predictions is from the truth.
 
+    big_error: an error at least this large, in the measure's unit, counts as
+        large. A mapping by kind or unit, as `compare` takes, works too.
     bands: a number of equal-count bands, or the edges to cut at.
     band_by: what to sort readings by. The truth suits labels much less noisy
         than the model; the mean of both suits two equally noisy readings.
@@ -360,8 +406,12 @@ def audit(
         raise ValueError(
             f"band_by must be 'truth', 'mean' or 'predicted', got {band_by!r}"
         )
-    if not big_error > 0:
-        raise ValueError(f"big_error must be above 0, got {big_error}")
+    if not isinstance(measure, Measure):
+        raise TypeError(
+            "audit reads one measure, such as pa.angle(5, 7, 9); got a "
+            f"{type(measure).__name__}: call audit once for each measure"
+        )
+    big_error = big_error_for(measure, big_error)
     if noise_ratio is not None and not noise_ratio > 0:
         raise ValueError(f"noise_ratio must be above 0, got {noise_ratio}")
     if relative_abs and relative_to is None:

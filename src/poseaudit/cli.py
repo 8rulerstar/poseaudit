@@ -15,7 +15,7 @@ import numpy as np
 
 from poseaudit._files import write_text
 from poseaudit._version import __version__
-from poseaudit.audit import audit
+from poseaudit.audit import BIG_ERROR_KEYS, audit
 from poseaudit.io import load_coco, load_coco_results, load_yolo
 from poseaudit.measures import Measure, angle, length, ratio, tilt
 from poseaudit.pairing import pair
@@ -81,9 +81,9 @@ def _measure(kind: str, spec: str) -> Measure:
     return make(*points)
 
 
-# what --big-error may name: a measure's kind, or a unit (deg covers angles and
-# tilts, px lengths); a kind wins over its unit, and a unit over a bare value
-BIG_ERROR_KEYS = ("angle", "tilt", "length", "ratio", "deg", "px")
+# --big-error may name a measure's kind or a unit (BIG_ERROR_KEYS: deg covers
+# angles and tilts, px lengths); a kind wins over its unit, and a unit over a
+# bare value
 BIG_ERROR_EXAMPLE = "--big-error angle:15,length:10,ratio:0.1"
 
 
@@ -225,7 +225,9 @@ def _image_sizes(args):
         try:
             from PIL import Image
         except ImportError:
-            raise UsageError("--images needs Pillow: pip install pillow") from None
+            raise UsageError(
+                '--images needs Pillow: pip install "poseaudit[images]"'
+            ) from None
         files: dict[str, list[Path]] = {}
         for p in sorted(folder.iterdir()):
             if p.is_file() and p.suffix.lower() in _IMAGES:
@@ -662,7 +664,10 @@ def _parser() -> argparse.ArgumentParser:
     )
     out = run.add_argument_group("output")
     out.add_argument(
-        "--report", metavar="FILE", help="markdown report that explains every line"
+        "--report",
+        metavar="FILE",
+        help="markdown report that explains every line; comparing models, their "
+        "figures and differences as Markdown tables",
     )
     out.add_argument(
         "--csv",
@@ -785,6 +790,10 @@ def _finish_compare(comparison, args, loader_notes) -> None:
             )
         if args.csv:
             comparison.to_csv(args.csv)
+        if args.report:  # the tables as Markdown, for a paper or a blog
+            from poseaudit.report import comparison_markdown
+
+            write_text(args.report, comparison_markdown(comparison, loader_notes))
     except OSError as error:
         sys.exit(f"poseaudit: could not write: {error}")
     if all(r.n == 0 for rs in comparison.results.values() for r in rs):
@@ -886,9 +895,8 @@ def _write(result, args) -> None:
 def _run_compare(args, models):
     from poseaudit.compare import Comparison, _difference
 
-    for flag in ("report", "plot"):
-        if getattr(args, flag):
-            raise UsageError(f"--{flag} takes one model; leave it out to compare")
+    if args.plot:
+        raise UsageError("--plot draws one model; leave it out to compare")
     results = {}
     for name, path in models:
         args.pred = path
@@ -969,15 +977,15 @@ def _run(args):
             "two outputs name the same file; one would overwrite the other"
         )
     _check_values(args)
-    if args.plot:  # before the audit, which can take minutes
-        from poseaudit.plot import needs_matplotlib
-
-        needs_matplotlib()
     if (args.side or args.pred_threshold) and not args.threshold:
         raise UsageError("--side and --pred-threshold need --threshold")
     measures = _measures(args)
     if args.plot and len(measures) > 1:
         raise UsageError("--plot draws one measure; give one, or leave out --plot")
+    if args.plot:  # after what the line itself gets wrong, before the audit
+        from poseaudit.plot import needs_matplotlib
+
+        needs_matplotlib()
     big_errors = _big_errors(args.big_error, measures)
     bands = _bands(args.bands)
     _one_unit(args, measures, bands)

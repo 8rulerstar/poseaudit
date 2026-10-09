@@ -15,7 +15,7 @@ from itertools import combinations
 
 import numpy as np
 
-from poseaudit.audit import AuditResult, Cluster, audit
+from poseaudit.audit import AuditResult, Cluster, audit, big_error_for
 from poseaudit.confidence import clustered_bootstrap
 from poseaudit.measures import Measure
 from poseaudit.pairing import pair
@@ -47,6 +47,18 @@ class Difference:
     big_error_rate_diff_ci: tuple[float, float]
     # shared readings the two models read differently: the intervals rest on these
     n_differing: int | None = None
+    big_error: float = float("nan")  # the large-error threshold, measure's unit
+
+
+# the order of the columns of Comparison.table() and the CSV: each interval
+# beside its estimate, which a paper's table puts together too
+DIFFERENCE_COLUMNS = (
+    "measure", "a", "b", "n_shared", "n_a", "n_b", "clusters", "n_differing",
+    "big_error", "mean_abs_error_a", "mean_abs_error_b", "mean_abs_error_diff",
+    "mean_abs_error_diff_ci_low", "mean_abs_error_diff_ci_high",
+    "big_error_rate_a", "big_error_rate_b", "big_error_rate_diff",
+    "big_error_rate_diff_ci_low", "big_error_rate_diff_ci_high",
+)  # fmt: skip
 
 
 # fewer shared readings read differently than this make the paired intervals
@@ -64,15 +76,38 @@ class Comparison:
 
     def table(self) -> list[dict]:
         """One flat row per measure and pair of models, intervals split into
-        `*_ci_low` and `*_ci_high`."""
+        `*_ci_low` and `*_ci_high` beside their estimate, with the
+        large-error threshold (`big_error`) the rates use."""
         rows = []
         for d in self.differences:
             row = asdict(d)
             for key in ("mean_abs_error_diff_ci", "big_error_rate_diff_ci"):
                 low, high = row.pop(key)
                 row[key + "_low"], row[key + "_high"] = low, high
-            rows.append(row)
+            rows.append({key: row[key] for key in DIFFERENCE_COLUMNS})
         return rows
+
+    def to_rows(self) -> list[dict]:
+        """Each model's headline figures as flat rows, led by `model`: the row
+        `AuditResult.to_rows` gives, for every measure (in the order given)
+        and every model under it (in the order given). A leaderboard's
+        table, ready for csv.DictWriter or pandas."""
+        names = list(self.results)
+        count = len(self.results[names[0]]) if names else 0
+        return [
+            {"model": name, **self.results[name][k].to_rows()[0]}
+            for k in range(count)
+            for name in names
+        ]
+
+    def to_markdown(self, path: str | None = None) -> str:
+        """The comparison as Markdown, for a paper or a blog: one table of
+        every model's figures on every measure, one of the differences on
+        shared readings, then the warnings and the settings."""
+        from poseaudit.audit import _written
+        from poseaudit.report import comparison_markdown
+
+        return _written(comparison_markdown(self), path)
 
     def to_csv(self, path: str | None = None) -> str:
         rows = self.table()
@@ -115,14 +150,21 @@ class Comparison:
         """IPython and Jupyter show the summary, not every reading."""
         printer.text(repr(self) if cycle else self.summary())
 
+    def settings(self) -> dict:
+        """The settings every model was audited with: those of the first,
+        less what names one model (its name and its predictions' path)."""
+        first = next(iter(self.results.values()), [])
+        own = ("model", "pred")
+        return {k: v for k, v in (first[0].settings if first else {}).items()
+                if k not in own}  # fmt: skip
+
     def to_dict(self) -> dict:
         from poseaudit._version import __version__
 
-        first = next(iter(self.results.values()))
         return {
             "poseaudit": __version__,
             "schema": 1,
-            "settings": first[0].settings if first else {},
+            "settings": self.settings(),
             "models": {
                 name: [r.to_dict() for r in results]
                 for name, results in self.results.items()
@@ -164,21 +206,6 @@ def difference_warnings(differences) -> list[str]:
     return notes
 
 
-def big_error_for(measure: Measure, big_error: float | Mapping[str, float]) -> float:
-    """`big_error` itself, or from a mapping its value for the measure's kind
-    (angle, tilt, length, ratio), else for its unit (deg, px)."""
-    if not isinstance(big_error, Mapping):
-        return big_error
-    kind = type(measure).__name__.lower()
-    for key in (kind, measure.unit):
-        if key and key in big_error:
-            return big_error[key]
-    raise ValueError(
-        f"big_error gives no value for {measure.name} {measure.points}: add "
-        f"{kind!r} to it"
-    )
-
-
 def compare(
     predictions: Mapping[str, Dataset],
     truth: Dataset,
@@ -202,6 +229,7 @@ def compare(
     chosen = [measures] if isinstance(measures, Measure) else list(measures)
     if not chosen:
         raise ValueError("compare needs at least one measure")
+    bigs = [big_error_for(m, big_error) for m in chosen]  # refuses a wrong form
     units = list(dict.fromkeys(UNITS.get(m.unit, m.unit or "ratios") for m in chosen))
     if not isinstance(big_error, Mapping) and len(units) > 1:
         raise ValueError(
@@ -210,7 +238,6 @@ def compare(
             "measure, such as "
             "{'angle': 15, 'length': 10, 'ratio': 0.1}"
         )
-    bigs = [big_error_for(m, big_error) for m in chosen]
     results: dict[str, list[AuditResult]] = {}
     for name, predicted in predictions.items():
         pairing = pair(truth, predicted, min_iou, min_keypoint_similarity)
@@ -226,6 +253,8 @@ def compare(
             )  # fmt: skip
             for m, big in zip(chosen, bigs, strict=True)
         ]
+        for r in results[name]:
+            r.settings["model"] = name  # as the command line records it
     differences = [
         _difference(results[a][k], results[b][k], a, b, resamples, seed)
         for k in range(len(chosen))
@@ -282,20 +311,18 @@ def _difference(ra, rb, a, b, resamples, seed) -> Difference:
         big_error_rate_diff=rate_a - rate_b,
         big_error_rate_diff_ci=rate_ci,
         n_differing=int(differing),
+        big_error=float(big),
     )
 
 
-def differences_table(
-    differences, results, degree: str = "°", width: int | None = None
-) -> str:
-    """The differences as aligned text, a minus b on the shared readings."""
-    from poseaudit.report import _ci, _f, label, layout
+def difference_cells(differences, results, degree: str = "°") -> list[list[str]]:
+    """One row of text cells per difference, as the summary and the Markdown
+    comparison print them."""
+    from poseaudit.report import _ci, _f, label
 
     units = {label(r): r.measure.unit for r in next(iter(results.values()))}
     unit_of = {"deg": degree, "px": " px"}
-    head = ["measure", "a - b", "shared", "n a", "n b", "mean |error| a - b",
-            "large-error rate a - b"]  # fmt: skip
-    rows = [head]
+    rows = []
     for d in differences:
         u = unit_of.get(units[d.measure], "")
         rows.append(
@@ -311,6 +338,18 @@ def differences_table(
                 f"{_ci(tuple(100 * x for x in d.big_error_rate_diff_ci), '+.1f')}",
             ]
         )
+    return rows
+
+
+def differences_table(
+    differences, results, degree: str = "°", width: int | None = None
+) -> str:
+    """The differences as aligned text, a minus b on the shared readings."""
+    from poseaudit.report import layout
+
+    head = ["measure", "a - b", "shared", "n a", "n b", "mean |error| a - b",
+            "large-error rate a - b"]  # fmt: skip
+    rows = [head, *difference_cells(differences, results, degree)]
     lines = layout(rows, frozenset({2, 3, 4}), keep=2, width=width)
     lines += [f"  ! {note}" for note in difference_warnings(differences)]
     return "\n".join(lines)
