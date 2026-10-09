@@ -668,8 +668,12 @@ def _fill(result, bands, size_bands, noise_ratio, resamples, seed, jitter) -> No
     result.median_error = float(np.median(e))
     result.limits = ag.limits(e)
     low, high = result.limits
-    result.limits_coverage = float(((e >= low) & (e <= high)).mean())
-    result.tail_shares = (float((e < low).mean()), float((e > high).mean()))
+    if np.isfinite(low) and np.isfinite(high):
+        result.limits_coverage = float(((e >= low) & (e <= high)).mean())
+        result.tail_shares = (float((e < low).mean()), float((e > high).mean()))
+    else:  # no limits (one reading): no share falls outside them
+        result.limits_coverage = float("nan")
+        result.tail_shares = NAN
     result.empirical_limits = ag.empirical_limits(e)
     repeated = len(np.unique(clusters)) < len(clusters)
     if repeated:

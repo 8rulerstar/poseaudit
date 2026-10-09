@@ -447,10 +447,13 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
                 d,
             )
         )
+    if np.isfinite(below):
+        out += [
+            "",
+            f"{below:.1%} of errors fall below the normal limits and {above:.1%} "
+            "above them (2.5% each for a normal error).",
+        ]
     out += [
-        "",
-        f"{below:.1%} of errors fall below the normal limits and {above:.1%} above "
-        "them (2.5% each for a normal error).",
         "",
         "## Error by size of the measured part",
         "",
