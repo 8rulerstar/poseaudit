@@ -87,7 +87,9 @@ refused. With more than one threshold the table gives each row its own
 before the rate:
 
 ```bash
-poseaudit audit --format coco --gt gt_200.json --pred pred_yolo11n.json     --angle 5,7,9 --tilt 5,11 --length 5,7 --ratio 5,7,7,9     --big-error angle:15,tilt:5,length:10,ratio:0.5
+poseaudit audit --format coco --gt gt_200.json --pred pred_yolo11n.json \
+    --angle 5,7,9 --tilt 5,11 --length 5,7 --ratio 5,7,7,9 \
+    --big-error angle:15,tilt:5,length:10,ratio:0.5
 ```
 
 `--threshold`, `--pred-threshold` and the edges given to `--bands` are in the
@@ -389,6 +391,7 @@ each starts as below, `...` standing for a name or a number:
 | `... has no ...: these look like a box detector's results` | The results have boxes and no keypoints: run a pose model, not a detector. |
 | `image_id ... is not listed in ...` | The results were made on images of another annotation file or split; give the annotations the model was run on. |
 | `readings mix classes ...: audit one class at a time` | Keep one class with `--classes`, or allow the mix with `--mixed-classes`. |
+| `--cluster ... matches nothing in image name ...` | Every image name must match: `--cluster "^(clip\d+)_"` reads the cluster `clip3` from `clip3_000123.jpg` ([why](#several-readings-of-one-subject)). |
 | `--plot draws one measure` | Leave out `--plot`, or give one measure. |
 | `nothing was read` | The summary above it says why: no pairs, points not labelled or not predicted. The JSON, CSV and report are still written. |
 

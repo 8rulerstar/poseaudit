@@ -365,3 +365,17 @@ def test_the_readme_names_the_extras_its_own_steps_need() -> None:
     index = (DOCS / "README.md").read_text(encoding="utf-8")
     for extra in ("plot", "images", "supervision"):
         assert f'pip install "poseaudit[{extra}]"' in index
+
+
+def test_a_cluster_regex_that_matches_nothing_is_quoted_as_typed() -> None:
+    """The pattern's repr doubled each backslash, which reads as an escaping
+    mistake; the message also says what the regex is matched against."""
+    from poseaudit.cli import _cluster
+
+    cluster_of = _cluster(r"^(clip\d+)_")
+    assert cluster_of("clip3_000123.jpg") == "clip3"
+    with pytest.raises(ValueError) as stop:
+        cluster_of("000000000139.jpg")
+    message = str(stop.value)
+    assert message.startswith(r"--cluster '^(clip\d+)_' matches nothing in image")
+    assert "'000000000139.jpg'" in message and "first group" in message

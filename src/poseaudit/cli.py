@@ -292,7 +292,12 @@ def _cluster(pattern: str | None):
     def cluster_of(image: str) -> str:
         found = compiled.search(image)
         if found is None:
-            raise ValueError(f"--cluster {pattern!r} does not match image {image!r}")
+            # the pattern as typed: its repr would print \d as \\d
+            raise ValueError(
+                f"--cluster '{pattern}' matches nothing in image name {image!r}: "
+                "the regex is searched for in every image name, and its first "
+                "group (or the whole match) names the cluster"
+            )
         return found.group(1) if found.groups() else found.group(0)
 
     return cluster_of
