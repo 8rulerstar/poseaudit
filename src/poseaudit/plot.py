@@ -9,7 +9,7 @@ line to its entry.
 """
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import numpy as np
 
@@ -70,7 +70,10 @@ def needs_matplotlib() -> None:
         ) from error
 
 
-def plot(result: "AuditResult", path: str) -> None:
+def plot(result: "AuditResult", path: str | None = None) -> "Figure":
+    """The two panels as a matplotlib Figure, saved to `path` when one is
+    given (PNG, SVG or PDF by its extension). A notebook shows the figure
+    inline, sharp on a high-density screen, with or without pyplot."""
     needs_matplotlib()
     import matplotlib
 
@@ -78,19 +81,23 @@ def plot(result: "AuditResult", path: str) -> None:
         raise ValueError("no readings to plot")
     from poseaudit._files import write_with
 
-    # the temporary file's name ends .tmp, so the format comes from the path
-    form = Path(path).suffix.lstrip(".").lower() or "png"
     # the style holds for this figure only; the user's settings are left alone
     with matplotlib.rc_context(cast(Any, STYLE)):
         fig = _figure(result)
-        write_with(path, lambda temporary: fig.savefig(temporary, dpi=DPI, format=form))
+        if path is not None:
+            # the temporary file's name ends .tmp, so the format comes from the path
+            form = Path(path).suffix.lstrip(".").lower() or "png"
+            write_with(
+                path, lambda temporary: fig.savefig(temporary, dpi=DPI, format=form)
+            )
+    return fig
 
 
 def _figure(result: "AuditResult") -> "Figure":
     """The two panels, unsaved. `plot` draws them inside
     `matplotlib.rc_context(STYLE)`, which sets the sizes and colours."""
-    from matplotlib.figure import Figure  # no pyplot: leaves the user's backend alone
-
+    # no pyplot: leaves the user's backend alone
+    from poseaudit._panels import Panels
     from poseaudit.report import _ci, _digits, _percentile_limits
 
     t = np.array([r.truth for r in result.readings])
@@ -101,7 +108,7 @@ def _figure(result: "AuditResult") -> "Figure":
     d = 1 if result.measure.unit else _digits(result)
     name = result.measure.name
 
-    fig = Figure(figsize=(WIDTH, HEIGHT), layout="constrained")
+    fig = Panels(figsize=(WIDTH, HEIGHT), layout="constrained")
     grid = fig.add_gridspec(2, 2, height_ratios=[1, 0.2])
     left, right = fig.add_subplot(grid[0, 0]), fig.add_subplot(grid[0, 1])
     readings = "reading" if result.n == 1 else "readings"
@@ -156,7 +163,16 @@ def _figure(result: "AuditResult") -> "Figure":
     for ax in (left, right):
         _finish(ax, result.measure.unit)
     _key(fig.add_subplot(grid[1, :]), left, right)
-    _values_at_right(fig, right, shown, f"+.{d}f", unit)
+    _values_at_right(fig, right, shown, f"+.{d}f", unit)  # lays the figure out
+    # the three axes over the same values take the same ticks, those the left
+    # x-axis has room for once laid out: the shorter y-axis took more of them
+    # (0, 50, 100 against 0, 100, 200), which hid that the panel is drawn to
+    # one scale, and the right panel, narrowed by its labels, could take fewer
+    ticks = [x for x in left.get_xticks() if low <= x <= high]
+    for axis in (left.xaxis, left.yaxis, right.xaxis):
+        axis.set_ticks(ticks)
+    left.set(xlim=(low, high), ylim=(low, high))
+    right.set_xlim(low, high)
     return fig
 
 
@@ -283,13 +299,16 @@ def _finish(ax: "Axes", unit: str) -> None:
     from matplotlib.ticker import EngFormatter, MaxNLocator, ScalarFormatter
 
     for axis, (low, high) in ((ax.xaxis, ax.get_xlim()), (ax.yaxis, ax.get_ylim())):
-        # degrees across a joint's range: steps of 45 rather than 50; over a
-        # few degrees, whole steps rather than 4.5 and 9.0
+        # degrees across a joint's range: steps of 45 rather than 50; anything
+        # else steps of 1, 2 or 5 times a power of ten, as people count, never
+        # 4, 6 or 8 (matplotlib's own choice put ticks at -8, 0, 8, 16), as
+        # many as the axis has room for
         wide = unit == "deg" and abs(high - low) >= 90
-        steps = [1, 1.5, 2, 3, 4.5, 5, 10] if wide else None
+        steps = [1, 1.5, 2, 3, 4.5, 5, 10] if wide else [1, 2, 5, 10]
         big = max(abs(low), abs(high)) >= 1e5
         # "1.6M" is wider than "45": fewer ticks keep the labels apart
-        axis.set_major_locator(MaxNLocator(nbins=3 if big else 5, steps=steps))
+        bins: int | Literal["auto"] = 3 if big else 5 if wide else "auto"
+        axis.set_major_locator(MaxNLocator(nbins=bins, steps=steps))
         if big:
             axis.set_major_formatter(EngFormatter(sep=""))
         else:

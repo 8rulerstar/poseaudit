@@ -22,6 +22,7 @@ from poseaudit.pairing import pair
 from poseaudit.types import Dataset
 
 NAN2 = (float("nan"), float("nan"))
+UNITS = {"deg": "degrees", "px": "px"}
 
 
 @dataclass(frozen=True)
@@ -163,11 +164,26 @@ def difference_warnings(differences) -> list[str]:
     return notes
 
 
+def big_error_for(measure: Measure, big_error: float | Mapping[str, float]) -> float:
+    """`big_error` itself, or from a mapping its value for the measure's kind
+    (angle, tilt, length, ratio), else for its unit (deg, px)."""
+    if not isinstance(big_error, Mapping):
+        return big_error
+    kind = type(measure).__name__.lower()
+    for key in (kind, measure.unit):
+        if key and key in big_error:
+            return big_error[key]
+    raise ValueError(
+        f"big_error gives no value for {measure.name} {measure.points}: add "
+        f"{kind!r} to it"
+    )
+
+
 def compare(
     predictions: Mapping[str, Dataset],
     truth: Dataset,
     measures: Measure | Sequence[Measure],
-    big_error: float,
+    big_error: float | Mapping[str, float],
     cluster: Cluster = None,
     resamples: int = 2000,
     seed: int = 0,
@@ -177,12 +193,24 @@ def compare(
 ) -> Comparison:
     """Audit each model in `predictions` ({name: dataset}) against `truth` on
     every measure, and compare every pair of models on the readings both made
-    of the same labelled instance. Other keyword arguments go to `audit`."""
+    of the same labelled instance. `big_error` is one value, or with measures
+    in different units a mapping by kind or unit such as
+    `{"angle": 15, "length": 10, "ratio": 0.1}`. Other keyword arguments go
+    to `audit`."""
     if len(predictions) < 2:
         raise ValueError("compare needs at least two models")
     chosen = [measures] if isinstance(measures, Measure) else list(measures)
     if not chosen:
         raise ValueError("compare needs at least one measure")
+    units = list(dict.fromkeys(UNITS.get(m.unit, m.unit or "ratios") for m in chosen))
+    if not isinstance(big_error, Mapping) and len(units) > 1:
+        raise ValueError(
+            f"big_error {big_error:g} would count the same number as large in "
+            f"{', '.join(units[:-1])} and {units[-1]} alike; pass one per kind of "
+            "measure, such as "
+            "{'angle': 15, 'length': 10, 'ratio': 0.1}"
+        )
+    bigs = [big_error_for(m, big_error) for m in chosen]
     results: dict[str, list[AuditResult]] = {}
     for name, predicted in predictions.items():
         pairing = pair(truth, predicted, min_iou, min_keypoint_similarity)
@@ -190,13 +218,13 @@ def compare(
             audit(
                 pairing,
                 m,
-                big_error,
+                big,
                 cluster=cluster,
                 resamples=resamples,
                 seed=seed,
                 **audit_options,
             )  # fmt: skip
-            for m in chosen
+            for m, big in zip(chosen, bigs, strict=True)
         ]
     differences = [
         _difference(results[a][k], results[b][k], a, b, resamples, seed)

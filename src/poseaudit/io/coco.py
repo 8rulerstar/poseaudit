@@ -21,9 +21,12 @@ def _read(path: str | Path):
         raise ValueError(f"{path}: not valid JSON ({error})") from None
 
 
-def _annotation_file(path: str | Path) -> dict:
+def _annotation_file(
+    path: str | Path, keys: tuple[str, ...] = ("images", "annotations")
+) -> dict:
     """The parsed annotation file, or a clear error when it is a results list:
-    the two files swapped (`--gt` and `--pred`)."""
+    the two files swapped (`--gt` and `--pred`). Results need only its
+    `images`: an image-info file without annotations names them as well."""
     data = _read(path)
     if isinstance(data, list):
         raise ValueError(
@@ -31,9 +34,27 @@ def _annotation_file(path: str | Path) -> dict:
             "annotation file (an object with images and annotations); were the "
             "truth and the predictions swapped (--gt and --pred)?"
         )
-    if not isinstance(data, dict) or "images" not in data:
-        raise ValueError(f"{path}: not a COCO annotation file (no 'images' list)")
+    for key in keys:
+        if not isinstance(data, dict) or not isinstance(data.get(key), list):
+            raise ValueError(f"{path}: not a COCO annotation file (no {key!r} list)")
     return data
+
+
+def _field(record, key: str, where: str, hint: str = ""):
+    """A required field, or an error naming the file, the entry and the field
+    instead of a bare KeyError."""
+    if not isinstance(record, dict):
+        raise ValueError(f"{where}: each entry must be an object, got {record!r}")
+    if key not in record:
+        raise ValueError(f"{where} has no {key!r}{hint}")
+    return record[key]
+
+
+# a detector's results give boxes and no keypoints
+NO_KEYPOINTS = (
+    ": these look like a box detector's results; poseaudit needs a pose model's, "
+    "with keypoints"
+)
 
 
 def load_coco(annotations: str | Path, classes: Iterable[int] | None = None) -> Dataset:
@@ -56,15 +77,17 @@ def load_coco(annotations: str | Path, classes: Iterable[int] | None = None) -> 
         seen.add(ann.get("category_id"))
         if wanted is not None and ann.get("category_id") not in wanted:
             continue
+        where = f"{annotations}: annotation {ann.get('id')}"
         try:
-            keypoints, visible, _ = _points(ann["keypoints"], 0.0)
-            bbox = _box(ann["bbox"])
+            keypoints, visible, _ = _points(_field(ann, "keypoints", where), 0.0)
+            bbox = _box(_field(ann, "bbox", where))
         except ValueError as error:
             raise ValueError(
-                f"{annotations}: annotation {ann.get('id')}: {error}"
+                str(error) if str(error).startswith(where) else f"{where}: {error}"
             ) from None
         instance = Instance(bbox, keypoints, visible, class_id=ann.get("category_id"))
-        dataset[_name(names, ann["image_id"], annotations)].append(instance)
+        image_id = _field(ann, "image_id", where)
+        dataset[_name(names, image_id, annotations)].append(instance)
     if crowds:
         regions = (
             "1 crowd region (iscrowd 1) was left out and is"
@@ -98,7 +121,7 @@ def load_coco_results(
     visibility flag: set `min_confidence` (for example 0.5), or every point a
     model returns counts as seen.
     """
-    names = _names(_annotation_file(annotations)["images"], annotations)
+    names = _names(_annotation_file(annotations, ("images",))["images"], annotations)
     dataset: Dataset = {}
     looks_like_confidence = False
     wanted = _wanted(classes)
@@ -111,11 +134,15 @@ def load_coco_results(
             "and --pred)? Otherwise pass it with --gt-format coco, or give the "
             "model's results here"
         )
-    for result in rows:
+    for index, result in enumerate(rows):
         if not isinstance(result, dict):
             raise ValueError(
                 f"{results}: each result must be an object, got {result!r}"
             )
+        where = f"{results}: result {index}"
+        hint = NO_KEYPOINTS if "bbox" in result else ""
+        _field(result, "keypoints", where, hint)
+        _field(result, "image_id", where)
         seen.add(result.get("category_id"))
         if wanted is not None and result.get("category_id") not in wanted:
             continue
@@ -146,7 +173,9 @@ def _names(images, annotations) -> dict:
     """Image id to file name. A repeated id or file name would silently put
     the people of two images into one, where they get paired across images."""
     names: dict = {}
-    for image in images:
+    for index, image in enumerate(images):
+        for key in ("id", "file_name"):
+            _field(image, key, f"{annotations}: images[{index}]")
         if image["id"] in names:
             raise ValueError(f"{annotations}: image id {image['id']} is listed twice")
         names[image["id"]] = image["file_name"]
@@ -169,7 +198,11 @@ def _name(names: dict, image_id, annotations) -> str:
                 f"lists {alike[0]!r}: the two files write image ids as different "
                 "types (a number and a string)"
             )
-        raise ValueError(f"image_id {image_id!r} is not listed in {annotations}")
+        raise ValueError(
+            f"image_id {image_id!r} is not listed in {annotations}: were the "
+            "predictions made on images of another annotation file or split? "
+            "--gt must be the annotations of the images the model was run on"
+        )
     return names[image_id]
 
 

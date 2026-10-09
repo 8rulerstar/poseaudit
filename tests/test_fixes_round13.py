@@ -145,10 +145,13 @@ def test_figures_line_up_on_the_decimal_point() -> None:
                   frozenset({1}))[1:] == ["a  n/a", "b  -0.12"]  # fmt: skip
 
 
-def test_the_large_error_column_names_each_unit_once() -> None:
+def test_measures_in_different_units_show_each_threshold_in_its_row() -> None:
+    # round 14: the header used to read ">= 10°, 10 px", which cannot say
+    # which row is held to which; see test_fixes_round14 for the column
     results = [_result(30, m) for m in (angle(0, 1, 2), tilt(0, 1), length(0, 1))]
-    head = table(results).splitlines()[0]
-    assert ">= 10°, 10 px  " in head + "  " and "/" not in head
+    lines = table(results).splitlines()
+    assert "large if" in lines[0] and ">= 10°, 10 px" not in lines[0]
+    assert ">= 10°" in lines[1] and ">= 10 px" in lines[3]
 
 
 def test_long_lines_break_between_words_under_their_label() -> None:
@@ -184,7 +187,7 @@ def test_several_measures_fit_an_80_column_terminal(capsys, monkeypatch) -> None
     monkeypatch.setattr(cli, "_columns", lambda stream: 80)
     main(["audit", "--format", "coco", "--gt", "gt_200.json", "--pred",
           "pred_yolo11n.json", "--angle", "5,7,9", "--tilt", "5,11",
-          "--length", "5,7", "--big-error", "15", "--resamples", "50",
+          "--length", "5,7", "--big-error", "15,length:10", "--resamples", "50",
           "--jitter-repeats", "0"])  # fmt: skip
     out = capsys.readouterr().out
     assert max(len(line) for line in out.splitlines()) <= 79
@@ -243,6 +246,7 @@ def test_several_measures_with_nothing_read_write_a_report_not_an_empty_file(
 ) -> None:
     with pytest.raises(SystemExit) as stop:
         main(_yolo(tmp_path) + ["--tilt", "0,1", "--length", "0,2",
+                                "--big-error", "length:5",
                                 "--report", str(tmp_path / "r.md")])  # fmt: skip
     assert "nothing was read" in str(stop.value.code)
     report = (tmp_path / "r.md").read_text(encoding="utf-8")

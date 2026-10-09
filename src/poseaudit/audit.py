@@ -3,7 +3,7 @@
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 
@@ -23,11 +23,38 @@ from poseaudit.reference import (
 from poseaudit.thresholds import Side, ThresholdAgreement, matched_threshold
 from poseaudit.thresholds import agreement as threshold_agreement
 
+if TYPE_CHECKING:
+    from matplotlib.figure import Figure
+
 BandBy = Literal["truth", "mean", "predicted"]
 Interval = tuple[float, float]
 NAN: Interval = (float("nan"), float("nan"))
 Cluster = Callable[[str], str] | Mapping[str, str] | None
 Baseline = Callable[[np.ndarray], float]
+
+
+# Advice that ends a warning several measures can each raise, after counts of
+# their own: a table of several measures prints it once (report.table).
+NEAR_MISS = (
+    "A prediction too far off to reach the matching threshold counts as missed, "
+    "not as an error, which flatters the figures; "
+)
+NEAR_MISS_BOXES = NEAR_MISS + (
+    "for thin parts try a lower --min-iou (min_iou), unless those predictions "
+    "may be people the labels leave out (crowd regions, or people nobody "
+    "labelled), which a lower threshold pairs with the wrong person."
+)
+NEAR_MISS_POINTS = NEAR_MISS + (
+    "without boxes, try a lower --min-similarity (min_keypoint_similarity), a "
+    "factor of ten at a time: the similarity falls off fast with distance."
+)
+FEW_FOR_JITTER = (
+    "With so few it follows noise that varies along the range only coarsely: "
+    "its p can flag an honest model as squashed more often than stated, and it "
+    "can miss mild squashing. A large p here does not show that the model does "
+    "not squash."
+)
+SHARED_ADVICE = (NEAR_MISS_BOXES, NEAR_MISS_POINTS, FEW_FOR_JITTER)
 
 
 @dataclass(frozen=True)
@@ -232,11 +259,14 @@ class AuditResult:
 
         return _written(csv_rows(self), path)
 
-    def plot(self, path: str) -> None:
-        """Truth against prediction, and a Bland-Altman plot. Needs matplotlib."""
+    def plot(self, path: str | None = None) -> "Figure":
+        """Truth against prediction, and a Bland-Altman plot, as a matplotlib
+        Figure saved to `path` when one is given (PNG, SVG or PDF by its
+        extension). In a notebook `result.plot()` shows it inline. Needs
+        matplotlib."""
         from poseaudit.plot import plot
 
-        plot(self, path)
+        return plot(self, path)
 
     def to_dict(self) -> dict:
         """Every figure. `limits` are the normal ones (bias ± 1.96 SD);
@@ -428,12 +458,8 @@ def audit(
         )
     if jitter is not None and len(raw) < 60:
         result.warnings.append(
-            f"Only {_count(len(raw), 'reading')} for the jitter reference. With so "
-            "few it "
-            "follows noise that varies along the range only coarsely: its p can "
-            "flag an honest model as squashed more often than stated, and it can "
-            "miss mild squashing. A large p here does not show that the model "
-            "does not squash."
+            f"Only {_count(len(raw), 'reading')} for the jitter reference. "
+            + FEW_FOR_JITTER
         )
     _fill(result, bands, size_bands, noise_ratio, resamples, seed, jitter)
     # images (by default) or named clusters holding several readings are
@@ -457,19 +483,8 @@ def audit(
     if beside >= 3 and (beside >= 0.1 * big or beside >= 0.05 * result.measurable):
         result.warnings.append(
             f"{beside} labelled instances found no match but overlap an unmatched "
-            f"prediction, compared with {big} large errors among the readings. A "
-            "prediction too far off to reach the matching threshold counts as "
-            "missed, not as an error, which flatters the figures; "
-            + (
-                "for thin parts try a lower --min-iou (min_iou), unless those "
-                "predictions may be people the labels leave out (crowd regions, "
-                "or people nobody labelled), which a lower threshold pairs with "
-                "the wrong person."
-                if boxed
-                else "without boxes, try a lower --min-similarity "
-                "(min_keypoint_similarity), a factor of ten at a time: the "
-                "similarity falls off fast with distance."
-            )
+            f"prediction, compared with {big} large errors among the readings. "
+            + (NEAR_MISS_BOXES if boxed else NEAR_MISS_POINTS)
         )
     lost = result.not_read.missed + result.not_read.no_predicted_point
     if thresholds and lost:

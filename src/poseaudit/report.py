@@ -596,12 +596,19 @@ def row(result: "AuditResult") -> dict:
 TABLE_COLUMNS = ("measure", "n", "bias", "limits", "mean |error|", "RMSE")
 
 
-def _cells(result: "AuditResult") -> list[str]:
+def _threshold(result: "AuditResult") -> str:
+    return f"{result.big_error:g}{_unit(result)}"
+
+
+def _cells(result: "AuditResult", threshold: bool = False) -> list[str]:
+    """A measure's row; with `threshold`, its own large-error threshold
+    before the rate, for a table whose measures differ in it."""
     u = _unit(result)
     d = _digits(result)
     lo, hi = _percentile_limits(result)
+    own = [f">= {_threshold(result)}"] if threshold else []
     if result.n == 0:
-        return [label(result), "0"] + ["n/a"] * 7
+        return [label(result), "0"] + ["n/a"] * 4 + own + ["n/a"] * 3
     return [
         label(result),
         str(result.n),
@@ -609,6 +616,7 @@ def _cells(result: "AuditResult") -> list[str]:
         _range(lo, hi, f"+.{d}f", u),
         f"{result.mean_abs_error:.{d}f}{u} {_ci(result.mean_abs_error_ci, f'.{d}f')}",
         f"{result.rmse:.{d}f}{u}",
+        *own,
         f"{result.big_error_rate:.1%} {_ci(result.big_error_rate_ci, '.1%')}",
         _f(result.gain, ".3f"),
         _f(result.icc, ".3f"),
@@ -677,29 +685,55 @@ def layout(
     return lines
 
 
-def _big_header(results: "list[AuditResult]") -> str:
-    """>= 15°, or each measure's threshold in the order first met when the
-    units differ: >= 15°, 15 px, 15."""
-    seen = dict.fromkeys(f"{r.big_error:g}{_unit(r)}" for r in results)
-    return ">= " + ", ".join(seen)
-
-
 def table(
     results: "list[AuditResult]", degree: str = "°", width: int | None = None
 ) -> str:
     """One row per measure: n, bias, percentile limits, mean |error| with its
     interval, RMSE, the large-error rate with its interval, slope and ICC(A,1).
-    Each measure's warnings follow, under its name. With `width`, a table
-    wider than that is cut into blocks of columns that fit."""
-    head = [*TABLE_COLUMNS, _big_header(results), "slope", "ICC(A,1)"]
-    rows = [
-        [c.replace("°", degree) for c in row] for row in [head, *map(_cells, results)]
-    ]
-    figures = frozenset({1, 2, 5, 7, 8})  # n, bias, RMSE, slope, ICC
+    The rate's header names the threshold when every measure shares it, and
+    a column before it gives each measure's own when they differ. The
+    warnings follow (`warning_lines`). With `width`, a table wider than that
+    is cut into blocks of columns that fit."""
+    thresholds = list(dict.fromkeys(map(_threshold, results)))
+    one = len(thresholds) <= 1
+    rate = (
+        [f">= {thresholds[0]}"] if one and thresholds else ["large if", "large errors"]
+    )
+    head = [*TABLE_COLUMNS, *rate, "slope", "ICC(A,1)"]
+    cells = [_cells(r, threshold=not one) for r in results]
+    rows = [[c.replace("°", degree) for c in row] for row in [head, *cells]]
+    slope = len(head) - 2
+    figures = frozenset({1, 2, 5, slope, slope + 1})  # n, bias, RMSE, slope, ICC
     lines = layout(rows, figures, keep=1, width=width)
-    for r in results:
-        lines += [f"  ! {label(r)}: {w}" for w in r.warnings]
-    return "\n".join(lines)
+    return "\n".join(lines + warning_lines(results))
+
+
+def warning_lines(results: "list[AuditResult]") -> list[str]:
+    """The warnings of several measures, each once. A measure's own come
+    first, under its name; a warning several measures raise alike comes after
+    them, once, naming them ("every measure" for all). Advice that ends the
+    warnings of several measures, such as what to do about near misses, is
+    split from the counts that differ between them and given once too."""
+    from poseaudit.audit import SHARED_ADVICE
+
+    names = [label(r) for r in results]
+    raised = [w for r in results for w in dict.fromkeys(r.warnings)]
+    split = [a for a in SHARED_ADVICE if sum(w.endswith(" " + a) for w in raised) > 1]
+    who: dict[str, list[str]] = {}
+    for name, result in zip(names, results, strict=True):
+        for w in result.warnings:
+            advice = next((a for a in split if w.endswith(" " + a)), None)
+            parts = [w[: -len(advice)].rstrip(), advice] if advice else [w]
+            for part in parts:
+                if name not in who.setdefault(part, []):
+                    who[part].append(name)
+    own = [f"  ! {n[0]}: {text}" for text, n in who.items() if len(n) == 1]
+    shared = [
+        f"  ! {'every measure' if len(n) == len(names) else ', '.join(n)}: {text}"
+        for text, n in who.items()
+        if len(n) > 1
+    ]
+    return own + shared
 
 
 def csv_rows_many(results: "list[AuditResult]") -> str:

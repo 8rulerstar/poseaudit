@@ -81,6 +81,109 @@ def _measure(kind: str, spec: str) -> Measure:
     return make(*points)
 
 
+# what --big-error may name: a measure's kind, or a unit (deg covers angles and
+# tilts, px lengths); a kind wins over its unit, and a unit over a bare value
+BIG_ERROR_KEYS = ("angle", "tilt", "length", "ratio", "deg", "px")
+BIG_ERROR_EXAMPLE = "--big-error angle:15,length:10,ratio:0.1"
+
+
+def _big_errors(given: list[str], measures: list[Measure]) -> list[float]:
+    """The large-error threshold of each measure. --big-error takes a bare
+    value for every measure, KIND:VALUE pairs, or both, comma-separated or
+    repeated. A bare value may cover measures of one unit only: 15 counts as
+    large on an angle, but on a ratio nothing ever would."""
+    default: float | None = None
+    named: dict[str, float] = {}
+    for item in (part.strip() for value in given for part in value.split(",")):
+        key, _, number = (x.strip().lower() for x in item.rpartition(":"))
+        try:
+            value = float(number)
+        except ValueError:
+            value = float("nan")
+        if not (np.isfinite(value) and value > 0) or key not in ("", *BIG_ERROR_KEYS):
+            raise UsageError(
+                "--big-error takes a number above 0, or KIND:NUMBER with KIND one "
+                f"of {', '.join(BIG_ERROR_KEYS)}; got {item!r}"
+            )
+        if key in named or (not key and default is not None):
+            raise UsageError(
+                f"--big-error gives {key} twice"
+                if key
+                else "--big-error gives two values without a kind: give one for "
+                "every measure the others do not name, and KIND:VALUE for the rest"
+            )
+        if key:
+            named[key] = value
+        else:
+            default = value
+    out = []
+    covered: dict[str, list[str]] = {}  # unit: the kinds the bare value covers
+    for m in measures:
+        kind = type(m).__name__.lower()
+        own = named.get(kind, named.get(m.unit) if m.unit else None)
+        if own is not None:
+            out.append(own)
+        else:
+            if default is None:
+                raise UsageError(
+                    f"--big-error has no value for {kind} "
+                    f"{','.join(str(p) for p in m.points)}: add {kind}:VALUE, as in "
+                    f"{BIG_ERROR_EXAMPLE}"
+                )
+            out.append(default)
+            covered.setdefault(m.unit, [])
+            if kind not in covered[m.unit]:
+                covered[m.unit].append(kind)
+    if len(covered) > 1:
+        from poseaudit.report import _amount
+
+        amounts = [
+            f"{_amount(default or 0, unit)} on {' or '.join(map(_a, kinds))}"
+            for unit, kinds in covered.items()
+        ]
+        raise UsageError(
+            f"--big-error {default:g} would count an error of {_and(amounts)} as "
+            f"large alike: give each kind of measure its own value, as in "
+            f"{BIG_ERROR_EXAMPLE}"
+        )
+    return out
+
+
+def _a(kind: str) -> str:
+    return ("an " if kind[:1] in "aeiou" else "a ") + kind
+
+
+def _and(items: list[str]) -> str:
+    return " and ".join([", ".join(items[:-1]), items[-1]] if len(items) > 1 else items)
+
+
+UNIT_NAMES = {"deg": "degrees", "px": "px", "": "ratios"}
+
+
+def _one_unit(args, measures: list[Measure], bands) -> None:
+    """Options in the measure's unit apply to every measure: refused when the
+    measures are in different units, where one value cannot fit them all."""
+    units = list(dict.fromkeys(m.unit for m in measures))
+    if len(units) < 2:
+        return
+    given = [
+        flag
+        for flag, on in (
+            ("--threshold", args.threshold),
+            ("--pred-threshold", args.pred_threshold),
+            ("--bands edges", not isinstance(bands, int)),
+        )
+        if on
+    ]
+    if given:
+        raise UsageError(
+            f"{' and '.join(given)} {'is' if len(given) == 1 else 'are'} in the "
+            "measure's unit and would apply to every measure, but these measures "
+            f"mix {_and([UNIT_NAMES.get(u, u) for u in units])}: audit each unit in "
+            "a run of its own"
+        )
+
+
 def _bands(spec: str, flag: str = "--bands", edges_only_positive: bool = False):
     try:
         if "," in spec:
@@ -260,8 +363,6 @@ def _check_values(args) -> None:
     finite = all(np.isfinite(x) for x in (*args.threshold, *args.pred_threshold))
     if not finite:
         raise UsageError("--threshold and --pred-threshold must be finite numbers")
-    if not np.isfinite(args.big_error):
-        raise UsageError("--big-error must be a finite number")
     if args.noise_ratio is not None and not args.noise_ratio > 0:
         raise UsageError("--noise-ratio must be above 0")
     if args.image_size and min(args.image_size) <= 0:
@@ -301,6 +402,9 @@ examples:
 
   frames of one video resampled together (image names such as clip3_f0041):
     poseaudit audit ... --cluster "^(clip\\d+)_"
+
+  an angle and a length in one run, each with its own large error:
+    poseaudit audit ... --angle 5,7,9 --length 5,7 --big-error angle:15,length:10
 
   two models compared on the readings both made, named for the output:
     poseaudit audit ... --pred small=res_s.json --pred large=res_l.json
@@ -469,11 +573,12 @@ def _parser() -> argparse.ArgumentParser:
     how = run.add_argument_group("analysis")
     how.add_argument(
         "--big-error",
-        type=float,
         required=True,
-        metavar="E",
+        action="append",
+        metavar="E|KIND:E",
         help="required: an error at least this large counts as large, in the "
-        "measure's unit",
+        "measure's unit. Measures in different units each need their own, by "
+        "kind or unit: angle:15,length:10,ratio:0.1 (or deg:15,px:10)",
     )
     how.add_argument(
         "--bands",
@@ -873,7 +978,9 @@ def _run(args):
     measures = _measures(args)
     if args.plot and len(measures) > 1:
         raise UsageError("--plot draws one measure; give one, or leave out --plot")
+    big_errors = _big_errors(args.big_error, measures)
     bands = _bands(args.bands)
+    _one_unit(args, measures, bands)
     size_bands = _bands(args.size_bands, "--size-bands", edges_only_positive=True)
     truth = _load(args, args.gt_format, args.gt, is_prediction=False)
     predicted = _load(args, args.pred_format, args.pred, is_prediction=True)
@@ -884,7 +991,10 @@ def _run(args):
         min_keypoint_similarity=args.min_similarity,
     )
     _say_if_slow(len(pairing.pairs), args.resamples, args.jitter_repeats, len(measures))
-    return [_audit(args, pairing, m, bands, size_bands) for m in measures]
+    return [
+        _audit(args, pairing, m, big, bands, size_bands)
+        for m, big in zip(measures, big_errors, strict=True)
+    ]
 
 
 # A run's time grows with pairs x (resamples + _REBUILD x jitter rebuilds) for
@@ -917,11 +1027,11 @@ def _say_if_slow(
     )
 
 
-def _audit(args, pairing, measure, bands, size_bands):
+def _audit(args, pairing, measure, big_error, bands, size_bands):
     return audit(
         pairing,
         measure,
-        args.big_error,
+        big_error,
         bands=bands,
         band_by=args.band_by,
         cluster=_cluster(args.cluster),
