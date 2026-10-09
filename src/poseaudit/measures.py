@@ -97,6 +97,8 @@ class Angle(Measure):
         u, v = a - b, c - b
         if not (u.any() and v.any()):
             return float("nan")
+        # the angle does not depend on length: scaling keeps huge values finite
+        u, v = u / np.abs(u).max(), v / np.abs(v).max()
         # atan2 stays exact near 0 and 180 degrees, where arccos loses digits
         cross = u[0] * v[1] - u[1] * v[0]
         return float(np.degrees(np.arctan2(abs(cross), np.dot(u, v))))
@@ -104,9 +106,13 @@ class Angle(Measure):
     def read_many(self, keypoints: np.ndarray) -> np.ndarray:
         a, b, c = (keypoints[:, i] for i in self.points)
         u, v = a - b, c - b
+        empty = ~u.any(axis=1) | ~v.any(axis=1)
+        # the angle does not depend on length: scaling keeps huge values finite
+        with np.errstate(invalid="ignore", divide="ignore"):
+            u = u / np.abs(u).max(axis=1, keepdims=True)
+            v = v / np.abs(v).max(axis=1, keepdims=True)
         cross = u[:, 0] * v[:, 1] - u[:, 1] * v[:, 0]
         out = np.degrees(np.arctan2(np.abs(cross), (u * v).sum(axis=1)))
-        empty = ~u.any(axis=1) | ~v.any(axis=1)
         return np.where(empty, np.nan, out)
 
 

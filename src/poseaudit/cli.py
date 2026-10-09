@@ -495,6 +495,8 @@ def main(argv: list[str] | None = None) -> None:
     loader_notes = []
     for w in caught:
         text = str(w.message).replace("min_confidence", "--min-conf")
+        if text in loader_notes:
+            continue
         loader_notes.append(text)
         print(_console(f"poseaudit: warning: {text}", sys.stderr), file=sys.stderr)
     from poseaudit.compare import Comparison

@@ -12,7 +12,13 @@ from poseaudit.types import Dataset, Instance
 
 
 def _read(path: str | Path):
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    text = Path(path).read_text(encoding="utf-8-sig")
+    if not text.strip():
+        raise ValueError(f"{path}: the file is empty")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"{path}: not valid JSON ({error})") from None
 
 
 def _annotation_file(path: str | Path) -> dict:
