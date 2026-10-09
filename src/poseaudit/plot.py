@@ -1,5 +1,6 @@
 """Two panels a reviewer asks for first. Needs `pip install "poseaudit[plot]"`."""
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -60,4 +61,8 @@ def plot(result: "AuditResult", path: str) -> None:
 
     fig.suptitle(f"{name} {result.measure.points}: {result.n} readings")
     fig.tight_layout()
-    fig.savefig(path, dpi=150)
+    from poseaudit._files import write_with
+
+    # the temporary file's name ends .tmp, so the format comes from the path
+    form = Path(path).suffix.lstrip(".").lower() or "png"
+    write_with(path, lambda temporary: fig.savefig(temporary, dpi=150, format=form))

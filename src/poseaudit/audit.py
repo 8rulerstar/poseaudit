@@ -240,8 +240,9 @@ class AuditResult:
 
 def _written(text: str, path: str | None) -> str:
     if path is not None:
-        with open(path, "w", encoding="utf-8", newline="") as file:
-            file.write(text)
+        from poseaudit._files import write_text
+
+        write_text(path, text, newline="")
     return text
 
 

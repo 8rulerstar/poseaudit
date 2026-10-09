@@ -11,6 +11,7 @@ from typing import NoReturn
 
 import numpy as np
 
+from poseaudit._files import write_text
 from poseaudit._version import __version__
 from poseaudit.audit import audit
 from poseaudit.io import load_coco, load_coco_results, load_yolo
@@ -562,9 +563,9 @@ def _finish_compare(comparison, args, loader_notes) -> None:
         if args.json:
             data = comparison.to_dict()
             data["warnings"] = loader_notes + data["warnings"]
-            Path(args.json).write_text(
+            write_text(
+                args.json,
                 json.dumps(_finite(data), indent=2, default=str),
-                encoding="utf-8",
             )
         if args.csv:
             comparison.to_csv(args.csv)
@@ -600,9 +601,9 @@ def _console(text: str, stream) -> str:
 
 def _write(result, args) -> None:
     if args.json:
-        Path(args.json).write_text(
+        write_text(
+            args.json,
             json.dumps(_finite(result.to_dict()), indent=2, default=str),
-            encoding="utf-8",
         )
     if args.csv:
         result.to_csv(args.csv)
@@ -654,15 +655,16 @@ def several(results) -> dict:
 
 def _write_many(results, args) -> None:
     if args.json:
-        Path(args.json).write_text(
+        write_text(
+            args.json,
             json.dumps(_finite(several(results)), indent=2, default=str),
-            encoding="utf-8",
         )
     if args.csv:
-        Path(args.csv).write_text(csv_rows_many(results), encoding="utf-8")
+        write_text(args.csv, csv_rows_many(results))
     if args.report:
-        Path(args.report).write_text(
-            "\n".join(r.to_markdown() for r in results if r.n), encoding="utf-8"
+        write_text(
+            args.report,
+            "\n".join(r.to_markdown() for r in results if r.n),
         )
 
 
@@ -724,7 +726,29 @@ def _run(args):
         min_iou=args.min_iou,
         min_keypoint_similarity=args.min_similarity,
     )
+    _say_if_slow(len(pairing.pairs), args.resamples, args.jitter_repeats)
     return [_audit(args, pairing, m, bands, size_bands) for m in measures]
+
+
+# pairs times resamples above which a run takes minutes rather than seconds
+_SLOW_WORK = 10_000_000
+
+
+def _say_if_slow(pairs: int, resamples: int, jitter_repeats: int) -> None:
+    """A note on stderr before a long run, which prints nothing until it is
+    done: the time grows with the pairs times the resamples."""
+    if pairs * resamples < _SLOW_WORK:
+        return
+    faster = "a smaller --resamples"
+    if jitter_repeats:
+        faster += " or --jitter-repeats 0"
+    print(
+        f"poseaudit: {pairs:,} pairs with {resamples:,} resamples for each "
+        f"measure; this can take several minutes. {faster[0].upper()}"
+        f"{faster[1:]} is faster.",
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 def _audit(args, pairing, measure, bands, size_bands):

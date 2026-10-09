@@ -77,8 +77,9 @@ class Comparison:
             writer.writerows(rows)
         text = buffer.getvalue()
         if path:
-            with open(path, "w", encoding="utf-8", newline="") as f:
-                f.write(text)
+            from poseaudit._files import write_text
+
+            write_text(path, text, newline="")
         return text
 
     def summary(self, degree: str = "°") -> str:
