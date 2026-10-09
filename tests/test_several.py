@@ -204,3 +204,25 @@ def test_compared_models_need_distinct_names(tmp_path, preds, message) -> None:
               "--image-size", "640", "480", "--keypoints", "3",
               "--big-error", "5", "--angle", "0,1,2"])  # fmt: skip
     assert message in str(stop.value)
+
+
+def test_few_shared_images_warn_that_paired_intervals_are_too_narrow() -> None:
+    import poseaudit as pa
+
+    errors = np.linspace(-2, 2, 40)
+    # each model reads all 40 images, but the second only shares 5 with the first
+    truth, predictions = _sets({"a": errors, "b": errors * 2},
+                               missing={"b": range(5, 40)})  # fmt: skip
+    c = pa.compare(predictions, truth, pa.tilt(0, 1), 3, resamples=100,
+                   jitter_repeats=0)  # fmt: skip
+    (d,) = c.differences
+    assert d.clusters == 5
+    note = "only 5 images or clusters: the paired intervals are too narrow"
+    assert note in c.summary()
+    assert any(note in w for w in c.to_dict()["warnings"])
+
+    truth, predictions = _sets({"a": errors, "b": errors},
+                               missing={"b": range(40)})  # fmt: skip
+    c = pa.compare(predictions, truth, pa.tilt(0, 1), 3, resamples=100,
+                   jitter_repeats=0)  # fmt: skip
+    assert "no labelled instance was read by both models" in c.summary()

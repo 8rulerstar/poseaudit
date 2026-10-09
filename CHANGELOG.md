@@ -13,7 +13,9 @@
   models, the differences in mean |error| and in the large-error rate on the
   readings both made, with paired bootstrap intervals over images (or named
   clusters) and the shared and per-model counts. `Comparison.table()` gives
-  flat rows and `to_csv()` writes them.
+  flat rows and `to_csv()` writes them. A pair whose shared readings come
+  from fewer than 20 images or clusters, or from none, is warned about
+  under the differences and in the JSON's `warnings`.
 - `AuditResult.to_rows()`: the headline figures as a flat row.
 - `Instance` and `Instance.from_keypoints` refuse keypoints not of shape
   (K, 2), such as x, y, v rows, and a `visible` not of shape (K,), naming the

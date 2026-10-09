@@ -69,7 +69,9 @@ pair of models is compared on the readings both made of the same labelled
 instance: the difference in mean |error| and in the large-error rate (first
 model minus second, so below 0 the first is closer to the truth), with paired
 intervals that resample whole images, the number of shared readings and each
-model's own count.
+model's own count. When the shared readings come from fewer than 20 images
+(or clusters) a warning under the table says the paired intervals are too
+narrow.
 
 ```bash
 poseaudit audit --format coco --gt gt.json --angle 5,7,9 --angle 6,8,10 \

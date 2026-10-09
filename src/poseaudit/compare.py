@@ -104,7 +104,28 @@ class Comparison:
                 for name, results in self.results.items()
             },
             "differences": self.table(),
+            "warnings": difference_warnings(self.differences),
         }
+
+
+def difference_warnings(differences) -> list[str]:
+    """What makes a paired interval missing or too narrow to trust."""
+    notes = []
+    for d in differences:
+        who = f"{d.measure}, {d.a} - {d.b}"
+        if d.n_shared == 0:
+            notes.append(f"{who}: no labelled instance was read by both models.")
+        elif d.clusters < 2:
+            notes.append(
+                f"{who}: the shared readings come from one image or cluster, so "
+                "there are no paired intervals."
+            )
+        elif d.clusters < 20:
+            notes.append(
+                f"{who}: the shared readings come from only {d.clusters} images "
+                "or clusters: the paired intervals are too narrow with this few."
+            )
+    return notes
 
 
 def compare(
@@ -224,7 +245,9 @@ def differences_table(differences, results, degree: str = "°") -> str:
             ]
         )
     widths = [max(len(r[k]) for r in rows) for k in range(len(head))]
-    return "\n".join(
+    lines = [
         "  ".join(c.ljust(w) for c, w in zip(r, widths, strict=True)).rstrip()
         for r in rows
-    )
+    ]
+    lines += [f"  ! {note}" for note in difference_warnings(differences)]
+    return "\n".join(lines)

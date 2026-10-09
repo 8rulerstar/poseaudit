@@ -15,8 +15,9 @@ With several measures the JSON is `{"poseaudit", "schema", "settings",
 would be, and the CSV leads each row with a `measure` column. With one measure
 the JSON is as above, unchanged. Comparing models, it is `{"poseaudit",
 "schema", "settings", "models": {name: [one entry per measure]},
-"differences": [...]}`, the differences being the rows of `Comparison.table()`,
-which `--csv` writes.
+"differences": [...], "warnings": [...]}`, the differences being the rows of
+`Comparison.table()`, which `--csv` writes, and the warnings those about
+paired intervals (too few shared images, or none).
 
 The command exits 0 on success (warnings included); 1 on bad input or
 settings, a failed write, or nothing read (the JSON and CSV are still
