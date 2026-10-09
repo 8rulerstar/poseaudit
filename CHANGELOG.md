@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- A COCO person whose `num_keypoints` says 0 but whose points are flagged
+  as labelled is kept; only a person with no labelled point is left out.
+- A class filter on a COCO results file with no `category_id` says so,
+  instead of listing an empty set of categories present.
+- `from_supervision` names a NaN or infinite `class_id` instead of failing
+  with a bare conversion error.
+- docs/python.md covers every public name, says what the outputs reveal
+  (paths as typed, image names) and how far results agree across machines.
+  Its box snippet runs.
 - `Instance` refuses a box holding NaN or infinity; such a person could
   never be matched and was left out silently.
 - `--images` reads the size of a photo stored on its side (EXIF orientation

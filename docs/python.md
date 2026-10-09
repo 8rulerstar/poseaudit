@@ -41,7 +41,8 @@ whose left and right points were swapped still pairs by box and shows up as a
 large error rather than as unmatched:
 
 ```python
-pa.Instance(bbox=np.array([x1, y1, x2, y2]), keypoints=xy_pred, visible=visible_pred)
+box = np.array([90.0, 80.0, 520.0, 530.0])  # the detector's x1, y1, x2, y2 in pixels
+pa.Instance(bbox=box, keypoints=xy_pred, visible=visible_pred)
 ```
 
 ## Compare models
@@ -122,3 +123,21 @@ worse. A plain mean over each set would call that a 2° improvement.
 - `compare({name: predicted}, truth, measures, big_error)` returns a
   `Comparison`: `results` (each model's `AuditResult`s, one per measure),
   `differences`, `table()` (flat rows) and `to_csv()`.
+- Types: a `Dataset` is `{image name: [Instance, ...]}`. `Pairing` holds the
+  `Pair`s made by `pair()`. A `Measure` is what `angle()` and the others
+  return. An `AuditResult` holds its `readings` (each a `Reading`), why
+  instances were not read (`not_read`, a `NotRead` of counts by reason), its
+  `bands` by level of the measure (each a `Band`) and its `thresholds` (one
+  `ThresholdAgreement` per threshold given). A `Comparison` holds one `Difference` per measure and pair of
+  models.
+- `pa.__version__` is the installed version; the JSON and the report record
+  it, with every setting and the `seed`, for a methods section.
+- What the outputs reveal: the report and the JSON record `--gt`, `--pred`
+  and `--images` as typed, so an absolute path shows your user name; pass
+  relative paths before sharing them. The CSV, the JSON and the report's
+  largest-error table name images by file name. The PNG holds only the plot
+  and Matplotlib's version.
+- The same inputs and `seed` give the same CSV and the same figures on any
+  Python version. A different NumPy can change the last digit or two of a
+  float in the JSON (seen: the Bland-Altman slope, around 1e-17), never a
+  reported figure.
