@@ -165,7 +165,9 @@ is no directed angle (0 to 360) and no fixed axis other than vertical yet;
 | anything else | `Instance.from_keypoints(xy, visible)` per object, in a dict of image name to list |
 
 COCO annotations with no labelled keypoint (`num_keypoints` 0) and crowd
-regions are skipped as they load, so they appear in no count.
+regions are skipped as they load, so they appear in no count. A warning
+gives the number of crowd regions left out: a prediction on one has no
+truth to pair with and counts among the unmatched predictions.
 
 - **Bad values.** NaN or infinite coordinates, scores or boxes stop the load
   with the file and the row.

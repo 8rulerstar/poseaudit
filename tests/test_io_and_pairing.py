@@ -78,7 +78,8 @@ def _coco(tmp_path, results):
 
 def test_coco_results_are_named_through_the_annotations(tmp_path) -> None:
     gt, res = _coco(tmp_path, [{"image_id": 7, "keypoints": [1, 2, 0.9, 3, 5, 0.3]}])
-    truth = load_coco(gt)
+    with pytest.warns(UserWarning, match="1 crowd region was"):
+        truth = load_coco(gt)
     predicted = load_coco_results(res, gt, min_confidence=0.5)
 
     assert len(truth["seven.jpg"]) == 1  # the crowd region is left out
@@ -230,7 +231,8 @@ def test_coco_carries_categories(tmp_path) -> None:
     gt, res = _coco(
         tmp_path, [{"image_id": 7, "category_id": 1, "keypoints": [1, 2, 2, 3, 4, 2]}]
     )
-    truth = load_coco(gt)
+    with pytest.warns(UserWarning, match="1 crowd region was"):
+        truth = load_coco(gt)
     assert truth["seven.jpg"][0].class_id is None  # no category in that annotation
     assert load_coco_results(res, gt)["seven.jpg"][0].class_id == 1
 

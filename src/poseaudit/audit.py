@@ -11,7 +11,15 @@ from poseaudit import agreement as ag
 from poseaudit.confidence import clustered_bootstrap, wilson
 from poseaudit.measures import Measure, Ratio, Tilt
 from poseaudit.pairing import Pairing
-from poseaudit.reference import draw, jitter_gain, local_shifts, prepare, strata, unwrap
+from poseaudit.reference import (
+    draw,
+    frames,
+    jitter_gain,
+    local_shifts,
+    prepare,
+    strata,
+    unwrap,
+)
 from poseaudit.thresholds import Side, ThresholdAgreement, matched_threshold
 from poseaudit.thresholds import agreement as threshold_agreement
 
@@ -448,7 +456,7 @@ def audit(
         result.repeated_limits = None  # an image's readings are different objects
         result.repeated_lower_ci = result.repeated_upper_ci = None
     if jitter is not None and np.isfinite(result.gain):
-        truth_points, units, sizes = jitter
+        truth_points, units, sizes, _framed = jitter
         mid, spread, below = jitter_gain(
             measure,
             truth_points,
@@ -843,6 +851,7 @@ def _jitter_inputs(raw, measure):
         truth_points,
         local_shifts(measure, truth_points, predicted_points, sizes),
         sizes,
+        frames(measure, truth_points),
     )
 
 
@@ -853,9 +862,11 @@ def _rebuilt_gain(measure, jitter, idx, truth_values, rng, repeats=_PER_RESAMPLE
     """The jitter-only gain on a resample, donors drawn from the same resample:
     the mean over a few rebuilds, so the interval carries the resampling and
     little of the rebuild's own randomness (one rebuild made it far too wide)."""
-    truth_points, units, sizes = jitter
+    truth_points, units, sizes, framed = jitter
     points, own = truth_points[idx], sizes[idx]
-    prepared = prepare(measure, points, units[idx], strata(truth_values))
+    # the frames are each object's own: take the drawn rows, not recompute them
+    framed = tuple(part[idx] for part in framed)
+    prepared = prepare(measure, points, units[idx], strata(truth_values), framed)
     gains = []
     for _ in range(repeats):
         values = draw(measure, points, own, prepared, rng)

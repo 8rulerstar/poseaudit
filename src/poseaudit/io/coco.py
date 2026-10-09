@@ -37,15 +37,20 @@ def _annotation_file(path: str | Path) -> dict:
 
 
 def load_coco(annotations: str | Path, classes: Iterable[int] | None = None) -> Dataset:
-    """Crowd regions and people with no labelled keypoint are left out.
-    `classes` keeps only those category ids."""
+    """Crowd regions and people with no labelled keypoint are left out; a
+    warning counts the crowd regions, since a prediction on one then counts
+    as unmatched. `classes` keeps only those category ids."""
     data = _annotation_file(annotations)
     wanted = _wanted(classes)
     seen: set = set()
+    crowds = 0
     names = _names(data["images"], annotations)
     dataset: Dataset = {name: [] for name in names.values()}
     for ann in data["annotations"]:
-        if ann.get("iscrowd", 0) or not _labelled(ann):
+        if ann.get("iscrowd", 0):
+            crowds += wanted is None or ann.get("category_id") in wanted
+            continue
+        if not _labelled(ann):
             continue
         seen.add(ann.get("category_id"))
         if wanted is not None and ann.get("category_id") not in wanted:
@@ -59,6 +64,15 @@ def load_coco(annotations: str | Path, classes: Iterable[int] | None = None) -> 
             ) from None
         instance = Instance(bbox, keypoints, visible, class_id=ann.get("category_id"))
         dataset[_name(names, ann["image_id"], annotations)].append(instance)
+    if crowds:
+        regions = (
+            "1 crowd region was" if crowds == 1 else f"{crowds} crowd regions were"
+        )
+        warnings.warn(
+            f"{annotations}: {regions} (iscrowd 1) left out, in no count; a "
+            "prediction on one counts as an unmatched prediction.",
+            stacklevel=2,
+        )
     _nothing_kept(annotations, wanted, seen)
     return dataset
 

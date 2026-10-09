@@ -118,13 +118,16 @@ class Angle(Measure):
     def read_many(self, keypoints: np.ndarray) -> np.ndarray:
         a, b, c = (_floats(keypoints)[:, i] for i in self.points)
         u, v = a - b, c - b
-        empty = ~u.any(axis=1) | ~v.any(axis=1)
+        # written out over the two coordinates: a reduction along an axis of
+        # two is several times slower and gives the same numbers
+        empty = ((u[:, 0] == 0) & (u[:, 1] == 0)) | ((v[:, 0] == 0) & (v[:, 1] == 0))
         # the angle does not depend on length: scaling keeps huge values finite
         with np.errstate(invalid="ignore", divide="ignore"):
-            u = u / np.abs(u).max(axis=1, keepdims=True)
-            v = v / np.abs(v).max(axis=1, keepdims=True)
+            u = u / np.maximum(np.abs(u[:, 0]), np.abs(u[:, 1]))[:, None]
+            v = v / np.maximum(np.abs(v[:, 0]), np.abs(v[:, 1]))[:, None]
         cross = u[:, 0] * v[:, 1] - u[:, 1] * v[:, 0]
-        out = np.degrees(np.arctan2(np.abs(cross), (u * v).sum(axis=1)))
+        dot = u[:, 0] * v[:, 0] + u[:, 1] * v[:, 1]
+        out = np.degrees(np.arctan2(np.abs(cross), dot))
         return np.where(empty, np.nan, out)
 
 
@@ -138,6 +141,11 @@ class Length(Measure):
         a, b = (_floats(keypoints)[i] for i in self.points)
         value = _norm(b - a)
         return value if value > 0 else float("nan")
+
+    def read_many(self, keypoints: np.ndarray) -> np.ndarray:
+        a, b = (_floats(keypoints)[:, i] for i in self.points)
+        value = np.hypot(*(b - a).T)
+        return np.where(value > 0, value, np.nan)
 
     def key(self) -> tuple:
         return (type(self).__name__, tuple(sorted(self.points)))
@@ -162,6 +170,13 @@ class Ratio(Measure):
         if denominator == 0:
             return float("nan")
         return _norm(b - a) / denominator
+
+    def read_many(self, keypoints: np.ndarray) -> np.ndarray:
+        a, b, c, d = (_floats(keypoints)[:, i] for i in self.points)
+        denominator = np.hypot(*(d - c).T)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            out = np.hypot(*(b - a).T) / denominator
+        return np.where(denominator == 0, np.nan, out)
 
 
 def _floats(keypoints) -> np.ndarray:

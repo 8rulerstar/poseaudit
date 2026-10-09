@@ -30,6 +30,8 @@ folded) and noise in the truth also land below the reference; the test
 cannot tell them from squashing.
 """
 
+from dataclasses import replace
+
 import numpy as np
 
 from poseaudit.agreement import gain
@@ -56,9 +58,18 @@ def rebuild(
     )
 
 
-def prepare(measure, truth_points, unit_shifts, strata=None):
+def frames(measure: Measure, truth_points: np.ndarray):
+    """The frames to lay shifts onto: the cosine and sine of each point's
+    segment heading and which way each object bends. They depend on each
+    object alone, so a resample can take its rows instead of recomputing."""
+    headings = _headings(measure, truth_points)
+    return np.cos(headings), np.sin(headings), _hands(measure, truth_points)
+
+
+def prepare(measure, truth_points, unit_shifts, strata=None, framed=None):
     """What every rebuild of these objects shares: the groups, each group's
-    scatter about its mean shift, and the frames to lay shifts onto."""
+    scatter about its mean shift, and the frames to lay shifts onto (`framed`,
+    from `frames`, when they are already known)."""
     n = len(truth_points)
     groups = np.zeros(n, int) if strata is None else strata
     members = [np.flatnonzero(groups == k) for k in np.unique(groups)]
@@ -69,18 +80,27 @@ def prepare(measure, truth_points, unit_shifts, strata=None):
     return (
         members,
         scatter,
-        (_headings(measure, truth_points), _hands(measure, truth_points)),
+        frames(measure, truth_points) if framed is None else framed,
     )
 
 
 def draw(measure, truth_points, sizes, prepared, rng) -> np.ndarray:
-    members, scatter, (headings, hands) = prepared
+    members, scatter, (cos, sin, hands) = prepared
     donors = np.empty(len(truth_points), int)
     for m in members:
         donors[m] = m[rng.integers(0, len(m), size=len(m))]
     shifts = _mirrored(scatter[donors], hands)
-    rebuilt = truth_points + _turned(shifts, headings) * sizes[:, None, None]
-    return measure.read_many(_laid_out(measure, rebuilt))
+    rebuilt = truth_points + _rotated(shifts, cos, sin) * sizes[:, None, None]
+    return _local(measure).read_many(rebuilt)
+
+
+def _local(measure: Measure) -> Measure:
+    """The measure read off its own points in its own order, so a rebuild
+    need not be laid out at the keypoint indices first. A keypoint listed
+    twice (the shared elbow of a ratio) is read from its last listing, as
+    laying the points out would leave it."""
+    last = {index: slot for slot, index in enumerate(measure.points)}
+    return replace(measure, points=tuple(last[i] for i in measure.points))
 
 
 def jitter_gain(
@@ -165,7 +185,11 @@ def _headings(measure: Measure, points: np.ndarray) -> np.ndarray:
 
 def _turned(vectors: np.ndarray, angle: np.ndarray) -> np.ndarray:
     """(n, P, 2) vectors turned by angle (n, P)."""
-    cos, sin = np.cos(angle), np.sin(angle)
+    return _rotated(vectors, np.cos(angle), np.sin(angle))
+
+
+def _rotated(vectors: np.ndarray, cos: np.ndarray, sin: np.ndarray) -> np.ndarray:
+    """(n, P, 2) vectors turned by an angle given by its cosine and sine."""
     x, y = vectors[..., 0], vectors[..., 1]
     return np.stack([cos * x - sin * y, sin * x + cos * y], axis=-1)
 
@@ -185,11 +209,3 @@ def unwrap(measure: Measure, values: np.ndarray, truth: np.ndarray) -> np.ndarra
     if isinstance(measure, Tilt):
         return truth + ((values - truth + 90.0) % 180.0 - 90.0)
     return np.asarray(values, float)
-
-
-def _laid_out(measure: Measure, points: np.ndarray) -> np.ndarray:
-    """(n, P, 2) points of the measure placed at their keypoint indices."""
-    full = np.zeros((len(points), max(measure.points) + 1, 2))
-    for slot, index in enumerate(measure.points):
-        full[:, index] = points[:, slot]
-    return full
