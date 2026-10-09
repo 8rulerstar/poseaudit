@@ -77,7 +77,7 @@ def load_coco(annotations: str | Path, classes: Iterable[int] | None = None) -> 
             "(min_iou): then it is paired with that person and read as their error.",
             stacklevel=2,
         )
-    _nothing_kept(annotations, wanted, seen)
+    _nothing_kept(annotations, wanted, seen, ("labelled person", "labelled people"))
     return dataset
 
 
@@ -138,7 +138,7 @@ def load_coco_results(
         dataset.setdefault(name, []).append(instance)
     if looks_like_confidence and min_confidence == 0:
         warnings.warn(CONFIDENCE_WARNING.format(where=results), stacklevel=2)
-    _nothing_kept(results, wanted, seen)
+    _nothing_kept(results, wanted, seen, ("detection", "detections"))
     return dataset
 
 
@@ -209,7 +209,10 @@ def _labelled(ann) -> bool:
     return any(isinstance(v, (int, float)) and v > 0 for v in flags)
 
 
-def _nothing_kept(where, wanted, seen) -> None:
+def _nothing_kept(where, wanted, seen, what: tuple[str, str]) -> None:
+    """`what` names what was looked at, one and many: a crowd region of a
+    category kept is counted in a warning of its own, which "no entry has
+    that category" would contradict."""
     if wanted is not None and seen == {None}:
         warnings.warn(
             f"{where}: no entry has a category_id, so keeping categories "
@@ -219,7 +222,7 @@ def _nothing_kept(where, wanted, seen) -> None:
     elif wanted is not None and seen and not seen & wanted:
         present = sorted(x for x in seen if x is not None)
         warnings.warn(
-            f"{where}: no entry has category {sorted(wanted)}; the categories "
-            f"present are {present}",
+            f"{where}: no {what[0]} has category {sorted(wanted)}; the "
+            f"{what[1]} have categories {present}",
             stacklevel=3,
         )

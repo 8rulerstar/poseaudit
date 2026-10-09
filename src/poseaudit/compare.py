@@ -89,15 +89,30 @@ class Comparison:
             write_text(path, text, newline="")
         return text
 
-    def summary(self, degree: str = "°") -> str:
-        """Each model's table of measures, then the differences."""
+    def summary(self, degree: str = "°", width: int | None = None) -> str:
+        """Each model's table of measures, then the differences. With
+        `width`, tables wider than that are cut into blocks of columns."""
         from poseaudit.report import table
 
         out = []
         for name, results in self.results.items():
-            out += [f"{name}:", table(results, degree), ""]
-        out.append(differences_table(self.differences, self.results, degree))
+            out += [f"{name}:", table(results, degree, width), ""]
+        out.append(differences_table(self.differences, self.results, degree, width))
         return "\n".join(out)
+
+    def __repr__(self) -> str:
+        names = ", ".join(self.results)
+        measures = len(next(iter(self.results.values()), []))
+        pairs = len(self.differences)
+        return (
+            f"<Comparison of {names}: {measures} "
+            f"{'measure' if measures == 1 else 'measures'}, "
+            f"{pairs} {'difference' if pairs == 1 else 'differences'}>"
+        )
+
+    def _repr_pretty_(self, printer, cycle: bool) -> None:
+        """IPython and Jupyter show the summary, not every reading."""
+        printer.text(repr(self) if cycle else self.summary())
 
     def to_dict(self) -> dict:
         from poseaudit._version import __version__
@@ -242,9 +257,11 @@ def _difference(ra, rb, a, b, resamples, seed) -> Difference:
     )
 
 
-def differences_table(differences, results, degree: str = "°") -> str:
+def differences_table(
+    differences, results, degree: str = "°", width: int | None = None
+) -> str:
     """The differences as aligned text, a minus b on the shared readings."""
-    from poseaudit.report import _ci, _f, label
+    from poseaudit.report import _ci, _f, label, layout
 
     units = {label(r): r.measure.unit for r in next(iter(results.values()))}
     unit_of = {"deg": degree, "px": " px"}
@@ -266,10 +283,6 @@ def differences_table(differences, results, degree: str = "°") -> str:
                 f"{_ci(tuple(100 * x for x in d.big_error_rate_diff_ci), '+.1f')}",
             ]
         )
-    widths = [max(len(r[k]) for r in rows) for k in range(len(head))]
-    lines = [
-        "  ".join(c.ljust(w) for c, w in zip(r, widths, strict=True)).rstrip()
-        for r in rows
-    ]
+    lines = layout(rows, frozenset({2, 3, 4}), keep=2, width=width)
     lines += [f"  ! {note}" for note in difference_warnings(differences)]
     return "\n".join(lines)

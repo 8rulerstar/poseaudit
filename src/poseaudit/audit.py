@@ -189,6 +189,23 @@ class AuditResult:
     def worst(self, count: int = 10) -> list[Reading]:
         return sorted(self.readings, key=lambda r: -abs(r.error))[:count]
 
+    def __repr__(self) -> str:
+        """One line: the dataclass's own repr lists every reading, tens of
+        thousands of characters for a few hundred readings."""
+        m = self.measure
+        unit = f" {m.unit}" if m.unit else ""
+        head = f"<AuditResult {m.name} {m.points}: read {self.n} of {self.measurable}"
+        if self.n == 0:
+            return head + ">"
+        return (
+            f"{head}, mean |error| {self.mean_abs_error:.4g}{unit}, "
+            f"{self.big_error_rate:.1%} >= {self.big_error:g}{unit}>"
+        )
+
+    def _repr_pretty_(self, printer, cycle: bool) -> None:
+        """IPython and Jupyter show the summary, as `print(result.summary())`."""
+        printer.text(repr(self) if cycle else self.summary())
+
     def summary(self, full: bool = False) -> str:
         """The headline figures; `full` adds every agreement statistic."""
         from poseaudit.report import summary

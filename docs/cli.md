@@ -55,12 +55,15 @@ angle (5, 7, 9): read 322 of 380 labelled instances
 
 Repeat `--angle`, `--tilt`, `--length` or `--ratio` to read several measures
 off the same pairing. The output is one row per measure; `--full` prints each
-measure's full block instead. Both elbows and both knees on the demo data:
+measure's full block instead. On a terminal narrower than the table the
+columns come in blocks that fit, each led by the measure, and long lines break
+between words; piped or redirected output keeps one line per row, as below.
+Both elbows and both knees on the demo data:
 
 ```text
 $ poseaudit audit --format coco --gt gt_200.json --pred pred_yolo11n.json \
     --angle 5,7,9 --angle 6,8,10 --angle 11,13,15 --angle 12,14,16 --big-error 15
-measure         n    bias    limits              mean |error|             RMSE    >= 15°                  slope  ICC(A,1)
+measure           n  bias    limits              mean |error|             RMSE    >= 15°                  slope  ICC(A,1)
 angle 5,7,9     322  +2.27°  -50.90° to +79.99°  19.48° [17.05 to 22.13]  29.57°  43.2% [37.9% to 48.6%]  0.731  0.762
 angle 6,8,10    308  +3.74°  -54.10° to +75.45°  18.07° [15.54 to 20.67]  30.11°  34.7% [29.5% to 40.2%]  0.751  0.803
 angle 11,13,15  243  +5.19°  -38.92° to +80.06°  16.40° [12.93 to 20.26]  29.80°  30.5% [24.4% to 37.2%]  0.715  0.794

@@ -21,8 +21,10 @@ paired intervals (too few shared images, or none, or too few shared readings
 read differently: `n_differing` counts those) and the loaders' warnings.
 
 The command exits 0 on success (warnings included); 1 on bad input or
-settings, a failed write, or nothing read (the JSON and CSV are still
-written); and 2 when the arguments cannot be parsed. There is no pass or fail
+settings, a failed write, or nothing read (the JSON, CSV and report are
+still written and say what was not read; no plot is drawn); and 2 when the
+arguments cannot be parsed, or when `poseaudit` is run with none, which
+prints the help. There is no pass or fail
 threshold built in; gate on the JSON. An interval that cannot be computed is
 `null` (every interval is, with a single cluster), and in jq `null <= 3` is
 true, so make a gate fail on `null`: for example

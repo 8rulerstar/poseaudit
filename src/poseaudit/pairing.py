@@ -38,6 +38,15 @@ class Pairing:
     images_without_truth: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
+    def __repr__(self) -> str:
+        """Counts only: the dataclass's own repr prints every keypoint array."""
+        notes = len(self.warnings)
+        return (
+            f"<Pairing: {len(self.pairs)} pairs, {len(self.missed)} truths and "
+            f"{len(self.extra)} predictions unmatched, "
+            f"{notes} {'warning' if notes == 1 else 'warnings'}>"
+        )
+
 
 def pair(
     truth: Dataset,

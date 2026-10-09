@@ -30,6 +30,8 @@ INK = "#222222"
 MUTED = "#707070"
 GRID = "#E6E6E6"
 
+FEW = 10  # under this many readings the points are drawn over the lines
+
 DASHED = (0, (5, 3))
 DOTTED = (0, (1, 2))
 
@@ -201,19 +203,24 @@ def _values_at_right(
     fig: "Figure", ax: "Axes", values: list[float], fmt: str, unit: str
 ) -> None:
     """Each line's value just right of the axes, in the order of the lines;
-    labels that would overlap are pushed apart as little as they need."""
-    order = sorted(values)
+    labels that would overlap are pushed apart as little as they need. Lines
+    that print the same value, such as every line at 0 when all errors are
+    0, share one label rather than stacking copies of it."""
+    texts: dict[str, list[float]] = {}
+    for value in sorted(values):
+        texts.setdefault(f"{_number(value, fmt)}{unit}", []).append(value)
+    order = [float(np.mean(group)) for group in texts.values()]
     labels = [
         ax.text(
             1.02,
             value,
-            f"{_number(value, fmt)}{unit}",
+            text,
             transform=ax.get_yaxis_transform(),
             ha="left",
             va="center",
             clip_on=False,
         )  # fmt: skip
-        for value in order
+        for text, value in zip(texts, order, strict=True)
     ]
     fig.draw_without_rendering()  # lays the figure out, labels included
     low, high = ax.get_ylim()
@@ -261,18 +268,33 @@ def _dots(n: int) -> dict:
         "color": POINTS,
         "alpha": float(np.clip(10 / np.sqrt(n), 0.08, 0.5)),
         "linewidths": 0,
-        "zorder": 1,
+        # a handful of points over the lines, or a lone reading on the bias
+        # line disappears under it
+        "zorder": 4 if n < FEW else 1,
         "rasterized": n > 5000,
     }
 
 
 def _finish(ax: "Axes", unit: str) -> None:
-    """Ticks and a light grid."""
-    from matplotlib.ticker import MaxNLocator
+    """Ticks and a light grid. Tick labels carry their whole value: an offset
+    or a power of ten in the corner (lengths near 512 px read as "+5.12e2",
+    millions as "1e6") lands on the axis label and is easily missed. Values
+    of 100,000 or more take an SI prefix (1.6M) so the labels stay short."""
+    from matplotlib.ticker import EngFormatter, MaxNLocator, ScalarFormatter
 
-    # degrees: steps of 45 rather than 50 across a joint's whole range
-    steps = [1, 1.5, 2, 3, 4.5, 5, 10] if unit == "deg" else None
-    for axis in (ax.xaxis, ax.yaxis):
-        axis.set_major_locator(MaxNLocator(nbins=5, steps=steps))
+    for axis, (low, high) in ((ax.xaxis, ax.get_xlim()), (ax.yaxis, ax.get_ylim())):
+        # degrees across a joint's range: steps of 45 rather than 50; over a
+        # few degrees, whole steps rather than 4.5 and 9.0
+        wide = unit == "deg" and abs(high - low) >= 90
+        steps = [1, 1.5, 2, 3, 4.5, 5, 10] if wide else None
+        big = max(abs(low), abs(high)) >= 1e5
+        # "1.6M" is wider than "45": fewer ticks keep the labels apart
+        axis.set_major_locator(MaxNLocator(nbins=3 if big else 5, steps=steps))
+        if big:
+            axis.set_major_formatter(EngFormatter(sep=""))
+        else:
+            plain = ScalarFormatter(useOffset=False)
+            plain.set_scientific(False)
+            axis.set_major_formatter(plain)
     ax.grid(True, color=GRID, lw=0.8)
     ax.set_axisbelow(True)

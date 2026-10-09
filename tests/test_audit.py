@@ -982,12 +982,16 @@ def test_a_label_name_with_a_dot_does_not_borrow_another_image(tmp_path) -> None
     assert "no image" in str(stop.value)
 
 
-def test_nothing_read_writes_no_report(tmp_path) -> None:
+def test_nothing_read_still_writes_the_report(tmp_path) -> None:
+    """As the JSON and CSV are: it says why nothing was read, and an old
+    report from an earlier run is not left behind as if it were this one's."""
     _yolo_pair(tmp_path)
+    (tmp_path / "r.md").write_text("an earlier run", encoding="utf-8")
     with pytest.raises(SystemExit):
         _cli(tmp_path, "--tilt", "0,1", "--classes", "5",
              "--report", str(tmp_path / "r.md"))  # fmt: skip
-    assert not (tmp_path / "r.md").exists()
+    report = (tmp_path / "r.md").read_text(encoding="utf-8")
+    assert "read 0 of" in report and "an earlier run" not in report
 
 
 def test_loader_warnings_print_once(tmp_path, capsys) -> None:
@@ -1257,7 +1261,9 @@ def test_the_report_opens_in_words_and_ends_with_a_settings_table() -> None:
               resamples=60, jitter_repeats=0, settings={"note": "a|b"})  # fmt: skip
     text = r.to_markdown()
     lead = text.split("\n")[2]
-    assert lead.startswith("On average the tilt is 2.8 degrees off; 25% of readings")
+    assert lead.startswith(
+        "On average the tilt is 2.8 degrees off the labels; 25% of readings"
+    )
     assert "An error is predicted minus truth" in lead
     settings = text.split("## Settings")[1]
     assert "| seed | 0 |" in settings and "| thresholds | none |" in settings
@@ -1299,10 +1305,10 @@ def test_the_lead_names_a_relative_reading() -> None:
 def test_the_lead_never_rounds_a_rare_error_away() -> None:
     t, p = np.r_[np.zeros(299), 88.0], np.r_[np.full(299, 0.5), -88.0]
     r = audit(pairing(t, p), tilt(0, 1), 1, resamples=60, jitter_repeats=0)
-    assert "; <1% of readings are off by 1 degree or more." in lead(r)
+    assert "; <1% of readings are off by 1 degree or more (" in lead(r)
     flipped = audit(pairing(t, t + np.r_[np.full(299, 3.0), 0.5]), tilt(0, 1), 1,
                     resamples=60, jitter_repeats=0)  # fmt: skip
-    assert "; >99% of readings are off by 1 degree or more." in lead(flipped)
+    assert "; >99% of readings are off by 1 degree or more (" in lead(flipped)
 
 
 def test_a_report_with_nothing_read_still_ends_with_a_newline() -> None:

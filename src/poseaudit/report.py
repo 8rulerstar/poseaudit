@@ -1,5 +1,6 @@
 import csv
 import io
+import re
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -356,15 +357,24 @@ def _sign(result: "AuditResult") -> str:
     )
 
 
+LABELS = (
+    "These figures are agreement with the labels, not error against the true "
+    "value: noise in the labels is part of them."
+)
+
+
 def _lead(result: "AuditResult") -> str:
-    """The headline in words, and which way an error points."""
+    """The headline in words: what it is measured against and on how many,
+    so a sentence lifted from it does not read as error against the world,
+    and which way an error points."""
     m = result.measure
     d = 1 if m.unit else _digits(result)
     return (
         f"On average {_subject(result)} is "
-        f"{_amount(result.mean_abs_error, m.unit, f'.{d}f')} off; "
+        f"{_amount(result.mean_abs_error, m.unit, f'.{d}f')} off the labels; "
         f"{_share(result.big_error_rate)} of readings are off by "
-        f"{_amount(result.big_error, m.unit)} or more. {_sign(result)}"
+        f"{_amount(result.big_error, m.unit)} or more ({result.n} of "
+        f"{result.measurable} labelled instances read). {LABELS} {_sign(result)}"
     )
 
 
@@ -605,20 +615,88 @@ def _cells(result: "AuditResult") -> list[str]:
     ]
 
 
-def table(results: "list[AuditResult]", degree: str = "°") -> str:
+_WHOLE = re.compile(r"[+-]?\d+")
+
+
+def _on_the_point(cells: list[str]) -> list[str]:
+    """Figures padded so their decimal points line up (" 7.61°" under
+    "29.57°"), whatever unit follows; a count comes out right-aligned. A cell
+    with no figure, such as n/a, stays at the left."""
+    whole = [len(m.group(0)) if (m := _WHOLE.match(c)) else None for c in cells]
+    lead = max((w for w in whole if w is not None), default=0)
+    return [
+        c if w is None else " " * (lead - w) + c
+        for c, w in zip(cells, whole, strict=True)
+    ]
+
+
+def layout(
+    rows: list[list[str]],
+    figures: frozenset[int] = frozenset(),
+    keep: int = 1,
+    width: int | None = None,
+) -> list[str]:
+    """A header row and data rows as aligned text. In the columns in
+    `figures` the decimal points line up, and the header of a column of
+    counts is right-aligned over it. When `width` is given and the table is
+    wider, it is cut into blocks of columns that fit, one under the other,
+    each led by the first `keep` columns, instead of every row wrapping onto
+    the next line of a narrow terminal."""
+    rows = [list(row) for row in rows]
+    right = set()
+    for k in figures:
+        cells = _on_the_point([row[k] for row in rows[1:]])
+        for row, cell in zip(rows[1:], cells, strict=True):
+            row[k] = cell
+        if all(c.strip().isdigit() for c in cells):
+            right.add(k)
+    widths = [max(len(row[k]) for row in rows) for k in range(len(rows[0]))]
+    blocks: list[list[int]] = [list(range(len(widths)))]
+    if width is not None:
+        lead = sum(widths[:keep]) + 2 * keep
+        blocks = [[]]
+        used = lead
+        for k in range(keep, len(widths)):
+            if blocks[-1] and used + widths[k] > width:
+                blocks.append([])
+                used = lead
+            blocks[-1].append(k)
+            used += widths[k] + 2
+        blocks = [list(range(keep)) + b for b in blocks]
+    lines: list[str] = []
+    for block in blocks:
+        if lines:
+            lines.append("")
+        lines += [
+            "  ".join(
+                row[k].rjust(widths[k]) if k in right else row[k].ljust(widths[k])
+                for k in block
+            ).rstrip()
+            for row in rows
+        ]
+    return lines
+
+
+def _big_header(results: "list[AuditResult]") -> str:
+    """>= 15°, or each measure's threshold in the order first met when the
+    units differ: >= 15°, 15 px, 15."""
+    seen = dict.fromkeys(f"{r.big_error:g}{_unit(r)}" for r in results)
+    return ">= " + ", ".join(seen)
+
+
+def table(
+    results: "list[AuditResult]", degree: str = "°", width: int | None = None
+) -> str:
     """One row per measure: n, bias, percentile limits, mean |error| with its
     interval, RMSE, the large-error rate with its interval, slope and ICC(A,1).
-    Each measure's warnings follow, under its name."""
-    big = {f"{r.big_error:g}{_unit(r)}" for r in results}
-    head = [*TABLE_COLUMNS, ">= " + "/".join(sorted(big)), "slope", "ICC(A,1)"]
+    Each measure's warnings follow, under its name. With `width`, a table
+    wider than that is cut into blocks of columns that fit."""
+    head = [*TABLE_COLUMNS, _big_header(results), "slope", "ICC(A,1)"]
     rows = [
         [c.replace("°", degree) for c in row] for row in [head, *map(_cells, results)]
     ]
-    widths = [max(len(row[k]) for row in rows) for k in range(len(head))]
-    lines = [
-        "  ".join(cell.ljust(w) for cell, w in zip(row, widths, strict=True)).rstrip()
-        for row in rows
-    ]
+    figures = frozenset({1, 2, 5, 7, 8})  # n, bias, RMSE, slope, ICC
+    lines = layout(rows, figures, keep=1, width=width)
     for r in results:
         lines += [f"  ! {label(r)}: {w}" for w in r.warnings]
     return "\n".join(lines)

@@ -83,18 +83,18 @@ print(c.summary())
 
 ```text
 score>=0.0:
-measure      n    bias    limits              mean |error|             RMSE    >= 15°                  slope  ICC(A,1)
+measure        n  bias    limits              mean |error|             RMSE    >= 15°                  slope  ICC(A,1)
 angle 5,7,9  322  +2.27°  -50.90° to +79.99°  19.48° [17.05 to 22.13]  29.57°  43.2% [37.9% to 48.6%]  0.731  0.762
   ! angle 5,7,9: 2.5% of errors fall below the normal limits and 4.3% above them, against 2.5% each for a normal error: use the percentile limits.
 
 score>=0.7:
-measure      n    bias    limits              mean |error|             RMSE    >= 15°                  slope  ICC(A,1)
+measure        n  bias    limits              mean |error|             RMSE    >= 15°                  slope  ICC(A,1)
 angle 5,7,9  254  +2.86°  -41.80° to +65.51°  17.32° [14.97 to 19.66]  26.00°  39.8% [33.9% to 45.9%]  0.787  0.816
   ! angle 5,7,9: 126 of 380 labelled instances were not read: the figures describe the ones that were, which are usually easier.
   ! angle 5,7,9: 2.4% of errors fall below the normal limits and 4.3% above them, against 2.5% each for a normal error: use the percentile limits.
 
 measure      a - b                    shared  n a  n b  mean |error| a - b       large-error rate a - b
-angle 5,7,9  score>=0.0 - score>=0.7  254     322  254  -0.06° [-0.20 to +0.00]  +0.0 pt [+0.0 to +0.0]
+angle 5,7,9  score>=0.0 - score>=0.7     254  322  254  -0.06° [-0.20 to +0.00]  +0.0 pt [+0.0 to +0.0]
   ! angle 5,7,9, score>=0.0 - score>=0.7: the models read only 1 of the 254 shared readings differently; the paired intervals rest on that one and can be far too narrow.
 ```
 
@@ -120,10 +120,12 @@ worse. A plain mean over each set would call that a 2° improvement.
   `size_bands`; `readings` and `worst()`; `warnings`. Most figures have a
   `_ci` interval. `summary()`, `to_markdown()`, `to_csv()`,
   `to_dict()` and `plot()` write it out, and `to_rows()` gives the headline
-  figures as a flat row to stack into a table.
+  figures as a flat row to stack into a table. In Jupyter or IPython a
+  result on its own shows its summary; `repr()` is one line.
 - `compare({name: predicted}, truth, measures, big_error)` returns a
   `Comparison`: `results` (each model's `AuditResult`s, one per measure),
-  `differences`, `table()` (flat rows) and `to_csv()`.
+  `differences`, `table()` (flat rows) and `to_csv()`. It too shows its
+  summary in Jupyter.
 - Types: a `Dataset` is `{image name: [Instance, ...]}`. `Pairing` holds the
   `Pair`s made by `pair()`. A `Measure` is what `angle()` and the others
   return. An `AuditResult` holds its `readings` (each a `Reading`), why

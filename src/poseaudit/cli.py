@@ -2,7 +2,9 @@ import argparse
 import json
 import os
 import re
+import shutil
 import sys
+import textwrap
 import unicodedata
 import warnings
 from collections.abc import Callable
@@ -25,6 +27,15 @@ MEASURES: dict[str, tuple[Callable[..., Measure], int]] = {
     "angle": (angle, 3),
     "length": (length, 2),
     "ratio": (ratio, 4),
+}
+
+
+# what each measure reads, for --help: the points it takes and where they go
+MEANINGS = {
+    "angle": ("A,B,C", "angle at B between B-A and B-C, 0 to 180 degrees"),
+    "tilt": ("A,B", "tilt of the axis A-B from vertical, -90 to 90 degrees"),
+    "length": ("A,B", "distance from A to B, in pixels"),
+    "ratio": ("A,B,C,D", "length A-B over length C-D"),
 }
 
 
@@ -427,13 +438,15 @@ def _parser() -> argparse.ArgumentParser:
         help="smallest keypoint similarity that pairs them when a side has no box "
         "(default 0.5)",
     )
-    what = run.add_argument_group("measure")
-    for kind in MEASURES:
+    what = run.add_argument_group(
+        "measure",
+        # the formatter keeps descriptions as written: lines under 80 columns
+        "keypoints by index, counted from 0 (COCO: 5 left shoulder, 7 left\n"
+        "elbow, 9 left wrist, 11 left hip); repeat these for several measures",
+    )
+    for kind, (metavar, meaning) in MEANINGS.items():
         what.add_argument(
-            f"--{kind}",
-            metavar="I,J,...",
-            action=_AddMeasure,
-            help="keypoint indices, counted from 0; repeat for several measures",
+            f"--{kind}", metavar=metavar, action=_AddMeasure, help=meaning
         )
     what.add_argument(
         "--relative-to",
@@ -565,10 +578,31 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> None:
-    args = _parser().parse_args(argv)
+    parser = _parser()
+    if not (sys.argv[1:] if argv is None else argv):
+        # a first try with no arguments: what the tool does and its command,
+        # rather than an error about a missing COMMAND
+        parser.print_help(sys.stderr)
+        sys.exit(2)
+    args = parser.parse_args(argv)
+    loader_notes: list[str] = []
+
+    def note(message, category, filename, lineno, file=None, line=None) -> None:
+        """Each loader warning on stderr once, as it is raised: before a run
+        that takes minutes, and even when the run then fails."""
+        text = str(message).replace("min_confidence", "--min-conf")
+        if text not in loader_notes:
+            loader_notes.append(text)
+            print(
+                _console(f"poseaudit: warning: {text}", sys.stderr),
+                file=sys.stderr,
+                flush=True,
+            )
+
     try:
-        with warnings.catch_warnings(record=True) as caught:
+        with warnings.catch_warnings():
             warnings.simplefilter("always")
+            warnings.showwarning = note
             result = _run(args)
     except (UsageError, ValueError, OSError, ImportError) as error:
         sys.exit(f"poseaudit: {error}")
@@ -580,13 +614,6 @@ def main(argv: list[str] | None = None) -> None:
         if type(error).__module__.startswith("PIL"):
             sys.exit(f"poseaudit: an image could not be read: {error}")
         raise
-    loader_notes = []
-    for w in caught:
-        text = str(w.message).replace("min_confidence", "--min-conf")
-        if text in loader_notes:
-            continue
-        loader_notes.append(text)
-        print(_console(f"poseaudit: warning: {text}", sys.stderr), file=sys.stderr)
     from poseaudit.compare import Comparison
 
     if isinstance(result, Comparison):
@@ -598,7 +625,7 @@ def main(argv: list[str] | None = None) -> None:
     elif args.full:
         text = "\n\n".join(r.summary(full=True) for r in results)
     else:
-        text = table(results, "°" if _utf8(sys.stdout) else " deg")
+        text = table(results, _degree(sys.stdout), _columns(sys.stdout))
     print(_console(text, sys.stdout))
     # in the JSON too, but printed once: stderr above, not again in the summary
     for r in results:
@@ -611,7 +638,14 @@ def main(argv: list[str] | None = None) -> None:
     except OSError as error:
         sys.exit(f"poseaudit: could not write: {error}")
     if all(r.n == 0 for r in results):
-        sys.exit("poseaudit: nothing was read")
+        # the JSON, CSV and report are written all the same (they say why, and
+        # replace any from an earlier run); a plot has nothing to draw
+        stale = args.plot and Path(args.plot).exists()
+        sys.exit(
+            "poseaudit: nothing was read"
+            + ("; no plot was drawn" if args.plot else "")
+            + (f", and {args.plot} is from an earlier run" if stale else "")
+        )
 
 
 def _finish_compare(comparison, args, loader_notes) -> None:
@@ -626,10 +660,15 @@ def _finish_compare(comparison, args, loader_notes) -> None:
         text = (
             "\n\n".join(blocks)
             + "\n\n"
-            + differences_table(comparison.differences, comparison.results)
+            + differences_table(
+                comparison.differences,
+                comparison.results,
+                _degree(sys.stdout),
+                _columns(sys.stdout),
+            )
         )
     else:
-        text = comparison.summary("°" if _utf8(sys.stdout) else " deg")
+        text = comparison.summary(_degree(sys.stdout), _columns(sys.stdout))
     print(_console(text, sys.stdout))
     try:
         if args.json:
@@ -652,23 +691,74 @@ def _utf8(stream) -> bool:
     return encoding in ("utf8", "utf8sig")
 
 
+def _degree(stream) -> str:
+    return "°" if _utf8(stream) else " deg"
+
+
+def _columns(stream) -> int | None:
+    """The terminal's width when `stream` is one (COLUMNS overrides it, as
+    for --help); None for a pipe or a file, whose lines are left whole for
+    whatever reads them."""
+    try:
+        if not stream.isatty():
+            return None
+    except (AttributeError, ValueError, OSError):
+        return None
+    return max(40, shutil.get_terminal_size().columns)
+
+
+# a "  ! " warning, or a summary line's label column: where a wrapped line's
+# continuation starts (two spaces deeper than the line for anything else)
+_HANGING = re.compile(r" {2}! | {2}\S.*? {2,}(?=\S)")
+
+
+def _fit(text: str, columns: int | None) -> str:
+    """Lines wider than the terminal broken between words, each continuation
+    indented under the start of the value it continues, rather than wrapped
+    by the terminal mid-word at its first column. Table rows (no indent,
+    cells two spaces apart) are left to `layout`, which cuts the table to
+    fit."""
+    if columns is None:
+        return text
+    width = columns - 1  # a line filling the last column wraps on Windows
+    out = []
+    for line in text.split("\n"):
+        table_row = not line.startswith(" ") and "  " in line.strip()
+        if len(line) <= width or table_row:
+            out.append(line)
+            continue
+        found = _HANGING.match(line)
+        if found and len(found.group(0)) <= 20:
+            indent = len(found.group(0))
+        else:
+            indent = len(line) - len(line.lstrip(" ")) + 2
+        out += textwrap.wrap(
+            line,
+            width,
+            subsequent_indent=" " * indent,
+            break_long_words=False,
+            break_on_hyphens=False,
+        )
+    return "\n".join(out)
+
+
 def _console(text: str, stream) -> str:
     """ " deg" for the degree sign on a stream that is not UTF-8. On Korean
     Windows, Git Bash shows a pipe's bytes as UTF-8 while Python writes them in
     cp949, which can encode the sign, so it comes out garbled rather than
     failing. Reconfiguring the stream to UTF-8 would garble it instead for
     whatever reads the pipe as cp949; " deg" reads the same either way. Other
-    text (image names) is left alone, and files are always written as UTF-8."""
+    text (image names) is left alone, and files are always written as UTF-8.
+    On a terminal, long lines are then broken to its width (`_fit`)."""
     encoding = (getattr(stream, "encoding", None) or "").lower().replace("-", "")
-    if _utf8(stream):
-        return text
-    # padding after a sign (the ">= 15°" label) gives up the three columns
-    # " deg" adds, so the figures stay aligned
-    text = re.sub(r"°( {4,})", lambda m: " deg" + m.group(1)[3:], text)
-    text = text.replace("°", " deg")
-    if encoding:  # never fail on a character the console cannot show
-        text = text.encode(encoding, errors="replace").decode(encoding)
-    return text
+    if not _utf8(stream):
+        # padding after a sign (the ">= 15°" label) gives up the three columns
+        # " deg" adds, so the figures stay aligned
+        text = re.sub(r"°( {4,})", lambda m: " deg" + m.group(1)[3:], text)
+        text = text.replace("°", " deg")
+        if encoding:  # never fail on a character the console cannot show
+            text = text.encode(encoding, errors="replace").decode(encoding)
+    return _fit(text, _columns(stream))
 
 
 def _write(result, args) -> None:
@@ -679,11 +769,9 @@ def _write(result, args) -> None:
         )
     if args.csv:
         result.to_csv(args.csv)
-    if result.n == 0:
-        return
-    if args.report:
+    if args.report:  # with nothing read too: it says what was not read and why
         result.to_markdown(args.report)
-    if args.plot:
+    if args.plot and result.n:
         try:
             result.plot(args.plot)
         except (ImportError, ValueError) as error:
@@ -733,11 +821,8 @@ def _write_many(results, args) -> None:
         )
     if args.csv:
         write_text(args.csv, csv_rows_many(results))
-    if args.report:
-        write_text(
-            args.report,
-            "\n".join(r.to_markdown() for r in results if r.n),
-        )
+    if args.report:  # every measure, those that read nothing included
+        write_text(args.report, "\n".join(r.to_markdown() for r in results))
 
 
 def _models(given: list[str]) -> list[tuple[str, str]]:
@@ -798,26 +883,35 @@ def _run(args):
         min_iou=args.min_iou,
         min_keypoint_similarity=args.min_similarity,
     )
-    _say_if_slow(len(pairing.pairs), args.resamples, args.jitter_repeats)
+    _say_if_slow(len(pairing.pairs), args.resamples, args.jitter_repeats, len(measures))
     return [_audit(args, pairing, m, bands, size_bands) for m in measures]
 
 
-# pairs times resamples above which a run takes minutes rather than seconds
-_SLOW_WORK = 10_000_000
+# A run's time grows with pairs x (resamples + _REBUILD x jitter rebuilds) for
+# each measure: one rebuild of the jitter reference costs about as much as 20
+# resamples (at 4,900 pairs, 3 seconds a measure without the rebuilds and 17
+# with the default 500). Above _SLOW_WORK a run takes half a minute or more.
+_REBUILD = 20
+_SLOW_WORK = 100_000_000
 
 
-def _say_if_slow(pairs: int, resamples: int, jitter_repeats: int) -> None:
+def _say_if_slow(
+    pairs: int, resamples: int, jitter_repeats: int, measures: int = 1
+) -> None:
     """A note on stderr before a long run, which prints nothing until it is
-    done: the time grows with the pairs times the resamples."""
-    if pairs * resamples < _SLOW_WORK:
+    done, naming the flags that make it faster."""
+    work = pairs * (resamples + _REBUILD * jitter_repeats) * measures
+    if work < _SLOW_WORK:
         return
-    faster = "a smaller --resamples"
-    if jitter_repeats:
-        faster += " or --jitter-repeats 0"
+    how_long = "several minutes" if work >= 10 * _SLOW_WORK else "a minute or more"
+    each = f"{measures} measures" if measures > 1 else "1 measure"
+    if jitter_repeats:  # the larger cost, and its figures are under --full only
+        faster = "--jitter-repeats 0 or a smaller --resamples is faster"
+    else:
+        faster = "A smaller --resamples is faster"
     print(
-        f"poseaudit: {pairs:,} pairs with {resamples:,} resamples for each "
-        f"measure; this can take several minutes. {faster[0].upper()}"
-        f"{faster[1:]} is faster.",
+        f"poseaudit: {pairs:,} pairs, {each}, {resamples:,} resamples and "
+        f"{jitter_repeats:,} jitter rebuilds; this can take {how_long}. {faster}.",
         file=sys.stderr,
         flush=True,
     )

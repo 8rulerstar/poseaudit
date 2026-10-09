@@ -267,7 +267,7 @@ def test_coco_class_filter_keeps_only_those_categories(tmp_path) -> None:
     path = tmp_path / "gt.json"
     path.write_text(json.dumps(data))
     assert [i.class_id for i in load_coco(path, classes=[2])["a.jpg"]] == [2]
-    with pytest.warns(UserWarning, match="categories present"):
+    with pytest.warns(UserWarning, match="the labelled people have categories"):
         load_coco(path, classes=[7])
 
 
