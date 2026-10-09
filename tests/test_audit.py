@@ -1,3 +1,4 @@
+import importlib.util
 import json
 import os
 import re
@@ -11,6 +12,10 @@ from poseaudit.cli import main
 from poseaudit.confidence import wilson
 from poseaudit.pairing import Pair, Pairing, pair
 from poseaudit.types import Instance
+
+# the optional extras: tests that need one skip without it, and the rest of a
+# test runs when only its last step needs it
+HAS_MATPLOTLIB = importlib.util.find_spec("matplotlib") is not None
 
 
 def leaning(degrees: float, visible: bool = True, class_id=None) -> Instance:
@@ -286,8 +291,9 @@ def test_reports_are_reproducible_and_complete(tmp_path) -> None:
     assert lines[0].startswith("image,truth_index,predicted_index,class_id,cluster")
     assert len(lines) == 4
 
-    one.plot(str(tmp_path / "r.png"))
-    assert (tmp_path / "r.png").stat().st_size > 1000
+    if HAS_MATPLOTLIB:
+        one.plot(str(tmp_path / "r.png"))
+        assert (tmp_path / "r.png").stat().st_size > 1000
 
 
 def _yolo_pair(tmp_path, dx: float = 0.1, images: int = 1):
@@ -311,17 +317,17 @@ def test_cli_end_to_end(tmp_path, capsys) -> None:
     _cli(tmp_path, "--tilt", "0,1", "--bands", "0,10,90", "--threshold", "3",
          "--cluster", r"^(a)\d", "--report", str(tmp_path / "r.md"),
          "--csv", str(tmp_path / "r.csv"), "--json", str(tmp_path / "r.json"),
-         "--plot", str(tmp_path / "r.png"))  # fmt: skip
+         *(["--plot", str(tmp_path / "r.png")] if HAS_MATPLOTLIB else []))  # fmt: skip
     out = capsys.readouterr().out
     assert "read 4 of 4" in out and "caught" in out
     data = json.loads((tmp_path / "r.json").read_text())
     assert data["n"] == 4 and data["settings"]["cluster"] == "custom"
-    for name in ("r.md", "r.csv", "r.png"):
+    for name in ("r.md", "r.csv", "r.png")[: 3 if HAS_MATPLOTLIB else 2]:
         assert (tmp_path / name).exists()
 
 
 def test_cli_reads_sizes_from_an_image_folder(tmp_path, capsys) -> None:
-    from PIL import Image
+    Image = pytest.importorskip("PIL.Image")
 
     _yolo_pair(tmp_path, images=1)
     (tmp_path / "img").mkdir()
@@ -536,7 +542,7 @@ def test_the_robust_gain_shrugs_off_a_few_gross_failures() -> None:
 
 
 def test_plotting_leaves_the_matplotlib_backend_alone(tmp_path) -> None:
-    import matplotlib
+    matplotlib = pytest.importorskip("matplotlib")
 
     before = matplotlib.get_backend()
     audit(pairing([0, 5, 9], [1, 4, 8]), tilt(0, 1), 5).plot(str(tmp_path / "p.png"))
@@ -909,7 +915,7 @@ def test_ratio_band_labels_keep_their_decimals(tmp_path) -> None:
 
 
 def test_an_image_folder_may_hold_labels_and_any_image_format(tmp_path, capsys) -> None:
-    from PIL import Image
+    Image = pytest.importorskip("PIL.Image")
 
     _yolo_pair(tmp_path, images=1)
     (tmp_path / "img").mkdir()
@@ -952,7 +958,7 @@ def test_an_output_that_is_a_folder_is_refused(tmp_path) -> None:
 
 
 def test_images_that_share_a_name_are_refused(tmp_path) -> None:
-    from PIL import Image
+    Image = pytest.importorskip("PIL.Image")
 
     _yolo_pair(tmp_path)
     (tmp_path / "img").mkdir()
@@ -966,7 +972,7 @@ def test_images_that_share_a_name_are_refused(tmp_path) -> None:
 
 
 def test_a_label_name_with_a_dot_does_not_borrow_another_image(tmp_path) -> None:
-    from PIL import Image
+    Image = pytest.importorskip("PIL.Image")
 
     for folder in ("gt", "pred"):
         (tmp_path / folder).mkdir()
@@ -1042,7 +1048,7 @@ def test_an_input_folder_spelled_in_nfd_is_the_same_folder(tmp_path) -> None:
 
 
 def test_a_name_clash_among_images_no_label_needs_is_ignored(tmp_path, capsys) -> None:
-    from PIL import Image
+    Image = pytest.importorskip("PIL.Image")
 
     _yolo_pair(tmp_path, images=1)
     (tmp_path / "img").mkdir()
