@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- `Instance` refuses a box holding NaN or infinity; such a person could
+  never be matched and was left out silently.
+- `--images` reads the size of a photo stored on its side (EXIF orientation
+  5 to 8) as it is shown, width and height swapped. Giving `--images` and
+  `--image-size` together is refused instead of one being ignored. An empty
+  YOLO label file needs no image size.
+- `from_supervision` refuses a fractional `class_id` instead of truncating it.
+- Renaming the clusters (`--cluster`, `cluster=`) no longer changes the
+  bootstrap intervals: groups are drawn in order of first appearance. A
+  regular expression string passed as `cluster` in Python gets a clear
+  TypeError.
+- An empty COCO file, or one that is not valid JSON, is named in the error;
+  one starting with a byte order mark is read. `angle`, `length` and `ratio`
+  stay finite on huge coordinates.
+- An image id written as a number in one COCO file and as a string in the
+  other is named as such, instead of reported as missing.
 - Keypoints given as unsigned integers (such as uint8) no longer wrap round
   when subtracted: an `Instance` and every measure read them as float64.
   float32 keypoints are widened the same way.
@@ -12,7 +28,6 @@
 - A figure undefined in more than 2.5% of bootstrap resamples, such as the
   ICC of two images when a draw repeats one, now has no interval instead of
   one drawn from the resamples where it happened to be defined.
-- `length` and `ratio` stay finite on huge coordinates.
 - A COCO annotation file that lists an image id twice, or one file name
   under two ids, is refused: the people of two images would be paired
   together.
@@ -99,9 +114,9 @@
   such as `1280x`; `--band-by` has a help line; `poseaudit audit --help` ends
   with examples.
 - README: the Quick start shows the exact default output, and the block
-  below it the real `--full` output (both checked by a test); a Python API
-  section; a runnable arrays snippet; recipes for a validation paper and a CI
-  gate under the intro; the
+  below it the real `--full` output (both checked by a test); recipes for a
+  validation paper and a CI gate. The options, the Python API (with a
+  runnable arrays snippet), the statistics and the JSON moved to docs/; the
   JSON gates fail on a `null` interval (in jq `null <= 3` is
   true), with a Python alternative to `jq`, and a note on line continuations
   in PowerShell.
