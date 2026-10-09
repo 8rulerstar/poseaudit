@@ -480,6 +480,11 @@ def _cluster_function(cluster: Cluster) -> Callable[[str], str]:
         return lambda image: image
     if callable(cluster):
         return lambda image: str(cluster(image))
+    if isinstance(cluster, str):
+        raise TypeError(
+            "cluster takes a function or a mapping from image name to cluster; "
+            "for a regex use e.g. lambda name: re.match(pattern, name).group(1)"
+        )
     return lambda image: str(cluster[image])
 
 

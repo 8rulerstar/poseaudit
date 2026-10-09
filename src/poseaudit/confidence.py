@@ -34,8 +34,12 @@ def clustered_bootstrap(
     reproducible. With `copies` it also receives, for each reading drawn, the
     draw it came from: a group drawn twice is two groups, not one twice the
     size."""
-    labels, inverse = np.unique(np.asarray(groups), return_inverse=True)
-    members = [np.flatnonzero(inverse == g) for g in range(len(labels))]
+    # groups in order of first appearance, not of their names: renaming the
+    # clusters must not change which readings a seed draws
+    _, first, inverse = np.unique(
+        np.asarray(groups), return_index=True, return_inverse=True
+    )
+    members = [np.flatnonzero(inverse == g) for g in np.argsort(first)]
     rng = np.random.default_rng(seed)
     stats = []
     for _ in range(resamples):

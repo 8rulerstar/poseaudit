@@ -43,9 +43,12 @@ def load_yolo(
         if path.name == "classes.txt":
             continue
         name = path.name[: -len(".txt")]  # not splitext: names may hold dots
-        scale = np.array(size_of(name), float)
-        instances = []
+        instances: list[Instance] = []
         lines = path.read_text(encoding="utf-8").splitlines()
+        if not any(line.strip() for line in lines):
+            dataset[name] = instances  # no rows: no image size needed
+            continue
+        scale = np.array(size_of(name), float)
         for number, line in enumerate(lines, start=1):
             fields = line.split()
             if not fields:

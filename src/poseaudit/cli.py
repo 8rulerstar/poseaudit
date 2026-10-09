@@ -97,7 +97,12 @@ _IMAGES = {
 }  # fmt: skip
 
 
+_ORIENTATION = 0x0112
+
+
 def _image_sizes(args):
+    if args.images and args.image_size:
+        raise UsageError("give --images or --image-size, not both")
     if args.images:
         folder = Path(args.images)
         if not folder.is_dir():
@@ -124,7 +129,12 @@ def _image_sizes(args):
                 )
             path = found[0]
             with Image.open(path) as image:
-                return image.size
+                width, height = image.size
+                # a phone photo stored on its side: YOLO labels are fractions of
+                # the size as shown, after the EXIF rotation
+                if image.getexif().get(_ORIENTATION) in (5, 6, 7, 8):
+                    width, height = height, width
+                return width, height
 
         return size_of
     if args.image_size:

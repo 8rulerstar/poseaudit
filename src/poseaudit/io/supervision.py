@@ -87,7 +87,7 @@ def from_supervision(
                     )
                 present &= row
             points = np.where(np.isfinite(xy[i]), xy[i], 0.0)
-            class_id = None if classes is None else int(classes[i])
+            class_id = None if classes is None else _class(name, classes[i])
             if boxes is None:
                 instances.append(Instance.from_keypoints(points, present, class_id))
             else:
@@ -117,6 +117,13 @@ def from_supervision(
             stacklevel=2,
         )
     return dataset
+
+
+def _class(name: str, value) -> int:
+    number = float(value)
+    if number != int(number):
+        raise ValueError(f"{name}: class_id {value!r} is not a whole number")
+    return int(number)
 
 
 def _by_image(given, argument: str, kind: str) -> None:

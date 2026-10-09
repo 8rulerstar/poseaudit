@@ -34,6 +34,10 @@ class Instance:
         object.__setattr__(self, "keypoints", keypoints)
         object.__setattr__(self, "visible", visible)
         object.__setattr__(self, "bbox", box)
+        if box.shape == (4,) and not np.isfinite(box).all():
+            # NaN fails every comparison below, and its IoU would quietly
+            # leave the instance unmatched
+            raise ValueError(f"bbox holds a non-finite value (NaN or inf): {box}")
         if box.shape != (4,) or box[2] < box[0] or box[3] < box[1]:
             raise ValueError(
                 f"bbox must be x1, y1, x2, y2 with x1 <= x2, y1 <= y2: {box}"
