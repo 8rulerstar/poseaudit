@@ -467,7 +467,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     out = run.add_argument_group("output")
     out.add_argument("--report", help="markdown report")
-    out.add_argument("--csv", help="one row per reading")
+    out.add_argument(
+        "--csv", help="one row per reading; comparing models, one per difference"
+    )
     out.add_argument("--json", help="every figure")
     out.add_argument("--plot", help="PNG with two panels (needs matplotlib)")
     out.add_argument(
@@ -502,7 +504,7 @@ def main(argv: list[str] | None = None) -> None:
     from poseaudit.compare import Comparison
 
     if isinstance(result, Comparison):
-        _finish_compare(result, args, caught)
+        _finish_compare(result, args, loader_notes)
         return
     results = result
     if len(results) == 1:
@@ -526,10 +528,8 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit("poseaudit: nothing was read")
 
 
-def _finish_compare(comparison, args, caught) -> None:
-    notes = [str(w.message).replace("min_confidence", "--min-conf") for w in caught]
-    for text in dict.fromkeys(notes):
-        print(_console(f"poseaudit: warning: {text}", sys.stderr), file=sys.stderr)
+def _finish_compare(comparison, args, loader_notes) -> None:
+    """The loader's warnings are already on stderr; they go in the JSON too."""
     if args.full:
         blocks = [
             f"{name}:\n" + "\n\n".join(r.summary(full=True) for r in results)
@@ -547,8 +547,10 @@ def _finish_compare(comparison, args, caught) -> None:
     print(_console(text, sys.stdout))
     try:
         if args.json:
+            data = comparison.to_dict()
+            data["warnings"] = loader_notes + data["warnings"]
             Path(args.json).write_text(
-                json.dumps(_finite(comparison.to_dict()), indent=2, default=str),
+                json.dumps(_finite(data), indent=2, default=str),
                 encoding="utf-8",
             )
         if args.csv:
