@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Every output (`--json`, `--csv`, `--report`, `--plot` and the `to_csv`,
+  `to_markdown` and `plot` methods) is written to a temporary file beside it
+  and then moved into place, so a run killed part way leaves the old file or
+  none, never half of one, and parallel runs writing the same path each leave
+  a whole file (the last to finish wins).
+- Before a long run (pairs times resamples of 10 million or more) the CLI
+  says on stderr that it can take several minutes and names the flags that
+  make it faster; until now it printed nothing until done.
+- Upgrading from 0.1.4, a few figures in the JSON can differ in their last
+  digit or two (around 1e-15 relative) from summing in a different order; no
+  figure changes at the precision printed.
+
 - A COCO person whose `num_keypoints` says 0 but whose points are flagged
   as labelled is kept; only a person with no labelled point is left out.
 - A class filter on a COCO results file with no `category_id` says so,
