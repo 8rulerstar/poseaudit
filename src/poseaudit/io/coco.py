@@ -144,7 +144,14 @@ def _names(images, annotations) -> dict:
 
 def _name(names: dict, image_id, annotations) -> str:
     if image_id not in names:
-        raise ValueError(f"image_id {image_id} is not listed in {annotations}")
+        alike = [i for i in names if str(i) == str(image_id)]
+        if alike:
+            raise ValueError(
+                f"image_id {image_id!r} is not listed in {annotations}, which "
+                f"lists {alike[0]!r}: the two files write image ids as different "
+                "types (a number and a string)"
+            )
+        raise ValueError(f"image_id {image_id!r} is not listed in {annotations}")
     return names[image_id]
 
 
