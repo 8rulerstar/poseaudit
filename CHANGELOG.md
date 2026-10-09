@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- The jitter reference rebuilds faster with the same numbers: each object's
+  frames are computed once and taken by row in every resample, and the
+  rebuilt points are read without being laid out first. Lengths and ratios
+  are read all at once rather than one object at a time, and angles without
+  reductions along an axis of two. On 50,000 readings at the defaults one
+  measure took 4.5 minutes instead of 7 on the machine measured; every
+  figure is the same to the last digit.
+- `python -m poseaudit` runs the command, as `poseaudit` does.
+- Loading COCO annotations warns how many crowd regions (`iscrowd` 1) were
+  left out: they are in no count, and a prediction on one counts as an
+  unmatched prediction.
+- README: the jitter check's caveat says it assumes labels much cleaner than
+  the model.
 - Every output (`--json`, `--csv`, `--report`, `--plot` and the `to_csv`,
   `to_markdown` and `plot` methods) is written to a temporary file beside it
   and then moved into place, so a run killed part way leaves the old file or

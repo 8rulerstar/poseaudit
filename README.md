@@ -111,7 +111,9 @@ A single cluster gives `null` intervals. The `//` makes the gate fail on them.
 - The figures are agreement with one human label, not error against the world.
 - 2D angles read off an image are not 3D joint angles.
 - Every reading counts once. There is no per-subject summary yet.
-- The jitter check is new and checked by simulation only.
+- The jitter check is new and checked by simulation only. It assumes labels
+  much cleaner than the model: with labels as noisy as the model it flagged
+  honest models in about a third of simulated runs.
 
 More in [Limitations](https://github.com/8rulerstar/poseaudit/blob/main/docs/statistics.md#limitations).
 

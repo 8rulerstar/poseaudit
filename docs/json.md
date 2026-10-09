@@ -40,4 +40,5 @@ if not ok:
 ```
 
 `--resamples` and `--jitter-repeats` trade precision for speed: 50,000
-readings take about three minutes at the defaults.
+readings took about four and a half minutes for each measure at the
+defaults on one desktop, and well under a minute with `--jitter-repeats 0`.
