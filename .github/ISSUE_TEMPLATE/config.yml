@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question or a result to share
+    url: https://github.com/8rulerstar/poseaudit/discussions
+    about: Ask how to read a figure, or say what you measured with poseaudit.

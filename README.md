@@ -148,7 +148,9 @@ threshold, and comparing models on the readings they share.
 If you measured something with poseaudit, a line in
 [Discussions](https://github.com/8rulerstar/poseaudit/discussions/categories/show-and-tell)
 saying what (a joint, a tilt, a length; which model) helps decide what to
-build next. Bugs go to [issues](https://github.com/8rulerstar/poseaudit/issues).
+build next. Bugs go to [issues](https://github.com/8rulerstar/poseaudit/issues);
+[CONTRIBUTING.md](https://github.com/8rulerstar/poseaudit/blob/main/CONTRIBUTING.md)
+says what to put in one, and how to set up, test and propose a change.
 
 ## License and data
 
