@@ -12,6 +12,11 @@ from poseaudit import _files
 from poseaudit.cli import _say_if_slow
 
 DEMO = Path(__file__).parents[1] / "examples" / "coco_elbow"
+# the demo data is in the repository, not in the sdist: tests that read it
+# skip there rather than fail
+needs_demo = pytest.mark.skipif(
+    not (DEMO / "gt_200.json").exists(), reason="demo data is not in this checkout"
+)
 
 
 def test_an_interrupted_write_leaves_the_old_file_and_no_temporary(
@@ -45,6 +50,7 @@ def test_text_is_written_through_a_temporary_then_moved(tmp_path, monkeypatch) -
     assert (tmp_path / "a.csv").read_bytes() == b"x,y\n"
 
 
+@needs_demo
 @pytest.mark.parametrize("call", ["markdown", "csv"])
 def test_result_files_go_through_the_atomic_writer(tmp_path, monkeypatch, call) -> None:
     from poseaudit import audit, pair
@@ -72,6 +78,7 @@ def test_result_files_go_through_the_atomic_writer(tmp_path, monkeypatch, call) 
     assert not path.exists()
 
 
+@needs_demo
 def test_parallel_runs_on_one_output_each_leave_a_whole_file(tmp_path) -> None:
     out = tmp_path / "same.json"
     command = [
@@ -116,6 +123,7 @@ def test_a_long_run_is_announced(capsys) -> None:
     assert capsys.readouterr().err == ""
 
 
+@needs_demo
 @pytest.mark.parametrize("name", ["plot.png", "plot.SVG", "plot"])
 def test_a_plot_keeps_its_format_through_the_temporary(tmp_path, name) -> None:
     pytest.importorskip("matplotlib")

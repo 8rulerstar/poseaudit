@@ -8,6 +8,11 @@ from poseaudit.cli import main
 from poseaudit.measures import angle
 
 DEMO = Path(__file__).parent.parent / "examples" / "coco_elbow"
+# the demo data is in the repository, not in the sdist: tests that read it
+# skip there rather than fail
+needs_demo = pytest.mark.skipif(
+    not (DEMO / "gt_200.json").exists(), reason="demo data is not in this checkout"
+)
 
 
 @pytest.mark.parametrize(
@@ -31,6 +36,7 @@ def test_angle_of_huge_coordinates_stays_finite() -> None:
     assert out[:2] == pytest.approx([90.0, 90.0]) and np.isnan(out[2])
 
 
+@needs_demo
 def test_a_repeated_warning_prints_once(tmp_path, capsys) -> None:
     gt = json.loads((DEMO / "gt_200.json").read_text(encoding="utf-8"))
     for a in gt["annotations"]:

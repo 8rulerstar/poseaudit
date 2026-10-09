@@ -10,6 +10,11 @@ from poseaudit.measures import length, ratio
 from poseaudit.types import Instance
 
 DEMO = Path(__file__).parent.parent / "examples" / "coco_elbow"
+# the demo data is in the repository, not in the sdist: tests that read it
+# skip there rather than fail
+needs_demo = pytest.mark.skipif(
+    not (DEMO / "gt_200.json").exists(), reason="demo data is not in this checkout"
+)
 
 
 def test_length_and_ratio_of_huge_coordinates_stay_finite() -> None:
@@ -19,6 +24,7 @@ def test_length_and_ratio_of_huge_coordinates_stay_finite() -> None:
         assert ratio(0, 1, 2, 3).read(k) == pytest.approx(0.5)
 
 
+@needs_demo
 @pytest.mark.parametrize("field", ["id", "file_name"])
 def test_a_repeated_image_is_refused(tmp_path, field) -> None:
     gt = json.loads((DEMO / "gt_200.json").read_text(encoding="utf-8"))

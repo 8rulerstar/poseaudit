@@ -15,6 +15,11 @@ from poseaudit.io.coco import load_coco
 from poseaudit.measures import Angle, Length, Ratio, Tilt
 
 DEMO = Path(__file__).parents[1] / "examples" / "coco_elbow"
+# the demo data is in the repository, not in the sdist: tests that read it
+# skip there rather than fail
+needs_demo = pytest.mark.skipif(
+    not (DEMO / "gt_200.json").exists(), reason="demo data is not in this checkout"
+)
 
 MEASURES = [
     Angle("a", (5, 7, 9), "deg"),
@@ -100,6 +105,7 @@ def test_the_faster_readers_give_the_same_numbers(measure) -> None:
     assert np.array_equal(measure.read_many(points), before, equal_nan=True)
 
 
+@needs_demo
 def test_python_dash_m_runs_the_command(tmp_path) -> None:
     out = tmp_path / "r.json"
     done = subprocess.run(
@@ -131,6 +137,7 @@ def _with_crowds(tmp_path, category=1) -> Path:
     return path
 
 
+@needs_demo
 def test_crowd_regions_left_out_are_counted(tmp_path) -> None:
     path = _with_crowds(tmp_path)
     with warnings.catch_warnings(record=True) as caught:
@@ -144,6 +151,7 @@ def test_crowd_regions_left_out_are_counted(tmp_path) -> None:
     )
 
 
+@needs_demo
 def test_crowd_regions_of_another_class_are_not_counted(tmp_path) -> None:
     path = _with_crowds(tmp_path, category=99)
     with warnings.catch_warnings(record=True) as caught:
@@ -152,6 +160,7 @@ def test_crowd_regions_of_another_class_are_not_counted(tmp_path) -> None:
     assert not any("crowd" in str(w.message) for w in caught)
 
 
+@needs_demo
 def test_no_crowd_no_note() -> None:
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
