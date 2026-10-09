@@ -20,10 +20,11 @@ labels and from your model and reports the difference.
 The mean |error| itself is one line of numpy. The work is around it:
 
 - **Who was skipped.** Keep only `yolo11n-pose` detections scored 0.7 or more
-  and its mean elbow error drops from 19.48° to 17.32°. On the 254 people both
-  settings read, the difference is -0.06° [-0.20 to +0.00]. The model did not
-  get better. It dropped 68 people it read worse. poseaudit counts what was not read
-  and compares models only on what both read.
+  and its mean elbow error drops from 19.48° to 17.32°. The 254 people both
+  settings read were read the same but for one, and the difference is
+  -0.06° [-0.20 to +0.00]. The model did not get better. It dropped 68 people
+  it read worse. poseaudit counts what was not read and compares models only
+  on what both read.
 - **Where it goes wrong.** On the demo, 58% of elbows are off by 15° or more
   when the arm segments average under 30 px, against 26% above 60 px. The
   overall bias is +2.3°.
@@ -89,7 +90,9 @@ arms. It had a bias of +2.3° (95% CI -1.2 to +6.2) with limits of agreement of
 (95% CI 17.1 to 22.1), ICC(A,1) 0.76 (95% CI 0.68 to 0.83), and 43% (95% CI 38
 to 49%) of readings off by 15° or more. Intervals are percentile bootstraps
 over images (Davison and Hinkley 1997); limits of agreement follow Bland and
-Altman (1999); ICC(A,1) follows McGraw and Wong (1996)." The full references
+Altman (1999); ICC(A,1) follows McGraw and Wong (1996); the interval of the
+share of large errors spans both the bootstrap interval and Wilson's score
+interval (Wilson 1927)." The full references
 are in [docs/statistics.md](https://github.com/8rulerstar/poseaudit/blob/main/docs/statistics.md#references).
 
 Frames of one video are not independent. Name the subject or clip with

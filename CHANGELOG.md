@@ -2,6 +2,56 @@
 
 ## Unreleased
 
+- The `--plot` figure is drawn for print. It is 7 inches wide with 12 point
+  text at 300 dpi, so shrunk to one 3.5 inch column of a two-column paper its
+  text is still 6 points; until now it was 10 inches wide with 8 point legends,
+  under 3 points at that width. Its colours are Okabe and Ito's, and every
+  line also differs in dash pattern: the line of equality and the fitted line
+  were both solid and nearly the same gray when printed in black and white.
+  The bias and the limits carry their values and unit at the right of the
+  Bland-Altman panel, the fitted slope its interval, one legend sits under
+  both panels, and the axes read "predicted minus truth" and share their
+  range. Many readings are drawn fainter, and as an image inside an SVG or
+  PDF above 5,000. PDFs keep their text as TrueType. The style applies to the
+  figure only: your matplotlib settings are left alone.
+- Under 10 readings the plot no longer draws percentile limits; the summary
+  and the JSON give none there, since they are only the smallest and largest
+  errors.
+- The report has a Summary and a How to read this heading, and the numbers in
+  its tables are right-aligned. Its pointer to "Which way you sort decides the
+  story" named a README section that has moved; it now links to
+  docs/statistics.md.
+- `poseaudit --help` says what the tool does. `poseaudit audit --help` uses
+  short placeholders (`--image-size W H`, not `W [H ...]`), says which options
+  are required, gives every default, an example comparing two models, and
+  that `--plot` writes PNG, SVG or PDF by the file's extension.
+- The crowd-region warning said a prediction on a crowd region always counts
+  as unmatched. It is paired with a labelled person when its box overlaps
+  them by `--min-iou`, and the warning now says so. The warning about
+  unmatched truths beside unmatched predictions, which suggests a lower
+  `--min-iou`, adds that this pairs crowd members and other unlabelled people
+  with the wrong person.
+- A COCO person written with `"keypoints": null` and `num_keypoints` 0 is left
+  out again, as in 0.1.4, instead of stopping the load.
+- `--min-in-frame` (and `min_in_frame` with `relative_to`) must be 2 or more.
+  At 1 an image's only reading had no others to be read against, and the run
+  failed with "SVD did not converge".
+- The warning about tilts near horizontal names the ICC, CCC and r too:
+  readings either side of the wrap count as far apart, which makes them look
+  far too good. The errors are not affected.
+- Comparing models, each difference counts the shared readings the two models
+  read differently (`n_differing`, a new column in the comparison CSV and in
+  the JSON rows), and a warning says when fewer than 20 differ: the paired
+  intervals rest on those alone. In the demo's score-filter comparison one of
+  254 does; the README and docs/python.md now say so.
+- README: the paper text says the interval of the share of large errors spans
+  both the bootstrap interval and Wilson's score interval. The demo notebook
+  links into docs/statistics.md instead of README sections that moved, and
+  its saved outputs come from this version.
+- The README figures are drawn by the new plot code, and
+  `docs/social-preview.png` (1280 x 640, with an SVG) is a plain card for the
+  repository's social preview. `examples/coco_elbow/figures.py` makes all
+  three from the demo data.
 - The jitter reference rebuilds faster with the same numbers: each object's
   frames are computed once and taken by row in every resample, and the
   rebuilt points are read without being laid out first. Lengths and ratios
@@ -23,9 +73,11 @@
 - Before a long run (pairs times resamples of 10 million or more) the CLI
   says on stderr that it can take several minutes and names the flags that
   make it faster; until now it printed nothing until done.
-- Upgrading from 0.1.4, a few figures in the JSON can differ in their last
-  digit or two (around 1e-15 relative) from summing in a different order; no
-  figure changes at the precision printed.
+- Upgrading from 0.1.4, measures are computed in a slightly different order of
+  floating-point steps, so the readings in the CSV and a few dozen figures in
+  the JSON can differ in their last two or three digits, up to about 1e-13
+  relative (the demo's median error moves from 0.5241505123347991 to
+  0.5241505123348205). No figure changes at the precision printed.
 
 - A COCO person whose `num_keypoints` says 0 but whose points are flagged
   as labelled is kept; only a person with no labelled point is left out.

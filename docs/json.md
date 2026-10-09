@@ -17,7 +17,8 @@ the JSON is as above, unchanged. Comparing models, it is `{"poseaudit",
 "schema", "settings", "models": {name: [one entry per measure]},
 "differences": [...], "warnings": [...]}`, the differences being the rows of
 `Comparison.table()`, which `--csv` writes, and the warnings those about
-paired intervals (too few shared images, or none).
+paired intervals (too few shared images, or none, or too few shared readings
+read differently: `n_differing` counts those) and the loaders' warnings.
 
 The command exits 0 on success (warnings included); 1 on bad input or
 settings, a failed write, or nothing read (the JSON and CSV are still
@@ -41,4 +42,4 @@ if not ok:
 
 `--resamples` and `--jitter-repeats` trade precision for speed: 50,000
 readings took about four and a half minutes for each measure at the
-defaults on one desktop, and well under a minute with `--jitter-repeats 0`.
+defaults on one desktop, and just under a minute with `--jitter-repeats 0`.

@@ -172,7 +172,7 @@ angle) and set the reference too low.
 | repeated limits | bias ± 1.96 √(between + within variance) (Bland and Altman 2007) |
 | ICC(A,1) | two-way, absolute agreement, single rating (McGraw and Wong 1996); matches pingouin; its interval is the bootstrap, not the F interval |
 | CCC | Lin's concordance correlation (Lin 1989) |
-| intervals | percentile bootstrap over clusters (Davison and Hinkley 1997); a rate's interval is the wider of that and Wilson's score interval (Wilson 1927), and Wilson's alone when every cluster holds one reading and for rates per size band; a figure undefined in more than 2.5% of resamples (a slope or ICC when a draw repeats one of two images) has no interval |
+| intervals | percentile bootstrap over clusters (Davison and Hinkley 1997); a rate's interval spans both that and Wilson's score interval (Wilson 1927), and Wilson's alone when every cluster holds one reading and for rates per size band; a figure undefined in more than 2.5% of resamples (a slope or ICC when a draw repeats one of two images) has no interval |
 
 The Theil-Sen slope uses every pair of readings up to about 1,000 readings and
 500,000 random pairs above that.

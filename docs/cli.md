@@ -16,6 +16,13 @@ poseaudit audit --format coco --gt annotations.json --pred results.json \
 large. `report.md` explains every line of the summary. `poseaudit audit --help`
 lists every option with examples.
 
+`--plot` draws predicted against true values and a Bland-Altman plot, 7 inches
+wide with 12 point text at 300 dpi: the full width of a two-column paper, or
+one 3.5 inch column with its text at 6 points. The format follows the
+extension (`.png`, `.svg`, `.pdf`). The colours stay apart for colour-blind
+readers, and every line differs in dash pattern too, so a grayscale print
+still matches each line to the legend.
+
 ## Every statistic: --full
 
 `--full` adds the jitter reference and every agreement statistic. They are
@@ -167,7 +174,11 @@ is no directed angle (0 to 360) and no fixed axis other than vertical yet;
 COCO annotations with no labelled keypoint (`num_keypoints` 0) and crowd
 regions are skipped as they load, so they appear in no count. A warning
 gives the number of crowd regions left out: a prediction on one has no
-truth to pair with and counts among the unmatched predictions.
+truth of its own and counts among the unmatched predictions, unless its box
+overlaps a labelled person by `--min-iou`, when it is paired with that person
+and read as their error. On crowd-heavy data, read the warning about
+unmatched truths beside unmatched predictions with this in mind: a lower
+`--min-iou` would pair crowd members with the wrong person.
 
 - **Bad values.** NaN or infinite coordinates, scores or boxes stop the load
   with the file and the row.
