@@ -7,7 +7,9 @@ command on one line, or end each line with a backtick instead.
 ## On your own files
 
 ```bash
-poseaudit audit --format coco --gt annotations.json --pred results.json     --min-conf 0.5 --angle 5,7,9 --big-error 15 --size-bands 30,60     --report report.md --plot panels.png --csv readings.csv
+poseaudit audit --format coco --gt annotations.json --pred results.json \
+    --min-conf 0.5 --angle 5,7,9 --big-error 15 --size-bands 30,60 \
+    --report report.md --plot panels.png --csv readings.csv
 ```
 
 `--big-error` is required: the error, in the measure's unit, that counts as
