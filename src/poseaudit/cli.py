@@ -255,8 +255,11 @@ def _check_values(args) -> None:
         raise UsageError("--noise-ratio must be above 0")
     if args.image_size and min(args.image_size) <= 0:
         raise UsageError("--image-size takes a width and height above 0")
-    if args.min_in_frame < 1:
-        raise UsageError("--min-in-frame must be 1 or more")
+    if args.min_in_frame < 2:
+        raise UsageError(
+            "--min-in-frame must be 2 or more: each reading is read against the "
+            "others in its image"
+        )
     if args.resamples < 50 or args.jitter_repeats < 0:
         raise UsageError(
             "--resamples must be 50 or more (an interval from fewer is a guess), "
@@ -287,8 +290,19 @@ examples:
 
   frames of one video resampled together (image names such as clip3_f0041):
     poseaudit audit ... --cluster "^(clip\\d+)_"
+
+  two models compared on the readings both made, named for the output:
+    poseaudit audit ... --pred small=res_s.json --pred large=res_l.json
+
+more: https://github.com/8rulerstar/poseaudit (README and docs/cli.md)
 """  # noqa: E501
 
+
+AUDIT = """\
+Read measures off labelled and predicted keypoints, pair the people image by
+image, and report how far apart the readings are. Required: --gt, --pred, a
+format, at least one measure, and --big-error.
+"""
 
 SIZE_FORMS = "--image-size takes W H or WxH"
 
@@ -305,6 +319,15 @@ class _ImageSize(argparse.Action):
         setattr(namespace, self.dest, [int(w) for w in words])
 
 
+class _Help(argparse.RawDescriptionHelpFormatter):
+    """--image-size reads W H rather than argparse's W [H ...]."""
+
+    def _format_args(self, action, default_metavar) -> str:
+        if action.dest == "image_size":
+            return "W H"
+        return super()._format_args(action, default_metavar)
+
+
 class _Parser(argparse.ArgumentParser):
     def error(self, message: str) -> NoReturn:
         # before Python 3.13 argparse reads a word such as -1x5 as an option, so
@@ -315,21 +338,33 @@ class _Parser(argparse.ArgumentParser):
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = _Parser(prog="poseaudit")
+    parser = _Parser(
+        prog="poseaudit",
+        description="How far off are the joint angles, tilts and lengths read "
+        "from a pose model? Judged against labels, the way a measuring "
+        "instrument is judged.",
+        epilog="poseaudit audit --help lists every option, with examples.",
+    )
     parser.add_argument("--version", action="version", version=__version__)
-    sub = parser.add_subparsers(dest="command", required=True)
+    sub = parser.add_subparsers(
+        dest="command", required=True, title="commands", metavar="COMMAND"
+    )
     run = sub.add_parser(
         "audit",
         help="how far measures read off predicted keypoints are from the truth",
+        description=AUDIT,
         epilog=EXAMPLES,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=_Help,
     )
     data = run.add_argument_group("data")
-    data.add_argument("--gt", required=True, help="YOLO label folder or COCO json")
+    data.add_argument(
+        "--gt", required=True, metavar="PATH", help="YOLO label folder or COCO json"
+    )
     data.add_argument(
         "--pred",
         required=True,
         action="append",
+        metavar="PATH",
         help="YOLO folder or COCO results json; to compare models, repeat it as "
         "--pred NAME=PATH",
     )
@@ -349,20 +384,30 @@ def _parser() -> argparse.ArgumentParser:
         metavar=("W", "H"),
         help="image width then height in pixels, as W H or WxH (YOLO)",
     )
-    data.add_argument("--images", help="image folder, to read each YOLO image's size")
-    data.add_argument("--keypoints", type=int, help="keypoints per instance (YOLO)")
     data.add_argument(
-        "--classes", type=int, nargs="+", help="class ids to keep, on both sides"
+        "--images", metavar="DIR", help="image folder, to read each YOLO image's size"
+    )
+    data.add_argument(
+        "--keypoints", type=int, metavar="K", help="keypoints per instance (YOLO)"
+    )
+    data.add_argument(
+        "--classes",
+        type=int,
+        nargs="+",
+        metavar="ID",
+        help="class ids to keep, on both sides",
     )
     data.add_argument(
         "--min-conf",
         type=float,
+        metavar="C",
         default=0.0,
         help="a predicted point counts as seen above this confidence (default 0)",
     )
     data.add_argument(
         "--min-score",
         type=float,
+        metavar="S",
         default=0.0,
         help="drop predicted detections scored below this (default 0): matching "
         "ignores scores",
@@ -370,12 +415,14 @@ def _parser() -> argparse.ArgumentParser:
     data.add_argument(
         "--min-iou",
         type=float,
+        metavar="IOU",
         default=0.3,
         help="smallest box IoU that pairs a prediction with a truth (default 0.3)",
     )
     data.add_argument(
         "--min-similarity",
         type=float,
+        metavar="OKS",
         default=0.5,
         help="smallest keypoint similarity that pairs them when a side has no box "
         "(default 0.5)",
@@ -402,6 +449,7 @@ def _parser() -> argparse.ArgumentParser:
     what.add_argument(
         "--min-in-frame",
         type=int,
+        metavar="N",
         default=3,
         help="with --relative-to: fewest readings an image needs (default 3)",
     )
@@ -410,11 +458,14 @@ def _parser() -> argparse.ArgumentParser:
         "--big-error",
         type=float,
         required=True,
-        help="an error at least this large counts as large (unit of the measure)",
+        metavar="E",
+        help="required: an error at least this large counts as large, in the "
+        "measure's unit",
     )
     how.add_argument(
         "--bands",
         default="4",
+        metavar="N|EDGES",
         help="a count, or comma-separated edges such as -90,-7,0,7,90",
     )
     how.add_argument(
@@ -431,12 +482,16 @@ def _parser() -> argparse.ArgumentParser:
         help="group readings by the first capture group of the image name",
     )
     how.add_argument(
-        "--size-bands", default="3", help="a count, or pixel edges such as 30,60"
+        "--size-bands",
+        default="3",
+        metavar="N|EDGES",
+        help="a count, or pixel edges such as 30,60",
     )
     how.add_argument(
         "--threshold",
         type=float,
         nargs="+",
+        metavar="T",
         default=[],
         help="decision thresholds applied to the truth",
     )
@@ -444,6 +499,7 @@ def _parser() -> argparse.ArgumentParser:
         "--pred-threshold",
         type=float,
         nargs="+",
+        metavar="T",
         default=[],
         help="also hold the prediction to these thresholds",
     )
@@ -456,6 +512,7 @@ def _parser() -> argparse.ArgumentParser:
     how.add_argument(
         "--noise-ratio",
         type=float,
+        metavar="R",
         help="variance of prediction noise over variance of label noise; adds a "
         "Deming slope",
     )
@@ -465,27 +522,42 @@ def _parser() -> argparse.ArgumentParser:
         help="allow readings of several classes in one audit",
     )
     how.add_argument(
-        "--seed", type=int, default=0, help="seed for resampling and rebuilds"
+        "--seed",
+        type=int,
+        default=0,
+        metavar="N",
+        help="seed for resampling and rebuilds (default 0)",
     )
     how.add_argument(
         "--resamples",
         type=int,
+        metavar="N",
         default=2000,
         help="bootstrap resamples for the intervals (default 2000; fewer is faster)",
     )
     how.add_argument(
         "--jitter-repeats",
         type=int,
+        metavar="N",
         default=500,
         help="rebuilds for the jitter reference (default 500; 0 turns it off)",
     )
     out = run.add_argument_group("output")
-    out.add_argument("--report", help="markdown report")
     out.add_argument(
-        "--csv", help="one row per reading; comparing models, one per difference"
+        "--report", metavar="FILE", help="markdown report that explains every line"
     )
-    out.add_argument("--json", help="every figure")
-    out.add_argument("--plot", help="PNG with two panels (needs matplotlib)")
+    out.add_argument(
+        "--csv",
+        metavar="FILE",
+        help="one row per reading; comparing models, one per difference",
+    )
+    out.add_argument("--json", metavar="FILE", help="every figure")
+    out.add_argument(
+        "--plot",
+        metavar="FILE",
+        help="the two panels, as PNG, SVG or PDF by the file's extension "
+        "(needs matplotlib)",
+    )
     out.add_argument(
         "--full", action="store_true", help="every statistic in the summary"
     )

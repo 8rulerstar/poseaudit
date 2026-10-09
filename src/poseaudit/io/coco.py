@@ -39,7 +39,8 @@ def _annotation_file(path: str | Path) -> dict:
 def load_coco(annotations: str | Path, classes: Iterable[int] | None = None) -> Dataset:
     """Crowd regions and people with no labelled keypoint are left out; a
     warning counts the crowd regions, since a prediction on one then counts
-    as unmatched. `classes` keeps only those category ids."""
+    as unmatched, or is paired with a labelled person its box overlaps.
+    `classes` keeps only those category ids."""
     data = _annotation_file(annotations)
     wanted = _wanted(classes)
     seen: set = set()
@@ -66,11 +67,14 @@ def load_coco(annotations: str | Path, classes: Iterable[int] | None = None) -> 
         dataset[_name(names, ann["image_id"], annotations)].append(instance)
     if crowds:
         regions = (
-            "1 crowd region was" if crowds == 1 else f"{crowds} crowd regions were"
+            "1 crowd region (iscrowd 1) was left out and is"
+            if crowds == 1
+            else f"{crowds} crowd regions (iscrowd 1) were left out and are"
         )
         warnings.warn(
-            f"{annotations}: {regions} (iscrowd 1) left out, in no count; a "
-            "prediction on one counts as an unmatched prediction.",
+            f"{annotations}: {regions} in no count. A prediction on one counts as "
+            "unmatched, unless its box overlaps a labelled person by --min-iou "
+            "(min_iou): then it is paired with that person and read as their error.",
             stacklevel=2,
         )
     _nothing_kept(annotations, wanted, seen)
@@ -201,7 +205,7 @@ def _labelled(ann) -> bool:
     points flagged v > 0 must not drop a labelled person."""
     if ann.get("num_keypoints", 1) != 0:
         return True
-    flags = ann.get("keypoints", [])[2::3]
+    flags = (ann.get("keypoints") or [])[2::3]  # null for no points too
     return any(isinstance(v, (int, float)) and v > 0 for v in flags)
 
 

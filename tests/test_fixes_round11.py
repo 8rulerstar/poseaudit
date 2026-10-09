@@ -137,8 +137,11 @@ def test_crowd_regions_left_out_are_counted(tmp_path) -> None:
         warnings.simplefilter("always")
         load_coco(path)
     texts = [str(w.message) for w in caught]
-    assert any("2 crowd regions were (iscrowd 1) left out" in t for t in texts)
-    assert any("unmatched prediction" in t for t in texts)
+    assert any("2 crowd regions (iscrowd 1) were left out" in t for t in texts)
+    assert any(
+        "counts as unmatched, unless its box overlaps a labelled person" in t
+        for t in texts
+    )
 
 
 def test_crowd_regions_of_another_class_are_not_counted(tmp_path) -> None:

@@ -319,6 +319,11 @@ def audit(
         raise ValueError(f"noise_ratio must be above 0, got {noise_ratio}")
     if relative_abs and relative_to is None:
         raise ValueError("relative_abs needs relative_to")
+    if relative_to is not None and min_in_frame < 2:
+        raise ValueError(
+            f"min_in_frame must be 2 or more, got {min_in_frame}: each reading is "
+            "read against the others in its image"
+        )
     cluster_of = _cluster_function(cluster)
     _check_indices(pairing, measure)
     raw, counts = _read_pairs(pairing, measure)
@@ -439,7 +444,10 @@ def audit(
             "prediction too far off to reach the matching threshold counts as "
             "missed, not as an error, which flatters the figures; "
             + (
-                "for thin parts try a lower --min-iou (min_iou)."
+                "for thin parts try a lower --min-iou (min_iou), unless those "
+                "predictions may be people the labels leave out (crowd regions, "
+                "or people nobody labelled), which a lower threshold pairs with "
+                "the wrong person."
                 if boxed
                 else "without boxes, try a lower --min-similarity "
                 "(min_keypoint_similarity), a factor of ten at a time: the "
@@ -1022,7 +1030,10 @@ def _warnings(result: AuditResult, bands, named_clusters: bool) -> list[str]:
         if near >= 0.1:
             notes.append(
                 f"{near:.0%} of tilts are within 15 degrees of horizontal, where the "
-                "axis wraps from +90 to -90: bands and slopes there are unreliable."
+                "axis wraps from +90 to -90: readings either side of the wrap count "
+                "as far apart, so the bands, slopes, ICC, CCC and r are unreliable "
+                "and can look far too good. The errors are taken the short way "
+                "round and are not affected."
             )
     below, above = result.tail_shares
     if result.n >= 30 and max(below, above) > 0.04:

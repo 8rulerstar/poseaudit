@@ -44,6 +44,13 @@ class Difference:
     big_error_rate_b: float
     big_error_rate_diff: float
     big_error_rate_diff_ci: tuple[float, float]
+    # shared readings the two models read differently: the intervals rest on these
+    n_differing: int | None = None
+
+
+# fewer shared readings read differently than this make the paired intervals
+# rest on a handful of values
+FEW_DIFFERING = 20
 
 
 @dataclass
@@ -126,6 +133,18 @@ def difference_warnings(differences) -> list[str]:
                 f"{who}: the shared readings come from only {d.clusters} images "
                 "or clusters: the paired intervals are too narrow with this few."
             )
+        if d.n_shared and d.n_differing == 0:
+            notes.append(
+                f"{who}: the models read all {d.n_shared} shared readings the "
+                "same, so every difference is 0 and its interval a point."
+            )
+        elif d.n_shared and d.n_differing is not None and d.n_differing < FEW_DIFFERING:
+            rest = "that one" if d.n_differing == 1 else "those"
+            notes.append(
+                f"{who}: the models read only {d.n_differing} of the {d.n_shared} "
+                f"shared readings differently; the paired intervals rest on {rest} "
+                "and can be far too narrow."
+            )
     return notes
 
 
@@ -183,6 +202,7 @@ def _difference(ra, rb, a, b, resamples, seed) -> Difference:
     ea = np.array([abs(left[k].error) for k in shared])
     eb = np.array([abs(right[k].error) for k in shared])
     groups = [left[k].cluster for k in shared]
+    differing = sum(left[k].error != right[k].error for k in shared)
     clusters = len(set(groups))
     big = ra.big_error
     if shared:
@@ -218,6 +238,7 @@ def _difference(ra, rb, a, b, resamples, seed) -> Difference:
         big_error_rate_b=rate_b,
         big_error_rate_diff=rate_a - rate_b,
         big_error_rate_diff_ci=rate_ci,
+        n_differing=int(differing),
     )
 
 

@@ -95,11 +95,12 @@ angle 5,7,9  254  +2.86°  -41.80° to +65.51°  17.32° [14.97 to 19.66]  26.00
 
 measure      a - b                    shared  n a  n b  mean |error| a - b       large-error rate a - b
 angle 5,7,9  score>=0.0 - score>=0.7  254     322  254  -0.06° [-0.20 to +0.00]  +0.0 pt [+0.0 to +0.0]
+  ! angle 5,7,9, score>=0.0 - score>=0.7: the models read only 1 of the 254 shared readings differently; the paired intervals rest on that one and can be far too narrow.
 ```
 
 Dropping detections scored under 0.7 lowers the mean |error| from 19.48° to
-17.32°. On the 254 readings both share, the two differ by -0.06°. The filter
-did not make the elbows more accurate. It removed 68 people that were read
+17.32°. The 254 readings both share are the same but for one, and the two
+differ by -0.06°. The filter did not make the elbows more accurate. It removed 68 people that were read
 worse. A plain mean over each set would call that a 2° improvement.
 
 ## Python API

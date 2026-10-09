@@ -214,8 +214,13 @@ def _full(result: "AuditResult") -> list[str]:
     return lines
 
 
+SORTING = (
+    "https://github.com/8rulerstar/poseaudit/blob/main/docs/statistics.md"
+    "#which-way-you-sort-decides-the-story"
+)
+
 GUIDE = """\
-How to read this:
+## How to read this
 
 - **slope** (pred on truth): the least-squares slope of predicted on true
   values, the proportional bias; 1 is ideal (`gain` in the JSON). It is not
@@ -247,8 +252,8 @@ How to read this:
     Noise that grows with the value or with smaller objects also separates
     the two, so their difference does not by itself measure gross failures.
 - **bias by band**: sorting by the truth puts the truth's extremes in the end
-  bands, where jitter and regression to the mean read as bias; see the
-  README's "Which way you sort decides the story".
+  bands, where jitter and regression to the mean read as bias; see
+  [Which way you sort decides the story]({sorting}).
 - **BA slope**: the slope of the error on the mean of both readings. It compares
   the two spreads, so it reads as compression only when truth and prediction are
   about equally noisy; a noisier prediction pushes it up.
@@ -388,6 +393,8 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
         f"big error >= {result.big_error:g}{u}, bands cut on the {result.band_by}; "
         "the settings are listed at the end.",
         "",
+        "## Summary",
+        "",
         "```",
         summary(result, full=True),
         "```",
@@ -402,6 +409,7 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
             cluster=cluster,
             resamples=result.settings.get("resamples"),
             seed=result.settings.get("seed"),
+            sorting=SORTING,
         )
     )
     lo, hi = result.limits
@@ -411,7 +419,7 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
         "## Limits of agreement",
         "",
         "| limits | lower | 95% CI | upper | 95% CI |",
-        "|---|---|---|---|---|",
+        "|---|---:|---:|---:|---:|",
         _limit_row(
             "percentile 2.5-97.5",
             elo,
@@ -458,7 +466,7 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
         "## Error by size of the measured part",
         "",
         "| size | n | mean abs error | large errors | slope |",
-        "|---|---|---|---|---|",
+        "|---|---:|---:|---:|---:|",
     ]
     spans = _size_labels(result.size_bands, " to ", _size_unit(result))
     for span, sb in zip(spans, result.size_bands, strict=True):
@@ -472,7 +480,7 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
         f"## Error by {result.band_by} value",
         "",
         "| value | n | mean abs error | bias | bias 95% CI |",
-        "|---|---|---|---|---|",
+        "|---|---:|---:|---:|---:|",
     ]
     e = 1 if result.measure.unit else d  # band edges of a ratio need its decimals
     for b in result.bands:
@@ -486,7 +494,7 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
         out += [
             "| truth | prediction | caught | missed | false alarms | agreed clear | "
             "sensitivity | precision |",
-            "|---|---|---|---|---|---|---|---|",
+            "|---|---|---:|---:|---:|---:|---:|---:|",
         ]
         for th in result.thresholds:
             pred = f"{th.predicted_threshold:.{d}f}{u}" + (
@@ -505,7 +513,7 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
         "## Largest errors",
         "",
         "| image | instance | size | truth | predicted | error |",
-        "|---|---|---|---|---|---|",
+        "|---|---:|---:|---:|---:|---:|",
     ]
     px = _size_unit(result)
     sd = 0 if px else 3  # fractions of the image would all round to 0
