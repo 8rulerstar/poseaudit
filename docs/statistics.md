@@ -164,7 +164,7 @@ angle) and set the reference too low.
 | figure | definition |
 |---|---|
 | slope | least-squares slope of predicted on truth (`gain` in the JSON) |
-| Theil-Sen | Theil-Sen slope (`robust_gain` in the JSON): median of the slopes between pairs of readings |
+| Theil-Sen | Theil-Sen slope (`robust_gain` in the JSON): median of the slopes between pairs of readings (Theil 1950; Sen 1968) |
 | vs jitter | median slope over 500 rebuilds (see [The jitter reference](#the-jitter-reference)); the gap's interval averages 10 rebuilds per resample; p(slope <= jitter) = (1 + rebuilds with a slope at or below the model's) / 501 |
 | BA slope | slope of the error on the mean of both readings (Bland and Altman 1999) |
 | Deming | slope of predicted on truth with a known ratio of noise variances (Deming 1943; Linnet 1993); the ratio is prediction over label |

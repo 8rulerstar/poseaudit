@@ -64,13 +64,19 @@ def test_the_paper_recipe_quotes_the_demo(tmp_path, capsys, monkeypatch) -> None
     printed(capsys, monkeypatch, "--json", str(tmp_path / "f.json"))
     d = json.loads((tmp_path / "f.json").read_text(encoding="utf-8"))
     (low, high), (blo, bhi) = d["percentile_limits"], d["bias_ci"]
+    mlo, mhi = d["mean_abs_error_ci"]
+    ilo, ihi = d["icc_ci"]
+    rlo, rhi = d["big_error_rate_ci"]
     sentence = (
-        f"bias of {d['bias']:+.1f}° (95% CI {blo:.1f} to {bhi:+.1f}) with limits "
-        f"of agreement\nof {low:.1f}° to {high:+.1f}° (2.5th to 97.5th "
-        f"percentiles), a mean absolute error of\n{d['mean_abs_error']:.1f}°, "
-        f"ICC(A,1) {d['icc']:.2f}, and {d['big_error_rate']:.0%} of readings off"
+        f"read on {d['n']} of {d['measurable']} labelled arms. It had a bias of "
+        f"{d['bias']:+.1f}° (95% CI {blo:.1f} to {bhi:+.1f}) with limits of "
+        f"agreement of {low:.1f}° to {high:+.1f}° (2.5th to 97.5th percentiles), "
+        f"a mean absolute error of {d['mean_abs_error']:.1f}° (95% CI {mlo:.1f} "
+        f"to {mhi:.1f}), ICC(A,1) {d['icc']:.2f} (95% CI {ilo:.2f} to "
+        f"{ihi:.2f}), and {d['big_error_rate']:.0%} (95% CI {rlo * 100:.0f} to "
+        f"{rhi:.0%}) of readings off"
     )
-    assert sentence in readme
+    assert sentence in " ".join(readme.split())
     assert d["mean_abs_error_ci"][1] <= 25 and d["big_error_rate_ci"][1] <= 0.5
 
 

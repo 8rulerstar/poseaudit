@@ -81,11 +81,16 @@ poseaudit audit --format coco --gt gt.json --pred res.json --angle 5,7,9 \
     --big-error 15 --full --json figures.json --report report.md
 ```
 
-Report the bias with its limits of agreement, the mean absolute error, ICC and
-the large-error rate, each with its interval. For the demo: "Against COCO's
-labels, the elbow angle had a bias of +2.3° (95% CI -1.2 to +6.2) with limits of agreement
-of -50.9° to +80.0° (2.5th to 97.5th percentiles), a mean absolute error of
-19.5°, ICC(A,1) 0.76, and 43% of readings off by 15° or more."
+Report how many were read, the bias with its limits of agreement, the mean
+absolute error, ICC and the large-error rate, each with its interval. For the
+demo: "Against COCO's labels, the elbow angle was read on 322 of 380 labelled
+arms. It had a bias of +2.3° (95% CI -1.2 to +6.2) with limits of agreement of
+-50.9° to +80.0° (2.5th to 97.5th percentiles), a mean absolute error of 19.5°
+(95% CI 17.1 to 22.1), ICC(A,1) 0.76 (95% CI 0.68 to 0.83), and 43% (95% CI 38
+to 49%) of readings off by 15° or more. Intervals are percentile bootstraps
+over images (Davison and Hinkley 1997); limits of agreement follow Bland and
+Altman (1999); ICC(A,1) follows McGraw and Wong (1996)." The full references
+are in [docs/statistics.md](https://github.com/8rulerstar/poseaudit/blob/main/docs/statistics.md#references).
 
 Frames of one video are not independent. Name the subject or clip with
 `--cluster`, or the intervals come out far too narrow
