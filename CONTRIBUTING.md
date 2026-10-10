@@ -1,7 +1,8 @@
 # Contributing
 
 Thank you for helping. poseaudit is small, so a short issue or pull request
-is welcome.
+is welcome. Everyone taking part follows the
+[code of conduct](CODE_OF_CONDUCT.md).
 
 ## Ask a question or show what you measured
 

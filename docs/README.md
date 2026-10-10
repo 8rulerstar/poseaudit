@@ -27,5 +27,6 @@ Without Matplotlib or Pillow, `--plot` and `--images` stop with the line to
 run, before any slow work.
 
 Elsewhere: [CHANGELOG.md](../CHANGELOG.md),
-[CONTRIBUTING.md](../CONTRIBUTING.md), and the
+[CONTRIBUTING.md](../CONTRIBUTING.md),
+[CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md), and the
 [demo notebook](../examples/poseaudit_demo.ipynb).

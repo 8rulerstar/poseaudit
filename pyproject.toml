@@ -1,12 +1,12 @@
 [project]
 name = "poseaudit"
 version = "0.2.0"
-description = "Audit a pose model used as a measuring instrument: how wrong are the angles, tilts and lengths it reads off keypoints?"
+description = "Audit a pose model as a measuring instrument: how far off are the angles, tilts and lengths it reads, against keypoint labels, motion capture or a goniometer?"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [{ name = "8rulerstar" }]
-keywords = ["pose estimation", "keypoints", "evaluation", "measurement", "computer vision"]
+keywords = ["pose estimation", "keypoints", "evaluation", "measurement", "computer vision", "biomechanics", "markerless motion capture", "Bland-Altman", "agreement", "OpenSim"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -19,6 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Image Recognition",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
     "Typing :: Typed",
 ]
 dependencies = ["numpy>=1.23"]
@@ -63,4 +64,4 @@ select = ["E", "F", "I", "B", "UP"]
 "*.ipynb" = ["E402", "E501", "I001"]
 
 [tool.hatch.build.targets.sdist]
-include = ["/src/poseaudit", "/tests", "/README.md", "/docs/*.md", "/LICENSE", "/CHANGELOG.md", "/CITATION.cff"]
+include = ["/src/poseaudit", "/tests", "/README.md", "/docs/*.md", "/LICENSE", "/CHANGELOG.md", "/CITATION.cff", "/CONTRIBUTING.md", "/CODE_OF_CONDUCT.md"]

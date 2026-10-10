@@ -50,6 +50,9 @@
   otherwise, such as a Sports2D `right knee` with OpenSim's `knee_angle_r`.
   Predicted frames outside the reference's time span are left out with a
   warning that counts them, instead of silently.
+- `CODE_OF_CONDUCT.md` (the Contributor Covenant 2.1), and a note in
+  docs/python.md on what stays stable before 1.0: the names in
+  `poseaudit.__all__`, their fields and the JSON keys under `schema` 1.
 - `examples/paired`: a synthetic long CSV and a pair of `.mot` files, made
   by its `make_data.py`, for the docs' examples.
 
@@ -66,6 +69,8 @@
 - With one reading per subject, the summary and report leave out the
   table per subject; with one subject, there are no limits for repeated
   readings (they were the normal limits under another name).
+- The package description and keywords name motion capture, goniometers,
+  biomechanics and Bland-Altman agreement, not keypoints alone.
 - A table cut to fit the terminal stops one column short of its width, as
   other lines do, so that Windows does not wrap it.
 - The jitter reference is marked experimental: `--full` prints it last,

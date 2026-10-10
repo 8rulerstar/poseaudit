@@ -10,8 +10,8 @@ differences fall), ICC (agreement, 1 at best) and how often it is off by too muc
 
 **Joint angles already computed** (Pose2Sim, Sports2D, OpenSim, your own code) against motion
 capture or a goniometer? `poseaudit paired --table angles.csv --big-error 5` reads a long CSV
-(`subject, trial, frame, measure, pred, ref, unit`), and `--pred-mot`/`--ref-mot` read OpenSim
-`.mot` files, with intervals by subject ([paired values](https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#paired-values)).
+(`subject, trial, frame, measure, pred, ref, unit`; `--column ref=Goniometer` for other
+names), and `--pred-mot`/`--ref-mot` read OpenSim `.mot` files, with intervals by subject ([paired values](https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#paired-values)).
 
 ![poseaudit run on the demo data in a terminal, and the summary it prints](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/demo.gif)
 
@@ -46,7 +46,7 @@ from the images (Pillow), and `[supervision]` adds `pa.from_supervision`.
 ## Quick start
 
 ```bash
-git clone https://github.com/8rulerstar/poseaudit   # for the demo data, which pip leaves out
+git clone https://github.com/8rulerstar/poseaudit   # the demo data (or GitHub's Code > Download ZIP)
 cd poseaudit/examples/coco_elbow
 poseaudit audit --format coco --gt gt_200.json --pred pred_yolo11n.json --angle 5,7,9 --big-error 15 --size-bands 30,60
 ```

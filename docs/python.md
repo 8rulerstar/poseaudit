@@ -247,3 +247,14 @@ worse. A plain mean over each set would call that a 2° improvement.
   one machine to another: [json.md](json.md#what-the-outputs-reveal). Which
   name a figure has in the summary, the JSON and here:
   [json.md](json.md#names).
+
+### What stays stable
+
+poseaudit is before 1.0. The names in `poseaudit.__all__`, the fields of
+the classes they return and the JSON keys under `schema` 1 are the public
+interface: a renamed one keeps its old name as an alias (as
+`empirical_limits` did for `percentile_limits`) and the change is listed in
+the [CHANGELOG](../CHANGELOG.md). Names that start with `_`, the wording of
+the summary and the report, and the layout of the printed tables may change
+in any release; read figures from the JSON or the result's fields, not from
+the printed text.
