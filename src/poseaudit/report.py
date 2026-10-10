@@ -116,6 +116,28 @@ def _normal_fits(result: "AuditResult") -> bool:
 
 
 def summary(result: "AuditResult", full: bool = False) -> str:
+    text = _summary(result, full)
+    return _as_reference(text) if paired(result) else text
+
+
+_REFERENCE = (
+    (re.compile(r"\bthe truth's\b"), "the reference's"),
+    (re.compile(r"\btrue(\s+)values\b"), r"reference\1values"),
+    (re.compile(r"\b(the|on|by) truth\b"), r"\1 reference"),
+    (re.compile(r"\btruth and prediction\b"), "reference and prediction"),
+    (re.compile(r"\bpred on truth\b"), "pred on reference"),
+)
+
+
+def _as_reference(text: str) -> str:
+    """Paired values are compared with a reference (motion capture, a
+    goniometer), not a ground truth: the prose says so."""
+    for pattern, word in _REFERENCE:
+        text = pattern.sub(word, text)
+    return text
+
+
+def _summary(result: "AuditResult", full: bool = False) -> str:
     u = _unit(result)
     d = _digits(result)
     r = result.not_read
@@ -478,6 +500,11 @@ def _settings(result: "AuditResult") -> list[str]:
 
 
 def markdown(result: "AuditResult", worst: int = 10) -> str:
+    text = _markdown(result, worst)
+    return _as_reference(text) if paired(result) else text
+
+
+def _markdown(result: "AuditResult", worst: int = 10) -> str:
     u = _unit(result)
     d = _digits(result)
     out = [f"# poseaudit {__version__}: {_what(result)}", ""]

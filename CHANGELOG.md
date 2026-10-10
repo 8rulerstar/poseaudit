@@ -66,6 +66,9 @@
 - The normal limits are printed from 3 readings up (were 30), so a small
   goniometer study sees bias +/- 1.96 SD beside the percentile limits.
 - The table of several measures gives the bias with its 95% interval.
+- Paired reports speak of the reference, not the truth (`pred on
+  reference`, `Error by reference value`): motion capture and a goniometer
+  are references with errors of their own.
 - With one reading per subject, the summary and report leave out the
   table per subject; with one subject, there are no limits for repeated
   readings (they were the normal limits under another name).

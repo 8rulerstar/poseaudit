@@ -645,3 +645,13 @@ def test_the_table_of_measures_gives_the_bias_with_its_interval() -> None:
     row = pa.report.table([r, r])
     lo, hi = r.bias_ci
     assert f"{r.bias:+.2f}° [{lo:+.2f} to {hi:+.2f}]" in row
+
+
+def test_paired_reports_speak_of_the_reference_not_the_truth() -> None:
+    (r,) = pa.audit_paired(_long(), big_error=5, resamples=50)
+    text = r.to_markdown() + r.summary(full=True)
+    assert "pred on reference" in text and "## Error by reference value" in text
+    assert "on the truth" not in text and "true values" not in text
+    keypoints = pa.audit_values([1.0, 2.0, 3.0], [1.0, 2.5, 3.5], 1, resamples=50)
+    keypoints.settings["input"] = "keypoints"
+    assert "pred on truth" in keypoints.summary()
