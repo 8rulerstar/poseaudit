@@ -170,7 +170,7 @@ failures, and a gross failure can also be a label on the wrong limb.
 
 ## The jitter reference
 
-Each rebuilt arm takes all its point shifts from one arm with a similar true
+This check is **experimental** ([below](#experimental)). Each rebuilt arm takes all its point shifts from one arm with a similar true
 angle (one of up to six equal-count groups; possibly itself), scaled to its
 own size. Shifts are expressed along and across each point's own segment, and
 mirrored for arms that bend the other way, so an error along the limb stays
@@ -179,6 +179,52 @@ group shares is removed first, because that shared shift is the tendency
 being tested. Drawing each point from a different arm instead would break the
 correlation within an arm (a whole limb shifting at once barely changes its
 angle) and set the reference too low.
+
+## Repeated measures and angles
+
+Frames of one trial, and trials of one subject, are not independent. With
+subjects (the `subject` column of paired values, or `--cluster` for
+keypoints) every interval is a percentile bootstrap that draws whole
+subjects, and the limits of agreement for repeated readings add the
+between- and within-subject variances (Bland and Altman 2007; a subject
+drawn twice in a resample counts as two). The report and the JSON also give
+each subject's n, bias, SD, mean |error| and RMSE (`by_subject`), and for
+paired values each subject's trials (`by_trial`): a pooled bias near 0 can
+hide subjects off by several degrees either way. Nested resampling (trials
+within subjects) is not done; the subject is the unit.
+
+Every comparison of two angles goes the short way round the circle: a
+tilt's axis wraps at +/-90 (89° against -89° is 2° off), a paired value in
+degrees at +/-180 (179° against -179° is 2° off) and in radians at +/-pi,
+and the reference of a .mot file is unwrapped before it is interpolated.
+The slopes, ICC and CCC take the prediction as reference plus error, so a
+reading either side of the wrap is not 360° from its reference. An interior
+angle (`angle(a, b, c)`, 0 to 180°) cannot wrap. `--no-wrap` (`wrap=False`)
+turns wrapping off for paired values.
+
+## Limits of agreement and their intervals
+
+The limits' intervals are percentile bootstraps over clusters (images,
+named clusters or subjects), valid however the readings are grouped. When
+every reading is its own cluster (one per image, one per subject), the
+normal limits also get exact parametric intervals (Carkeet 2015): the upper
+limit estimates mu + 1.96 sigma, and (mu + 1.96 sigma - mean) / (SD /
+sqrt(n)) follows a noncentral t with n - 1 degrees of freedom and
+noncentrality 1.96 sqrt(n), so its 2.5th and 97.5th percentiles bound it;
+the lower limit is the mirror image. They assume independent, normally
+distributed differences, so with repeated readings they are left out and
+the report says why. They are computed with NumPy alone and agree with
+`scipy.stats.nct` to about 1e-9.
+
+## Experimental
+
+The jitter reference (`vs jitter`, `gain_gap`, `jitter_p`) is a new method,
+checked by simulation only ([limitations](#limitations)). `--full` prints it
+under `experimental, still being validated`, apart from the core figures;
+the report marks it so, and the JSON lists its keys under `experimental`.
+The core figures are the counts, bias, limits of agreement, |error|, RMSE,
+the large-error rate, the slopes (least squares, Theil-Sen, Bland-Altman and
+Deming), ICC(A,1) and CCC, all standard methods.
 
 ## Statistics used
 
@@ -191,9 +237,25 @@ angle) and set the reference too low.
 | Deming | slope of predicted on truth with a known ratio of noise variances (Deming 1943; Linnet 1993); the ratio is prediction over label |
 | limits | 2.5th and 97.5th percentiles of the error; normal limits are bias ± 1.96 SD (Bland and Altman 1986) |
 | repeated limits | bias ± 1.96 √(between + within variance) (Bland and Altman 2007) |
+| exact limit intervals | noncentral t quantiles, for independent readings only (Carkeet 2015) |
+| by subject, by trial | n, mean error (bias), SD (n - 1), mean \|error\| and RMSE of each subject's (or trial's) errors |
 | ICC(A,1) | two-way, absolute agreement, single rating (McGraw and Wong 1996); matches pingouin; its interval is the bootstrap, not the F interval |
 | CCC | Lin's concordance correlation (Lin 1989) |
 | intervals | percentile bootstrap over clusters (Davison and Hinkley 1997); a rate's interval spans both that and Wilson's score interval (Wilson 1927), and Wilson's alone when every cluster holds one reading and for rates per size band; a figure undefined in more than 2.5% of resamples (a slope or ICC when a draw repeats one of two images) has no interval |
+
+### Checked against published values
+
+The test suite (`tests/test_paired.py`) reproduces:
+
+- **ICC(A,1)** on Shrout and Fleiss's (1979) six targets rated by four
+  judges: 0.2898, their ICC(2,1) of .29 (their mean square for targets,
+  11.24, too). With pingouin installed it also matches
+  `pingouin.intraclass_corr`'s ICC2.
+- **Bland-Altman** on the peak expiratory flow data of Bland and Altman
+  (1986): mean difference -2.1 l/min, SD 38.8, and their limits of -79.7 to
+  75.5 at 2 SD.
+- **Exact limit intervals** against `scipy.stats.nct` when SciPy is
+  installed, and their coverage by simulation (about 95%).
 
 The Theil-Sen slope uses every pair of readings up to about 1,000 readings and
 500,000 random pairs above that, leaving out pairs with the same true value.
@@ -213,6 +275,7 @@ a reading either side of the +90 to -90 wrap is not 180° away; the CSV's
 - Bland JM, Altman DG (1986). Statistical methods for assessing agreement between two methods of clinical measurement. *Lancet* 327(8476):307-310.
 - Bland JM, Altman DG (1999). Measuring agreement in method comparison studies. *Statistical Methods in Medical Research* 8(2):135-160.
 - Bland JM, Altman DG (2007). Agreement between methods of measurement with multiple observations per individual. *Journal of Biopharmaceutical Statistics* 17(4):571-582.
+- Carkeet A (2015). Exact parametric confidence intervals for Bland-Altman limits of agreement. *Optometry and Vision Science* 92(3):e71-e80.
 - Davison AC, Hinkley DV (1997). *Bootstrap Methods and their Application*. Cambridge University Press.
 - Deming WE (1943). *Statistical Adjustment of Data*. Wiley.
 - Kanko RM, Laende EK, Davis EM, Selbie WS, Deluzio KJ (2021). Concurrent assessment of gait kinematics using marker-based and markerless motion capture. *Journal of Biomechanics* 127:110665.
@@ -222,6 +285,7 @@ a reading either side of the +90 to -90 wrap is not 180° away; the CSV's
 - Nakano N, Sakura T, Ueda K, et al. (2020). Evaluation of 3D markerless motion capture accuracy using OpenPose with multiple video cameras. *Frontiers in Sports and Active Living* 2:50.
 - Ronchi MR, Perona P (2017). Benchmarking and error diagnosis in multi-instance pose estimation. *ICCV*, 369-378.
 - Sen PK (1968). Estimates of the regression coefficient based on Kendall's tau. *Journal of the American Statistical Association* 63(324):1379-1389.
+- Shrout PE, Fleiss JL (1979). Intraclass correlations: uses in assessing rater reliability. *Psychological Bulletin* 86(2):420-428.
 - Theil H (1950). A rank-invariant method of linear and polynomial regression analysis. *Indagationes Mathematicae* 12:85-91.
 - Wilson EB (1927). Probable inference, the law of succession, and statistical inference. *Journal of the American Statistical Association* 22(158):209-212.
 
@@ -233,9 +297,10 @@ a reading either side of the +90 to -90 wrap is not 180° away; the CSV's
   al. 2020, Kanko et al. 2021) answer the question against a better
   reference; Ronchi and Perona (2017) break keypoint errors into jitter,
   inversion, swap and miss, which `poseaudit` does not.
-- Every reading counts once: frames pooled from a few trials inflate ICC and
-  CCC, and there is no per-trial or per-subject summary (peak angle, range of
-  motion) yet.
+- Readings are pooled across frames: with subjects named, the intervals
+  resample whole subjects and each subject and trial is summarised, but the
+  pooled ICC and CCC still mix between- and within-subject spread, and there
+  is no summary of the curve itself (peak angle, range of motion) yet.
 - Tilts near horizontal wrap from +90 to -90; the report warns when many are
   close.
 - The jitter reference is new, not a published method, and was checked by
@@ -256,13 +321,16 @@ a reading either side of the +90 to -90 wrap is not 180° away; the CSV's
   object's own frames. The p and the interval can disagree near the edge.
 - Matching is greedy and ignores scores (filter them first with `--min-score`);
   in dense crowds an optimal assignment may pair differently.
-- One level of clusters, no time series.
+- One level of clusters (the subject); trials are summarised, not resampled
+  within subjects. Frames are compared value by value, with no account of a
+  time lag between the two systems beyond a fixed `--time-offset`.
 
 ## Roadmap
 
 - a label-noise reference beside the jitter one (from annotator spread or
   repeated labels)
 - left-right swap detection
-- auditing angles given directly (filtered or from inverse kinematics)
+- curve summaries for paired values (peak, range of motion), and finding the
+  time lag between two systems
 - directed angles (0 to 360), signed joint angles, a chosen reference axis
-- regression-based limits of agreement; per-subject summaries
+- regression-based limits of agreement; nested resampling of trials

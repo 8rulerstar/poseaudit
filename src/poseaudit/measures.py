@@ -41,6 +41,10 @@ class Measure:
         when the order does not change the reading."""
         return (type(self).__name__, self.points)
 
+    def title(self) -> str:
+        """The measure's name and its keypoints, as reports head it."""
+        return f"{self.name} {self.points}" if self.points else self.name
+
     def read(self, keypoints: np.ndarray) -> float:
         raise NotImplementedError
 
@@ -177,6 +181,39 @@ class Ratio(Measure):
         with np.errstate(invalid="ignore", divide="ignore"):
             out = np.hypot(*(b - a).T) / denominator
         return np.where(denominator == 0, np.nan, out)
+
+
+@dataclass(frozen=True)
+class Quantity(Measure):
+    """A value measured elsewhere and given as it is, such as a joint angle
+    from OpenSim or a goniometer: nothing is read off keypoints. With a
+    `period` (360 for degrees) differences are taken the short way round, so
+    179 against -179 is 2 apart."""
+
+    period: float | None = None
+
+    def key(self) -> tuple:
+        return (type(self).__name__, self.name)
+
+    def read(self, keypoints: np.ndarray) -> float:
+        raise TypeError(f"{self.name} is given as values, not read off keypoints")
+
+    def difference(self, predicted: float, truth: float) -> float:
+        if self.period is None:
+            return predicted - truth
+        return float(_wrap(predicted - truth, self.period))
+
+    def middle(self, truth: float, predicted: float) -> float:
+        value = super().middle(truth, predicted)
+        return value if self.period is None else float(_wrap(value, self.period))
+
+    def shift(self, value: float, by: float) -> float:
+        return self.difference(value, by)
+
+
+def _wrap(value: float, period: float) -> float:
+    half = period / 2
+    return (value + half) % period - half
 
 
 def _floats(keypoints) -> np.ndarray:

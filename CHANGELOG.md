@@ -1,5 +1,56 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Paired values, for joint angles already computed (Pose2Sim, Sports2D,
+  OpenSim, your own code) against motion capture or a goniometer: no
+  keypoints and no matching. `poseaudit paired --table angles.csv` reads a
+  long-format CSV with `pred` and `ref` and optionally `measure`, `subject`,
+  `trial`, `frame` (or `time`) and `unit`; in Python `pa.audit_paired` takes
+  the same as a CSV path, a pandas DataFrame or a dict of columns, and
+  `pa.audit_values(pred, ref, ...)` takes two arrays. The summary, tables,
+  JSON, CSV (`subject, trial, frame, ref, pred, error, mean`), report and
+  plot are those of `audit`. A missing reference value is not counted; a
+  missing prediction is counted as not read.
+- OpenSim `.mot` files: `--pred-mot` and `--ref-mot` (with `--subject` and
+  `--trial`), or `--mot-pairs` for a CSV listing several; `pa.load_mot` and
+  `pa.pair_mot` in Python. Columns are matched by name and frames by time:
+  the reference is interpolated at the prediction's times inside its span,
+  angles unwrapped first, and `--time-offset` moves the prediction onto the
+  reference's clock. `_tx`, `_ty`, `_tz` columns are metres; the others
+  degrees, or radians with `inDegrees=no`.
+- Repeated measures: with subjects (paired values) or named clusters
+  (`--cluster`), every interval resamples whole subjects, the limits for
+  repeated readings are given, and `by_subject` (and for paired values with
+  trials `by_trial`) summarises each subject's and trial's n, bias, SD,
+  mean |error| and RMSE, in the summary, the report and the JSON. Without a
+  subject, paired values warn that every row counts as independent.
+- Angle wrapping wherever two angles are compared: paired values in degrees
+  wrap at +/-180 (179 against -179 is 2 apart) and in radians at +/-pi, as
+  tilts already wrapped at +/-90; `--no-wrap` (`wrap=False`) turns it off.
+  A measure given with no unit is warned about.
+- Exact parametric intervals for the normal limits of agreement (Carkeet
+  2015, from the noncentral t, computed with NumPy alone) when every reading
+  is its own cluster, beside the cluster bootstrap intervals, which `--full`
+  now prints too (`limit CIs`). JSON: `lower_limit_exact_ci`,
+  `upper_limit_exact_ci`.
+- Tests that reproduce published values: ICC(A,1) on Shrout and Fleiss's
+  (1979) example (.29; against pingouin too when it is installed) and the
+  Bland-Altman example of Bland and Altman (1986) (mean difference -2.1,
+  SD 38.8, limits -79.7 to 75.5 at 2 SD); the exact intervals against
+  `scipy.stats.nct` and by simulated coverage.
+- `examples/paired`: a synthetic long CSV and a pair of `.mot` files, made
+  by its `make_data.py`, for the docs' examples.
+
+### Changed
+
+- The jitter reference is marked experimental: `--full` prints it last,
+  under `experimental, still being validated`, the report says so, and the
+  JSON lists its keys under `experimental`.
+- Units other than degrees and pixels print after the figures (`0.05 m`).
+
 ## 0.2.0
 
 ### Added

@@ -103,8 +103,11 @@ def _figure(result: "AuditResult") -> "Figure":
     t = np.array([r.truth for r in result.readings])
     e = np.array([r.error for r in result.readings])
     p = t + e
-    unit = {"deg": "°", "px": " px"}.get(result.measure.unit, "")
-    in_unit = {"deg": " (°)", "px": " (px)"}.get(result.measure.unit, "")
+    given = result.measure.unit
+    unit = {"deg": "°", "px": " px"}.get(given, f" {given}" if given else "")
+    in_unit = {"deg": " (°)"}.get(given, f" ({given})" if given else "")
+    given_pairs = result.settings.get("input") == "paired"
+    true, truth = ("reference", "reference") if given_pairs else ("true", "truth")
     d = 1 if result.measure.unit else _digits(result)
     name = result.measure.name
 
@@ -113,7 +116,7 @@ def _figure(result: "AuditResult") -> "Figure":
     left, right = fig.add_subplot(grid[0, 0]), fig.add_subplot(grid[0, 1])
     readings = "reading" if result.n == 1 else "readings"
     fig.suptitle(
-        f"{name} {result.measure.points}: {result.n:,} {readings}", fontweight="bold"
+        f"{result.measure.title()}: {result.n:,} {readings}", fontweight="bold"
     )
     low, high = _span(np.concatenate([t, p]))
     dots = _dots(result.n)
@@ -121,7 +124,7 @@ def _figure(result: "AuditResult") -> "Figure":
     left.set_title("predicted against truth")
     left.plot(
         [low, high], [low, high], color=INK, lw=1.2, ls=DASHED, zorder=2,
-        label="predicted = truth",
+        label=f"predicted = {truth}",
     )  # fmt: skip
     left.scatter(t, p, **dots)
     if np.isfinite(result.gain):
@@ -135,7 +138,7 @@ def _figure(result: "AuditResult") -> "Figure":
     left.set(
         xlim=(low, high),
         ylim=(low, high),
-        xlabel=f"true {name}{in_unit}",
+        xlabel=f"{true} {name}{in_unit}",
         ylabel=f"predicted {name}{in_unit}",
     )
 
@@ -157,8 +160,8 @@ def _figure(result: "AuditResult") -> "Figure":
         shown += [lo, hi]
     right.set(
         xlim=(low, high),
-        xlabel=f"mean of truth and prediction{in_unit}",
-        ylabel=f"predicted minus truth{in_unit}",
+        xlabel=f"mean of {truth} and prediction{in_unit}",
+        ylabel=f"predicted minus {truth}{in_unit}",
     )
     for ax in (left, right):
         _finish(ax, result.measure.unit)

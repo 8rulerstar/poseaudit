@@ -9,16 +9,17 @@ from poseaudit.cli import main
 
 SINGLE_KEYS = [
     "ba_slope", "ba_slope_ci", "band_by", "bands", "bias", "bias_ci", "big_error",
-    "big_error_rate", "big_error_rate_ci", "ccc", "ccc_ci", "clusters", "deming",
-    "deming_ci", "empirical_limits", "empirical_lower_ci", "empirical_upper_ci",
-    "gain", "gain_ci", "gain_gap", "gain_gap_ci", "icc", "icc_ci", "jitter_gain",
-    "jitter_gain_range", "jitter_p", "limits", "limits_coverage", "lower_limit_ci",
-    "mean_abs_error", "mean_abs_error_ci", "measurable", "measure",
-    "median_abs_error", "median_error", "n", "not_read", "offset", "p95_abs_error",
-    "pearson", "percentile_limits", "poseaudit", "repeated_limits",
+    "big_error_rate", "big_error_rate_ci", "by_subject", "by_trial", "ccc",
+    "ccc_ci", "clusters", "deming", "deming_ci", "empirical_limits",
+    "empirical_lower_ci", "empirical_upper_ci", "experimental", "gain", "gain_ci",
+    "gain_gap", "gain_gap_ci", "icc", "icc_ci", "jitter_gain", "jitter_gain_range",
+    "jitter_p", "limits", "limits_coverage", "lower_limit_ci",
+    "lower_limit_exact_ci", "mean_abs_error", "mean_abs_error_ci", "measurable",
+    "measure", "median_abs_error", "median_error", "n", "not_read", "offset",
+    "p95_abs_error", "pearson", "percentile_limits", "poseaudit", "repeated_limits",
     "repeated_lower_ci", "repeated_upper_ci", "rmse", "rmse_ci", "robust_gain",
     "schema", "settings", "size_bands", "tail_shares", "thresholds",
-    "upper_limit_ci", "warnings",
+    "upper_limit_ci", "upper_limit_exact_ci", "warnings",
 ]  # fmt: skip
 
 

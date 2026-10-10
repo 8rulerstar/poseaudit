@@ -81,7 +81,7 @@ def big_error_for(measure: Measure, big_error: "float | Mapping[str, float]") ->
         found = [big_error[key] for key in (kind, measure.unit) if key in big_error]
         if not found:
             raise ValueError(
-                f"big_error gives no value for {measure.name} {measure.points}: "
+                f"big_error gives no value for {measure.title()}: "
                 f"add {kind!r} to it, as in {BIG_ERROR_MAPPING}"
             )
         value = found[0]
@@ -113,6 +113,23 @@ class Reading:
     predicted: float
     error: float  # signed, predicted minus truth
     mean: float  # halfway between truth and predicted
+    trial: str | None = None  # paired values: the trial within the subject
+    frame: float | None = None  # paired values: the frame or time, if given
+
+
+@dataclass(frozen=True)
+class GroupSummary:
+    """The errors of one subject (or named cluster), or of one trial of a
+    subject: `trial` is None for a subject's summary. `sd` is NaN for a
+    single reading."""
+
+    subject: str
+    trial: str | None
+    n: int
+    bias: float
+    sd: float
+    mean_abs_error: float
+    rmse: float
 
 
 @dataclass(frozen=True)
@@ -167,8 +184,15 @@ class AuditResult:
     - `slope` (`gain`): least-squares slope of predicted on truth, 1 ideal;
       `theil_sen` (`robust_gain`): the same, barely moved by gross failures.
     - `icc` (ICC(A,1)), `ccc`, `pearson`: agreement, 1 at best.
-    - `jitter_gain`, `gain_gap`, `jitter_p`: the slope that keypoint jitter
-      alone gives, the gap to it, and the one-sided p of the gap.
+    - `lower_limit_ci`, `upper_limit_ci`: cluster bootstrap intervals for the
+      normal limits; `lower_limit_exact_ci`, `upper_limit_exact_ci`: exact
+      parametric ones (Carkeet 2015), only when every reading is its own
+      cluster, since they assume independent readings.
+    - `by_subject`, `by_trial`: the errors summarised per subject (or named
+      cluster) and per trial of a subject.
+    - experimental (`EXPERIMENTAL`): `jitter_gain`, `gain_gap`, `jitter_p`:
+      the slope that keypoint jitter alone gives, the gap to it, and the
+      one-sided p of the gap.
     - `size_bands`, `bands`, `thresholds`: by object size, by level, and
       decision rates; `readings`: one per pair, `worst()` the largest errors.
     - `warnings`, `settings`.
@@ -193,6 +217,8 @@ class AuditResult:
     limits: Interval = NAN
     lower_limit_ci: Interval = NAN
     upper_limit_ci: Interval = NAN
+    lower_limit_exact_ci: Interval = NAN
+    upper_limit_exact_ci: Interval = NAN
     limits_coverage: float = float("nan")  # share of errors inside `limits`
     tail_shares: Interval = NAN  # share of errors below and above `limits`
     empirical_limits: Interval = NAN
@@ -223,6 +249,8 @@ class AuditResult:
     bands: list[Band] = field(default_factory=list)
     size_bands: list[SizeBand] = field(default_factory=list)
     thresholds: list[ThresholdAgreement] = field(default_factory=list)
+    by_subject: list[GroupSummary] = field(default_factory=list)
+    by_trial: list[GroupSummary] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     settings: dict = field(default_factory=dict)
 
@@ -265,7 +293,7 @@ class AuditResult:
         thousands of characters for a few hundred readings."""
         m = self.measure
         unit = f" {m.unit}" if m.unit else ""
-        head = f"<AuditResult {m.name} {m.points}: read {self.n} of {self.measurable}"
+        head = f"<AuditResult {m.title()}: read {self.n} of {self.measurable}"
         if self.n == 0:
             return head + ">"
         return (
@@ -334,7 +362,19 @@ class AuditResult:
         out["percentile_limits"] = out["empirical_limits"]
         out["n"] = self.n
         out["measurable"] = self.measurable
+        out["experimental"] = list(EXPERIMENTAL)
         return out
+
+
+# figures still being validated: reported apart from the core ones, and
+# listed under "experimental" in the JSON
+EXPERIMENTAL = (
+    "jitter_gain",
+    "jitter_gain_range",
+    "jitter_p",
+    "gain_gap",
+    "gain_gap_ci",
+)
 
 
 def _written(text: str, path: str | None) -> str:
@@ -511,24 +551,20 @@ def audit(
             f"Only {_count(len(raw), 'reading')} for the jitter reference. "
             + FEW_FOR_JITTER
         )
-    _fill(result, bands, size_bands, noise_ratio, resamples, seed, jitter)
-    # images (by default) or named clusters holding several readings are
-    # resampled whole: Wilson would treat every reading as independent
-    grouped = result.clusters < result.n
-    _decide(result, thresholds, side, predicted_thresholds, grouped)
-    if result.clusters < 2:  # nothing to resample, and Wilson would treat the
-        result.big_error_rate_ci = NAN  # readings as independent
-    elif grouped:
-        large = np.array([abs(r.error) >= result.big_error for r in readings])
-        low, high = clustered_bootstrap(
-            [r.cluster for r in readings],
-            lambda idx: np.array([large[idx].mean()]),
-            resamples=resamples,
-            seed=seed,
-        )
-        result.big_error_rate_ci = _wider(
-            result.big_error_rate_ci, (float(low[0]), float(high[0]))
-        )
+    score(
+        result,
+        bands,
+        size_bands,
+        noise_ratio,
+        resamples,
+        seed,
+        jitter,
+        thresholds,
+        side,
+        predicted_thresholds,
+    )
+    if cluster is not None:
+        result.by_subject = groups(readings)
     big = round(result.big_error_rate * result.n)
     if beside >= 3 and (beside >= 0.1 * big or beside >= 0.05 * result.measurable):
         result.warnings.append(
@@ -572,6 +608,66 @@ def audit(
             result.jitter_p = None
     result.warnings += _warnings(result, bands, cluster is not None)
     return result
+
+
+def score(
+    result: AuditResult,
+    bands,
+    size_bands,
+    noise_ratio,
+    resamples: int,
+    seed: int,
+    jitter,
+    thresholds: Sequence[float],
+    side: Side,
+    predicted_thresholds: Sequence[float],
+) -> None:
+    """Every figure of `result` from its readings, however they were made:
+    from keypoints by `audit`, or given as paired values. `size_bands` None
+    leaves out the bands by size, for readings with no size."""
+    readings = result.readings
+    _fill(result, bands, size_bands, noise_ratio, resamples, seed, jitter)
+    # images (by default) or named clusters holding several readings are
+    # resampled whole: Wilson would treat every reading as independent
+    grouped = result.clusters < result.n
+    _decide(result, thresholds, side, predicted_thresholds, grouped)
+    if result.clusters < 2:  # nothing to resample, and Wilson would treat the
+        result.big_error_rate_ci = NAN  # readings as independent
+    elif grouped:
+        large = np.array([abs(r.error) >= result.big_error for r in readings])
+        low, high = clustered_bootstrap(
+            [r.cluster for r in readings],
+            lambda idx: np.array([large[idx].mean()]),
+            resamples=resamples,
+            seed=seed,
+        )
+        result.big_error_rate_ci = _wider(
+            result.big_error_rate_ci, (float(low[0]), float(high[0]))
+        )
+
+
+def groups(readings: Sequence[Reading], by_trial: bool = False) -> list[GroupSummary]:
+    """The errors summarised per cluster (a subject), or with `by_trial` per
+    trial of a subject, in the order they first appear."""
+    members: dict[tuple[str, str | None], list[float]] = {}
+    for r in readings:
+        key = (r.cluster, r.trial if by_trial else None)
+        members.setdefault(key, []).append(r.error)
+    out = []
+    for (subject, trial), errors in members.items():
+        e = np.array(errors)
+        out.append(
+            GroupSummary(
+                subject,
+                trial,
+                len(e),
+                float(e.mean()),
+                float(e.std(ddof=1)) if len(e) > 1 else float("nan"),
+                float(np.abs(e).mean()),
+                float(np.sqrt((e**2).mean())),
+            )
+        )
+    return out
 
 
 def _cluster_function(cluster: Cluster) -> Callable[[str], str]:
@@ -780,6 +876,8 @@ def _fill(result, bands, size_bands, noise_ratio, resamples, seed, jitter) -> No
         result.tail_shares = NAN
     result.empirical_limits = ag.empirical_limits(e)
     repeated = len(np.unique(clusters)) < len(clusters)
+    if not repeated:  # the exact intervals assume independent readings
+        result.lower_limit_exact_ci, result.upper_limit_exact_ci = ag.limits_exact_ci(e)
     if repeated:
         result.repeated_limits = ag.repeated_limits(e, clusters)
     result.gain, result.offset = ag.gain(t, p)
@@ -844,7 +942,10 @@ def _fill(result, bands, size_bands, noise_ratio, resamples, seed, jitter) -> No
         result.gain_gap_ci = ci[14]
     edges = None if isinstance(bands, int) else sorted(bands)
     result.bands = _bands(level, e, band_index, count, ci[15:], edges)
-    result.size_bands = _size_bands(sizes, t, p, e, size_bands, result.big_error)
+    if size_bands is None:  # values given as they are: no part to measure
+        result.size_bands = []
+    else:
+        result.size_bands = _size_bands(sizes, t, p, e, size_bands, result.big_error)
     if result.clusters < 2:  # Wilson's would treat the readings as independent
         result.size_bands = [
             replace(b, big_error_rate_ci=NAN) for b in result.size_bands
@@ -1041,7 +1142,9 @@ def _count(n: int, noun: str) -> str:
     return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
 
 
-def _warnings(result: AuditResult, bands, named_clusters: bool) -> list[str]:
+def _warnings(
+    result: AuditResult, bands, named_clusters: bool, kind: str | None = None
+) -> list[str]:
     notes = []
     rs = result.readings
     if result.n < 30:
@@ -1079,7 +1182,7 @@ def _warnings(result: AuditResult, bands, named_clusters: bool) -> list[str]:
         notes.append(
             f"Only {_count(big, 'large error')}: judge the rate by its interval."
         )
-    kind = "cluster" if named_clusters else "image"
+    kind = kind or ("cluster" if named_clusters else "image")
     if result.clusters < 2:
         notes.append(
             f"Only one {kind}: resampling it gives the same readings every time, "
@@ -1093,9 +1196,14 @@ def _warnings(result: AuditResult, bands, named_clusters: bool) -> list[str]:
     r = result.not_read
     lost = r.missed + r.no_predicted_point + r.unmeasurable
     if result.measurable and lost / result.measurable >= 0.3:
+        what = (
+            "reference values had no prediction"
+            if result.settings.get("input") == "paired"
+            else "labelled instances were not read"
+        )
         notes.append(
-            f"{lost} of {result.measurable} labelled instances were not read: the "
-            "figures describe the ones that were, which are usually easier."
+            f"{lost} of {result.measurable} {what}: the figures describe the ones "
+            "that were, which are usually easier."
         )
     classes = {x.class_id for x in rs if x.class_id is not None}
     if len(classes) > 1:

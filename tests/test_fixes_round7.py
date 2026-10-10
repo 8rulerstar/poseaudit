@@ -40,7 +40,11 @@ def test_renaming_clusters_does_not_change_the_intervals() -> None:
                 resamples=200, jitter_repeats=0)  # fmt: skip
     two = audit(p, angle(0, 1, 2), 5, cluster=lambda n: names[n.split("_")[0]],
                 resamples=200, jitter_repeats=0)  # fmt: skip
-    assert one.to_dict() | {"settings": None} == two.to_dict() | {"settings": None}
+    # the summary per cluster names the clusters; its figures are the same
+    skip = {"settings": None, "by_subject": None}
+    assert one.to_dict() | skip == two.to_dict() | skip
+    figures = [sorted((g.n, g.bias) for g in r.by_subject) for r in (one, two)]
+    assert figures[0] == figures[1]
 
 
 def test_a_regex_string_as_cluster_is_explained() -> None:

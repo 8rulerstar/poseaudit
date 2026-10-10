@@ -13,7 +13,13 @@ if TYPE_CHECKING:
 
 
 def _unit(result: "AuditResult") -> str:
-    return {"deg": "°", "px": " px"}.get(result.measure.unit, "")
+    unit = result.measure.unit
+    return {"deg": "°", "px": " px"}.get(unit, f" {unit}" if unit else "")
+
+
+def paired(result: "AuditResult") -> bool:
+    """Values given as pairs (a table or .mot files), not read off keypoints."""
+    return result.settings.get("input") == "paired"
 
 
 def _digits(result: "AuditResult") -> int:
@@ -64,9 +70,9 @@ def _what(result: "AuditResult") -> str:
     m = result.measure
     rel = result.settings.get("relative_to")
     if not rel:
-        return f"{m.name} {m.points}"
+        return m.title()
     kind = "|value| minus the others' " if result.settings.get("relative_abs") else ""
-    return f"{m.name} {m.points}, relative ({kind}{rel} of the rest of each image)"
+    return f"{m.title()}, relative ({kind}{rel} of the rest of each image)"
 
 
 def _decision(th, u: str, d: int = 2) -> str:
@@ -111,15 +117,25 @@ def summary(result: "AuditResult", full: bool = False) -> str:
     d = _digits(result)
     r = result.not_read
     first = _first(result)
-    lines = [
-        f"{_what(result)}: read {result.n} of {result.measurable} labelled instances",
-        *(f"  ! {w}" for w in first),
-        f"  not read     no matching prediction {r.missed}, prediction lacked a "
-        f"point {r.no_predicted_point}, unmeasurable {r.unmeasurable}"
-        + (f", too few in frame {r.too_few_in_frame}" if r.too_few_in_frame else ""),
-        f"  not counted  {r.unlabelled} with a point unlabelled in the truth, "
-        f"{r.unmatched_predictions} unmatched predictions",
-    ]
+    if paired(result):
+        lines = [
+            f"{_what(result)}: read {result.n} of {result.measurable} reference values",
+            f"  not read     no predicted value {r.no_predicted_point}",
+            f"  not counted  {r.unlabelled} with no reference value",
+        ]
+    else:
+        lines = [
+            f"{_what(result)}: read {result.n} of {result.measurable} labelled "
+            "instances",
+            *(f"  ! {w}" for w in first),
+            f"  not read     no matching prediction {r.missed}, prediction lacked a "
+            f"point {r.no_predicted_point}, unmeasurable {r.unmeasurable}"
+            + (
+                f", too few in frame {r.too_few_in_frame}" if r.too_few_in_frame else ""
+            ),
+            f"  not counted  {r.unlabelled} with a point unlabelled in the truth, "
+            f"{r.unmatched_predictions} unmatched predictions",
+        ]
     rest = [w for w in result.warnings if w not in first]
     if result.n == 0:
         return "\n".join(lines + [f"  ! {w}" for w in rest])
@@ -136,9 +152,22 @@ def summary(result: "AuditResult", full: bool = False) -> str:
         lines.append(
             f"  normal       {_range(lo, hi, f2, u)} (bias +/- 1.96 SD; JSON limits)"
         )
+    if full and np.isfinite(lo):
+        lines.append(
+            f"  limit CIs    lower {_ci(result.lower_limit_ci, f2)}, upper "
+            f"{_ci(result.upper_limit_ci, f2)} (cluster bootstrap)"
+        )
+        if np.isfinite(result.lower_limit_exact_ci[0]):
+            lines.append(
+                f"               lower {_ci(result.lower_limit_exact_ci, f2)}, upper "
+                f"{_ci(result.upper_limit_exact_ci, f2)} (exact, Carkeet 2015)"
+            )
     if result.repeated_limits is not None:  # only with named clusters
         rlo, rhi = result.repeated_limits
-        lines.append(f"  repeated     {_range(rlo, rhi, f2, u)} (clusters)")
+        who = "subjects" if result.settings.get("cluster") == "subject" else "clusters"
+        lines.append(f"  repeated     {_range(rlo, rhi, f2, u)} ({who})")
+    if len(result.by_subject) > 1:
+        lines.append(_by_subject_line(result, f2, u, d))
     lines += [
         f"  |error|      mean {result.mean_abs_error:.{d}f}{u} "
         f"{_ci(result.mean_abs_error_ci, f'.{d}f')}, median "
@@ -171,11 +200,37 @@ def summary(result: "AuditResult", full: bool = False) -> str:
     return "\n".join(lines)
 
 
+def _by_subject_line(result: "AuditResult", f2: str, u: str, d: int) -> str:
+    """How far the subjects (or named clusters) differ from one another."""
+    groups = result.by_subject
+    who = "subjects" if result.settings.get("cluster") == "subject" else "clusters"
+    bias = [g.bias for g in groups]
+    mae = [g.mean_abs_error for g in groups]
+    return (
+        f"  by subject   {len(groups)} {who}: bias {_f(min(bias), f2)}{u} to "
+        f"{_f(max(bias), f2)}{u}, mean |error| {min(mae):.{d}f}{u} to "
+        f"{max(mae):.{d}f}{u}"
+    )
+
+
 def _full(result: "AuditResult") -> list[str]:
-    """The slope against the jitter reference and the other agreement
-    statistics: `summary(full=True)` and `--full`."""
-    lines = []
+    """The other agreement statistics, then the experimental slope against the
+    jitter reference, set apart: `summary(full=True)` and `--full`."""
+    lines = [
+        f"  BA slope     {_f(result.ba_slope, '+.3f')} "
+        f"{_ci(result.ba_slope_ci, '+.3f')}"
+    ]
+    if result.deming is not None:
+        lines.append(
+            f"  Deming       {_f(result.deming, '.3f')} {_ci(result.deming_ci, '.3f')} "
+            f"(noise ratio {result.settings.get('noise_ratio')})"
+        )
+    lines.append(
+        f"  agreement    CCC {_f(result.ccc, '.3f')} {_ci(result.ccc_ci, '.3f')}, "
+        f"r {_f(result.pearson, '.3f')}"
+    )
     if result.jitter_gain is not None:
+        lines.append("  experimental, still being validated:")
         lines.append(
             f"  vs jitter    {_f(result.jitter_gain, '.3f')} from keypoint jitter "
             "alone; gap "
@@ -199,19 +254,6 @@ def _full(result: "AuditResult") -> list[str]:
             "  vs jitter    not computed: a relative reading also moves with the "
             "other parts in the frame"
         )
-    lines.append(
-        f"  BA slope     {_f(result.ba_slope, '+.3f')} "
-        f"{_ci(result.ba_slope_ci, '+.3f')}"
-    )
-    if result.deming is not None:
-        lines.append(
-            f"  Deming       {_f(result.deming, '.3f')} {_ci(result.deming_ci, '.3f')} "
-            f"(noise ratio {result.settings.get('noise_ratio')})"
-        )
-    lines.append(
-        f"  agreement    CCC {_f(result.ccc, '.3f')} {_ci(result.ccc_ci, '.3f')}, "
-        f"r {_f(result.pearson, '.3f')}"
-    )
     return lines
 
 
@@ -228,7 +270,9 @@ GUIDE = """\
   the model's tendency alone:
   - keypoint jitter bends it, since near the ends of a range an error can only
     go one way.
-  - **vs jitter** is the slope on predictions rebuilt from the truth plus this
+  - **vs jitter** (experimental: still being validated, and reported apart
+    from the core figures) is the slope on predictions rebuilt from the truth
+    plus this
     model's displacements from the labels: each object takes all its points'
     shifts from one object with a similar true value (possibly itself), minus
     the shift that such a group shares, carried in each segment's own frame
@@ -260,6 +304,9 @@ GUIDE = """\
   about equally noisy; a noisier prediction pushes it up.
 - **limits**: where 95% of errors fall. The percentile limits assume nothing;
   the normal ones assume a bell-shaped error, which a few gross failures break.
+  Their intervals are cluster bootstraps; when every reading is its own
+  {cluster}, exact parametric intervals for the normal limits (Carkeet 2015)
+  are given too.
 - **ICC(A,1), CCC, r**: agreement between the two readings, 1 at best.
 - Intervals are percentile bootstraps over whole {cluster}s ({resamples}
   resamples, seed {seed}). The overall rate of large errors and the decision
@@ -296,6 +343,13 @@ def _percentile_limits(result: "AuditResult") -> tuple[float, float]:
     return result.empirical_limits
 
 
+def _cluster_word(result: "AuditResult") -> str:
+    """What the bootstrap resamples whole: images, named clusters, subjects
+    or rows."""
+    given = result.settings.get("cluster")
+    return given if given in ("image", "subject", "row") else "cluster"
+
+
 def _limit_row(name, low, high, low_ci, high_ci, u, d=2) -> str:
     if np.isnan(low) or np.isnan(high):
         return f"| {name} | n/a | | n/a | |"
@@ -308,7 +362,9 @@ def _limit_row(name, low, high, low_ci, high_ci, u, d=2) -> str:
 def _amount(value: float, unit: str, fmt: str = "g") -> str:
     """A value and its unit in words: 1 degree, 15 degrees, 2.5 px."""
     text = f"{value:{fmt}}"
-    word = {"deg": "degree" if text == "1" else "degrees", "px": "px"}.get(unit)
+    word = {"deg": "degree" if text == "1" else "degrees", "px": "px"}.get(
+        unit, unit or None
+    )
     return f"{text} {word}" if word else text
 
 
@@ -345,6 +401,13 @@ def _sign(result: "AuditResult") -> str:
             "An error is predicted minus truth: a positive error means the "
             "prediction's |value|, less its image's baseline, is larger."
         )
+    period = getattr(result.measure, "period", None)
+    if period:
+        return (
+            "An error is predicted minus reference, taken the short way round "
+            f"(differences wrap at +/-{period / 2:g}): a positive error means the "
+            "prediction is larger."
+        )
     if isinstance(result.measure, Tilt):
         return (
             "An error is predicted minus truth, taken the short way round: a "
@@ -361,6 +424,10 @@ LABELS = (
     "These figures are agreement with the labels, not error against the true "
     "value: noise in the labels is part of them."
 )
+REFERENCE = (
+    "These figures are agreement with the reference, not error against the "
+    "true value: noise in the reference is part of them."
+)
 
 
 def _lead(result: "AuditResult") -> str:
@@ -369,6 +436,15 @@ def _lead(result: "AuditResult") -> str:
     and which way an error points."""
     m = result.measure
     d = 1 if m.unit else _digits(result)
+    if paired(result):
+        return (
+            f"On average {_subject(result)} is "
+            f"{_amount(result.mean_abs_error, m.unit, f'.{d}f')} off the "
+            f"reference; {_share(result.big_error_rate)} of readings are off by "
+            f"{_amount(result.big_error, m.unit)} or more ({result.n} of "
+            f"{result.measurable} reference values read). {REFERENCE} "
+            f"{_sign(result)}"
+        )
     return (
         f"On average {_subject(result)} is "
         f"{_amount(result.mean_abs_error, m.unit, f'.{d}f')} off the labels; "
@@ -413,16 +489,19 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
     ]
     if result.n == 0:
         return "\n".join(out + _settings(result)) + "\n"
-    cluster = "image" if result.settings.get("cluster") == "image" else "cluster"
-    out.append(
-        GUIDE.format(
-            u=u,
-            cluster=cluster,
-            resamples=result.settings.get("resamples"),
-            seed=result.settings.get("seed"),
-            sorting=SORTING,
-        )
+    cluster = _cluster_word(result)
+    guide = GUIDE.format(
+        u=u,
+        cluster=cluster,
+        resamples=result.settings.get("resamples"),
+        seed=result.settings.get("seed"),
+        sorting=SORTING,
     )
+    if paired(result):  # no keypoints: nothing jitters, and nothing to rebuild
+        start = guide.index("  - keypoint jitter bends it")
+        guide = guide[:start] + guide[guide.index("  - noise in the truth") :]
+        guide = guide.replace("\n  Rates per size band stay Wilson.", "")
+    out.append(guide)
     lo, hi = result.limits
     elo, ehi = _percentile_limits(result)
     below, above = result.tail_shares
@@ -453,6 +532,18 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
             d,
         ),
     ]
+    if np.isfinite(result.lower_limit_exact_ci[0]):
+        out.append(
+            _limit_row(
+                "normal, exact CI (Carkeet)",
+                lo,
+                hi,
+                result.lower_limit_exact_ci,
+                result.upper_limit_exact_ci,
+                u,
+                d,
+            )
+        )
     if result.repeated_limits is not None:
         rlo, rhi = result.repeated_limits
         out.append(
@@ -466,26 +557,42 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
                 d,
             )
         )
+    how = f"The intervals of the limits are percentile bootstraps over whole {cluster}s"
+    if np.isfinite(result.lower_limit_exact_ci[0]):
+        how += (
+            "; the exact ones for the normal limits use the noncentral t "
+            "(Carkeet 2015) and assume independent, normal errors."
+        )
+    else:
+        how += (
+            ". Exact parametric intervals are left out: they assume one reading "
+            f"per {cluster}."
+            if result.clusters < result.n
+            else "."
+        )
+    out += ["", how]
     if np.isfinite(below):
         out += [
             "",
             f"{below:.1%} of errors fall below the normal limits and {above:.1%} "
             "above them (2.5% each for a normal error).",
         ]
-    out += [
-        "",
-        "## Error by size of the measured part",
-        "",
-        "| size | n | mean abs error | large errors | slope |",
-        "|---|---:|---:|---:|---:|",
-    ]
-    spans = _size_labels(result.size_bands, " to ", _size_unit(result))
-    for span, sb in zip(spans, result.size_bands, strict=True):
-        out.append(
-            f"| {span} | {sb.n} | {sb.mean_abs_error:.{d}f}{u} | "
-            f"{sb.big_error_rate:.1%} {_ci(sb.big_error_rate_ci, '.1%')} | "
-            f"{_f(sb.gain, '.3f')} |"
-        )
+    out += _group_tables(result, u, d)
+    if result.size_bands:
+        out += [
+            "",
+            "## Error by size of the measured part",
+            "",
+            "| size | n | mean abs error | large errors | slope |",
+            "|---|---:|---:|---:|---:|",
+        ]
+        spans = _size_labels(result.size_bands, " to ", _size_unit(result))
+        for span, sb in zip(spans, result.size_bands, strict=True):
+            out.append(
+                f"| {span} | {sb.n} | {sb.mean_abs_error:.{d}f}{u} | "
+                f"{sb.big_error_rate:.1%} {_ci(sb.big_error_rate_ci, '.1%')} | "
+                f"{_f(sb.gain, '.3f')} |"
+            )
     out += [
         "",
         f"## Error by {result.band_by} value",
@@ -519,6 +626,22 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
                 f"{th.sensitivity:.1%} {_ci(th.sensitivity_ci, '.1%')} | "
                 f"{th.precision:.1%} {_ci(th.precision_ci, '.1%')} |"
             )
+    if paired(result):
+        out += [
+            "",
+            "## Largest errors",
+            "",
+            "| subject | trial | frame | reference | predicted | error |",
+            "|---|---|---:|---:|---:|---:|",
+        ]
+        for r in result.worst(worst):
+            frame = "" if r.frame is None else f"{r.frame:g}"
+            out.append(
+                f"| {_cell(r.cluster)} | {_cell(r.trial)} | {frame} | "
+                f"{r.truth:.{d}f}{u} | {r.predicted:.{d}f}{u} | {r.error:+.{d}f}{u} |"
+            )
+        out += ["", *_settings(result)]
+        return "\n".join(out) + "\n"
     out += [
         "",
         "## Largest errors",
@@ -537,6 +660,39 @@ def markdown(result: "AuditResult", worst: int = 10) -> str:
     return "\n".join(out) + "\n"
 
 
+def _group_tables(result: "AuditResult", u: str, d: int) -> list[str]:
+    """The errors per subject, and per trial of a subject when trials are
+    given: a subject far off the others shows here, not in the pooled
+    figures."""
+    out: list[str] = []
+    who = "subject" if result.settings.get("cluster") == "subject" else "cluster"
+    for title, rows, trials in (
+        (f"## Error by {who}", result.by_subject, False),
+        (f"## Error by {who} and trial", result.by_trial, True),
+    ):
+        if not rows:
+            continue
+        head = f"| {who} |" + (" trial |" if trials else "")
+        rule = "|---|" + ("---|" if trials else "")
+        out += [
+            "",
+            title,
+            "",
+            head + " n | bias | SD | mean abs error | RMSE |",
+            rule + "---:|---:|---:|---:|---:|",
+        ]
+        for g in rows:
+            lead = f"| {_cell(g.subject)} |" + (
+                f" {_cell(g.trial)} |" if trials else ""
+            )
+            sd = _f(g.sd, f".{d}f") + (u if np.isfinite(g.sd) else "")
+            out.append(
+                f"{lead} {g.n} | {_f(g.bias, f'+.{d}f')}{u} | {sd} | "
+                f"{g.mean_abs_error:.{d}f}{u} | {g.rmse:.{d}f}{u} |"
+            )
+    return out
+
+
 CSV_COLUMNS = [
     "image",
     "truth_index",
@@ -551,20 +707,44 @@ CSV_COLUMNS = [
 ]
 
 
+# paired values: a reading's cluster is its subject, truth its reference
+PAIRED_COLUMNS = {
+    "subject": "cluster",
+    "trial": "trial",
+    "frame": "frame",
+    "ref": "truth",
+    "pred": "predicted",
+    "error": "error",
+    "mean": "mean",
+}
+
+
+def _columns(result: "AuditResult") -> dict[str, str]:
+    """CSV header: the reading's attribute it holds."""
+    if paired(result):
+        return PAIRED_COLUMNS
+    return {c: c for c in CSV_COLUMNS}
+
+
+def _values(r, columns: dict[str, str]) -> list:
+    return ["" if getattr(r, a) is None else getattr(r, a) for a in columns.values()]
+
+
 def csv_rows(result: "AuditResult") -> str:
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
-    writer.writerow(CSV_COLUMNS)
+    columns = _columns(result)
+    writer.writerow(list(columns))
     for r in result.readings:
-        writer.writerow(
-            ["" if getattr(r, c) is None else getattr(r, c) for c in CSV_COLUMNS]
-        )
+        writer.writerow(_values(r, columns))
     return buffer.getvalue()
 
 
 def label(result: "AuditResult") -> str:
     """The measure as given on the command line: angle 5,7,9."""
     m = result.measure
+    if not m.points:
+        return m.name
     return f"{m.name} {','.join(str(p) for p in m.points)}"
 
 
@@ -859,11 +1039,9 @@ def csv_rows_many(results: "list[AuditResult]") -> str:
     """The readings of several measures, each row led by its measure."""
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
-    writer.writerow(["measure", *CSV_COLUMNS])
+    columns = _columns(results[0]) if results else {}
+    writer.writerow(["measure", *columns])
     for result in results:
         for r in result.readings:
-            writer.writerow(
-                [label(result)]
-                + ["" if getattr(r, c) is None else getattr(r, c) for c in CSV_COLUMNS]
-            )
+            writer.writerow([label(result), *_values(r, columns)])
     return buffer.getvalue()

@@ -8,6 +8,11 @@ angle you compute from them is good enough to use. It judges your model against 
 as a scale is validated: bias (the mean offset), limits of agreement (where 95% of the
 differences fall), ICC (agreement, 1 at best) and how often it is off by too much.
 
+**Joint angles already computed** (Pose2Sim, Sports2D, OpenSim, your own code) against motion
+capture or a goniometer? `poseaudit paired --table angles.csv --big-error 5` reads a long CSV
+(`subject, trial, frame, measure, pred, ref, unit`), and `--pred-mot`/`--ref-mot` read OpenSim
+`.mot` files, with intervals by subject ([paired values](https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#paired-values)).
+
 ![poseaudit run on the demo data in a terminal, and the summary it prints](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/demo.gif)
 
 ## What plain numpy misses
@@ -81,8 +86,8 @@ Resampling is seeded, so reruns agree; one image or `--cluster` group gives `nul
 
 - The figures are agreement with one human label, not error against the world ([demo](https://github.com/8rulerstar/poseaudit/blob/main/docs/statistics.md#reading-the-demo)).
 - 2D angles read off an image are not 3D joint angles.
-- Every reading counts once; there is no per-subject summary yet.
-- The jitter check in `--full` assumes labels much cleaner than the model.
+- Name the subject (`subject` column, `--cluster`), or every frame counts as independent.
+- The jitter check in `--full` is experimental and assumes labels much cleaner than the model.
 
 ## What is new versus OKS, PCK and pycocotools
 

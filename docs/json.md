@@ -12,6 +12,14 @@ loading, are in `warnings`. `--csv` writes one row per reading:
 `image, truth_index, predicted_index, class_id, cluster, size, truth,
 predicted, error, mean`. Same inputs and seed, same bytes.
 
+For paired values (`poseaudit paired`, `audit_paired`) the CSV's columns
+are `subject, trial, frame, ref, pred, error, mean`, and `settings.input` is
+`paired`. With subjects the JSON adds `by_subject` and `by_trial`, one entry
+each of `subject, trial, n, bias, sd, mean_abs_error, rmse` (`trial` null in
+`by_subject`); keypoint audits with `--cluster` fill `by_subject` per
+cluster. `experimental` lists the keys whose method is still being validated
+(the jitter reference): read them apart from the core figures.
+
 With several measures the JSON is `{"poseaudit", "schema", "settings",
 "measures": [...]}`, each entry of `measures` what a single measure's JSON
 would be, and the CSV leads each row with a `measure` column. With one measure
@@ -50,13 +58,15 @@ after the flag `--big-error`. The same figure in each:
 | bias, median | `bias`, `bias_ci`, `median_error` | the same | `bias`, `bias_ci_low`, `bias_ci_high` |
 | limits (percentile) | `percentile_limits`, `empirical_lower_ci`, `empirical_upper_ci` | `percentile_limits` | `limits_low`, `limits_high` |
 | normal (bias +/- 1.96 SD) | `limits`, `lower_limit_ci`, `upper_limit_ci` | `limits` | |
+| limit CIs (`--full`): cluster bootstrap, then exact | `lower_limit_ci`, `upper_limit_ci`, `lower_limit_exact_ci`, `upper_limit_exact_ci` | the same | |
+| by subject | `by_subject`, `by_trial` | the same | |
 | \|error\| mean, median, 95th pct | `mean_abs_error`, `mean_abs_error_ci`, `median_abs_error`, `p95_abs_error` | the same | `mean_abs_error`, `mean_abs_error_ci_low`, `mean_abs_error_ci_high` |
 | RMSE | `rmse`, `rmse_ci` | the same | `rmse` |
 | `>= 15°` (in a table of measures that differ in it, `large if` and `large errors`) | `big_error_rate`, `big_error_rate_ci`; the threshold `big_error` | the same | `big_error`, `big_error_rate`, `big_error_rate_ci_low`, `big_error_rate_ci_high` |
 | by size | `size_bands` | `size_bands` | |
 | slope; Theil-Sen | `gain`, `gain_ci`; `robust_gain` | `slope` (also `gain`); `theil_sen` (also `robust_gain`) | `slope` |
 | ICC(A,1) | `icc`, `icc_ci` | the same | `icc` |
-| vs jitter (`--full`) | `jitter_gain`, `gain_gap`, `gain_gap_ci`, `jitter_p` | the same | |
+| vs jitter (`--full`, experimental) | `jitter_gain`, `gain_gap`, `gain_gap_ci`, `jitter_p`; listed in `experimental` | the same | |
 | BA slope (`--full`) | `ba_slope`, `ba_slope_ci` | the same | |
 | Deming (with `--noise-ratio`) | `deming`, `deming_ci` | the same | |
 | agreement: CCC, r (`--full`) | `ccc`, `ccc_ci`, `pearson` | the same | |

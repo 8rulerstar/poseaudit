@@ -3,9 +3,18 @@
 `t` is the reference (ground truth), `p` the prediction, `e = p - t`.
 """
 
+import math
+
 import numpy as np
 
 from poseaudit.confidence import Z95
+
+
+def wrap(difference, period: float):
+    """A difference taken the short way round a circle of `period` (360 for
+    degrees): 179 against -179 is 2 apart, not 358. In [-period/2, period/2)."""
+    half = period / 2
+    return (np.asarray(difference, float) + half) % period - half
 
 
 def gain(t: np.ndarray, p: np.ndarray) -> tuple[float, float]:
@@ -75,9 +84,17 @@ def icc_a1(t: np.ndarray, p: np.ndarray) -> float:
     """ICC(A,1): two-way, absolute agreement, single measurement
     (McGraw and Wong 1996). NaN when the truth does not vary: there is nothing
     to agree on, not an agreement of 0."""
-    y = np.column_stack([t, p])
+    if len(t) < 2 or _flat(t):
+        return float("nan")
+    return icc_a1_table(np.column_stack([t, p]))
+
+
+def icc_a1_table(y: np.ndarray) -> float:
+    """ICC(A,1) of an n targets by k raters table: Shrout and Fleiss's ICC(2,1),
+    McGraw and Wong's ICC(A,1). `icc_a1` is the case of two raters."""
+    y = np.asarray(y, float)
     n, k = y.shape
-    if n < 2 or _flat(t):
+    if n < 2 or k < 2:
         return float("nan")
     grand = y.mean()
     ss_rows = k * ((y.mean(axis=1) - grand) ** 2).sum()
@@ -106,6 +123,89 @@ def limits(e: np.ndarray) -> tuple[float, float]:
         return float("nan"), float("nan")
     half = Z95 * e.std(ddof=1)
     return float(e.mean() - half), float(e.mean() + half)
+
+
+def limits_exact_ci(
+    e: np.ndarray, level: float = 0.95, z: float = Z95
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    """Exact parametric intervals for the lower and upper normal limits,
+    bias -/+ z SD (Carkeet 2015). The upper limit estimates mu + z sigma, and
+    (mu + z sigma - mean) / (SD / sqrt(n)) follows a noncentral t with n - 1
+    degrees of freedom and noncentrality z sqrt(n), so its quantiles give the
+    interval. It assumes independent, normally distributed differences: one
+    reading per subject. NaN under 3 readings or with no spread."""
+    nan = (float("nan"), float("nan"))
+    n = len(e)
+    if n < 3:
+        return nan, nan
+    mean, sd = float(np.mean(e)), float(np.std(e, ddof=1))
+    if not sd > 0:
+        return nan, nan
+    tail = (1.0 - level) / 2.0
+    root = math.sqrt(n)
+    low = nct_ppf(tail, n - 1, z * root) / root
+    high = nct_ppf(1.0 - tail, n - 1, z * root) / root
+    upper = (mean + sd * low, mean + sd * high)
+    lower = (mean - sd * high, mean - sd * low)
+    return lower, upper
+
+
+_ERF = np.frompyfunc(math.erf, 1, 1)
+
+
+def _chi_grid(df: float, points: int = 4001) -> tuple[np.ndarray, np.ndarray]:
+    """sqrt(W / df) for W chi-squared with `df` degrees of freedom, on a grid
+    in log W wide enough to hold all but about e^-35 of the mass, with
+    trapezoid weights that sum to 1."""
+    centre = math.log(df)
+    spread = math.sqrt(2.0 / df)
+    y = np.linspace(
+        centre - 80.0 / df - 12.0 * spread,
+        centre + math.log(1.0 + 12.0 * spread + 80.0 / df),
+        points,
+    )
+    log_density = (
+        (df / 2) * y - np.exp(y) / 2 - (df / 2) * math.log(2.0) - math.lgamma(df / 2)
+    )
+    weights = np.exp(log_density - log_density.max())
+    weights[[0, -1]] /= 2
+    return np.exp(y / 2) / math.sqrt(df), weights / weights.sum()
+
+
+def nct_cdf(x: float, df: float, nc: float) -> float:
+    """P(T <= x) for T noncentral t: (Z + nc) / sqrt(W / df), integrated over
+    W on a grid. NumPy alone; agrees with scipy.stats.nct to about 1e-9."""
+    s, w = _chi_grid(df)
+    return _mixed_normal(x * s - nc, w)
+
+
+def _mixed_normal(z: np.ndarray, weights: np.ndarray) -> float:
+    """The normal CDF at each of `z`, averaged with `weights`."""
+    erf = np.asarray(_ERF(z / math.sqrt(2.0)), float)
+    return float((0.5 * (1.0 + erf)) @ weights)
+
+
+def nct_ppf(q: float, df: float, nc: float) -> float:
+    """The `q` quantile of the noncentral t, by bisection on `nct_cdf`."""
+    s, w = _chi_grid(df)
+
+    def cdf(x: float) -> float:
+        return _mixed_normal(x * s - nc, w)
+
+    low, high = nc - 10.0, nc + 10.0
+    while cdf(low) > q:
+        low = nc - 2 * (nc - low)
+    while cdf(high) < q:
+        high = nc + 2 * (high - nc)
+    for _ in range(200):
+        middle = (low + high) / 2
+        if cdf(middle) < q:
+            low = middle
+        else:
+            high = middle
+        if high - low <= 1e-12 * max(1.0, abs(middle)):
+            break
+    return (low + high) / 2
 
 
 def empirical_limits(e: np.ndarray) -> tuple[float, float]:

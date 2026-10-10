@@ -51,6 +51,47 @@ box = np.array([90.0, 80.0, 520.0, 530.0])  # the detector's x1, y1, x2, y2 in p
 pa.Instance(bbox=box, keypoints=xy_pred, visible=visible_pred)
 ```
 
+## Paired values
+
+Angles already computed, by Pose2Sim, Sports2D, OpenSim or your own code,
+against motion capture or a goniometer: no keypoints, no matching. A
+long-format table goes to `audit_paired`, one result per measure; two arrays
+go to `audit_values`:
+
+```python
+import numpy as np
+import poseaudit as pa
+
+# a pandas DataFrame, a CSV path, or a dict of columns: pred and ref, and
+# optionally measure, subject, trial, frame (or time) and unit
+results = pa.audit_paired("angles.csv", big_error={"deg": 5, "m": 0.02})
+for r in results:
+    print(r.summary())
+    print([(g.subject, round(g.bias, 2)) for g in r.by_subject])
+
+ref = np.array([179.0, -178.0, 90.0, 45.0])
+pred = np.array([-179.0, 179.0, 92.0, 44.0])
+r = pa.audit_values(pred, ref, big_error=5, unit="deg", subject=["a", "a", "b", "b"])
+print([x.error for x in r.readings])  # [2.0, -3.0, 2.0, -1.0]: 179 to -179 is 2
+```
+
+OpenSim .mot files (Pose2Sim, Sports2D, inverse kinematics) are read with
+`load_mot` and lined up by time and column name with `pair_mot`, which gives
+a table for `audit_paired`; a list of such tables is stacked:
+
+```python
+tables = [
+    pa.pair_mot(f"{s}_pose.mot", f"{s}_mocap.mot", subject=s, trial="walk")
+    for s in ("S01", "S02", "S03")
+]
+results = pa.audit_paired(tables, big_error={"deg": 5, "m": 0.02})
+```
+
+Values of one subject are resampled together for every interval; the limits
+for repeated readings and `by_subject` and `by_trial` (each a
+`GroupSummary`: n, bias, SD, mean |error| and RMSE) are filled in. How the
+files are aligned: [cli.md](cli.md#paired-values).
+
 ## Compare models
 
 `compare` takes any number of prediction sets and compares every pair on the
@@ -167,6 +208,16 @@ worse. A plain mean over each set would call that a 2° improvement.
   `bands` by level of the measure (each a `Band`) and its `thresholds` (one
   `ThresholdAgreement` per threshold given). A `Comparison` holds one `Difference` per measure and pair of
   models.
+- Paired values: `audit_paired(table, big_error)` returns a list of
+  `AuditResult`s, one per measure; `audit_values(pred, ref, big_error,
+  unit=..., subject=..., trial=..., frame=...)` returns one. A measure given
+  as values is a `Quantity` (its `period`, 360 for degrees, makes
+  differences wrap). `load_mot(path)` returns a `Motion` (times, columns,
+  `unit(name)`); `pair_mot(pred, ref, subject=..., trial=...,
+  time_offset=...)` lines up two of them as a table.
+- Repeated measures: with named clusters or subjects, `by_subject` holds a
+  `GroupSummary` per subject (or cluster), and for paired values with trials
+  `by_trial` one per subject and trial.
 - `pa.__version__` is the installed version; the JSON and the report record
   it, with every setting and the `seed`, for a methods section.
 - What the outputs reveal (paths, image names) and how far they agree from

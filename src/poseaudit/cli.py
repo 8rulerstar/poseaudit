@@ -689,7 +689,141 @@ def _parser() -> argparse.ArgumentParser:
     out.add_argument(
         "--full", action="store_true", help="every statistic in the summary"
     )
+    _paired_parser(sub)
     return parser
+
+
+PAIRED = """\
+Compare values measured two ways, such as joint angles from a pose pipeline
+against motion capture or a goniometer, with no keypoints to match. Give a
+long-format table (--table) or OpenSim .mot files (--pred-mot and --ref-mot,
+or --mot-pairs for several), and --big-error.
+"""
+
+PAIRED_EXAMPLES = """\
+examples:
+  a long-format CSV with columns subject, trial, frame, measure, pred, ref,
+  unit (subject, trial, frame and unit optional):
+    poseaudit paired --table angles.csv --big-error 5 --report report.md
+
+  one Pose2Sim or Sports2D .mot file against a mocap .mot, knee angles only:
+    poseaudit paired --pred-mot pose2sim.mot --ref-mot mocap.mot --subject S01 --measure knee_angle_r --measure knee_angle_l --big-error 5
+
+  several subjects and trials, listed in a CSV with columns subject, trial,
+  pred, ref (paths relative to that CSV):
+    poseaudit paired --mot-pairs trials.csv --big-error deg:5,m:0.02
+
+more: https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#paired-values
+"""  # noqa: E501
+
+
+def _paired_parser(sub) -> None:
+    """`poseaudit paired`: values given as pairs, from a table or .mot files."""
+    run = sub.add_parser(
+        "paired",
+        help="how far predicted values (a table or .mot files) are from a reference",
+        description=PAIRED,
+        epilog=PAIRED_EXAMPLES,
+        formatter_class=_Help,
+    )
+    data = run.add_argument_group("data")
+    data.add_argument(
+        "--table",
+        metavar="CSV",
+        help="long-format CSV: pred and ref, and optionally measure, subject, "
+        "trial, frame (or time) and unit",
+    )
+    data.add_argument("--pred-mot", metavar="MOT", help="predicted .mot file")
+    data.add_argument("--ref-mot", metavar="MOT", help="reference .mot file")
+    data.add_argument(
+        "--mot-pairs",
+        metavar="CSV",
+        help="CSV of .mot pairs: columns subject, trial (optional), pred, ref",
+    )
+    data.add_argument("--subject", help="with --pred-mot: the subject's name")
+    data.add_argument("--trial", help="with --pred-mot: the trial's name")
+    data.add_argument(
+        "--time-offset",
+        type=float,
+        default=0.0,
+        metavar="S",
+        help="seconds added to the prediction's times to put them on the "
+        "reference's clock (.mot)",
+    )
+    data.add_argument(
+        "--measure",
+        action="append",
+        metavar="NAME",
+        help="audit this measure (a column of the .mot files); repeat it for "
+        "several. Default: every one",
+    )
+    data.add_argument(
+        "--unit",
+        action="append",
+        default=[],
+        metavar="NAME=UNIT",
+        help="a measure's unit, over the table's unit column: deg and rad wrap",
+    )
+    data.add_argument(
+        "--no-wrap",
+        action="store_true",
+        help="take angle differences as they are, not the short way round",
+    )
+    how = run.add_argument_group("analysis")
+    how.add_argument(
+        "--big-error",
+        required=True,
+        action="append",
+        metavar="E|KEY:E",
+        help="required: an error at least this large counts as large. One "
+        "number, or by measure name or unit: knee_angle_r:5,deg:10,m:0.02",
+    )
+    how.add_argument("--bands", default="4", metavar="N|EDGES", help="as for audit")
+    how.add_argument(
+        "--band-by",
+        choices=["truth", "mean", "predicted"],
+        default="truth",
+        help="sort readings for the bias bands by the reference (default), the "
+        "mean of both, or the prediction",
+    )
+    how.add_argument(
+        "--threshold", type=float, nargs="+", metavar="T", default=[],
+        help="decision thresholds applied to the reference",
+    )  # fmt: skip
+    how.add_argument(
+        "--pred-threshold", type=float, nargs="+", metavar="T", default=[],
+        help="also hold the prediction to these thresholds",
+    )  # fmt: skip
+    how.add_argument(
+        "--side",
+        choices=["above", "below", "outside"],
+        help="which side of a threshold is flagged (default above)",
+    )
+    how.add_argument(
+        "--noise-ratio",
+        type=float,
+        metavar="R",
+        help="variance of prediction noise over variance of reference noise; adds "
+        "a Deming slope",
+    )
+    how.add_argument("--seed", type=int, default=0, metavar="N", help="default 0")
+    how.add_argument(
+        "--resamples",
+        type=int,
+        default=2000,
+        metavar="N",
+        help="bootstrap resamples, by subject (default 2000)",
+    )
+    out = run.add_argument_group("output")
+    out.add_argument("--report", metavar="FILE", help="markdown report")
+    out.add_argument("--csv", metavar="FILE", help="one row per reading")
+    out.add_argument("--json", metavar="FILE", help="every figure")
+    out.add_argument(
+        "--plot", metavar="FILE", help="the two panels (one measure; matplotlib)"
+    )
+    out.add_argument(
+        "--full", action="store_true", help="every statistic in the summary"
+    )
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -962,7 +1096,203 @@ def _models(given: list[str]) -> list[tuple[str, str]]:
     return models
 
 
+def _check_outputs(args, inputs) -> None:
+    """Outputs that would overwrite an input, or each other, are refused."""
+    outputs = [getattr(args, f) for f in ("report", "csv", "json", "plot")]
+    for flag in ("report", "csv", "json", "plot"):
+        _writable(getattr(args, flag), f"--{flag}", inputs)
+    given = [Path(o).resolve() for o in outputs if o]
+    if any(_same(a, b) for i, a in enumerate(given) for b in given[i + 1 :]):
+        raise UsageError(
+            "two outputs name the same file; one would overwrite the other"
+        )
+
+
+def _paired_big_errors(given: list[str]) -> float | dict[str, float]:
+    """--big-error for paired values: one number, or KEY:NUMBER pairs where
+    KEY is a measure's name or a unit, and a bare number for the rest."""
+    default: float | None = None
+    named: dict[str, float] = {}
+    for item in (part.strip() for value in given for part in value.split(",")):
+        key, _, number = (x.strip() for x in item.rpartition(":"))
+        try:
+            value = float(number)
+        except ValueError:
+            value = float("nan")
+        if not (np.isfinite(value) and value > 0):
+            raise UsageError(
+                "--big-error takes a number above 0, or NAME:NUMBER with NAME a "
+                f"measure or a unit; got {item!r}"
+            )
+        if key in named or (not key and default is not None):
+            raise UsageError(f"--big-error gives {key or 'a bare value'} twice")
+        if key:
+            named[key] = value
+        else:
+            default = value
+    if not named and default is not None:
+        return default
+    return named if default is None else {"": default, **named}
+
+
+def _run_paired(args):
+    from poseaudit.io.mot import pair_mot
+    from poseaudit.paired import _unit_of, audit_paired, quantity, read_table
+
+    sources = [
+        flag
+        for flag, on in (
+            ("--table", args.table),
+            ("--pred-mot", args.pred_mot or args.ref_mot),
+            ("--mot-pairs", args.mot_pairs),
+        )
+        if on
+    ]
+    if len(sources) != 1:
+        raise UsageError(
+            "give one of --table, --pred-mot with --ref-mot, or --mot-pairs"
+            + (f"; got {' and '.join(sources)}" if sources else "")
+        )
+    if bool(args.pred_mot) != bool(args.ref_mot):
+        raise UsageError("--pred-mot and --ref-mot go together")
+    if (args.subject or args.trial) and not args.pred_mot:
+        raise UsageError(
+            "--subject and --trial name the files of --pred-mot; a table or "
+            "--mot-pairs gives them in columns"
+        )
+    paths = [args.table, args.pred_mot, args.ref_mot, args.mot_pairs]
+    inputs = {Path(p).resolve() for p in paths if p}
+    _check_outputs(args, inputs)
+    finite = all(np.isfinite(x) for x in (*args.threshold, *args.pred_threshold))
+    if not finite:
+        raise UsageError("--threshold and --pred-threshold must be finite numbers")
+    if (args.side or args.pred_threshold) and not args.threshold:
+        raise UsageError("--side and --pred-threshold need --threshold")
+    if args.noise_ratio is not None and not args.noise_ratio > 0:
+        raise UsageError("--noise-ratio must be above 0")
+    if args.resamples < 50:
+        raise UsageError(
+            "--resamples must be 50 or more (an interval from fewer is a guess)"
+        )
+    if args.plot:
+        from poseaudit.plot import needs_matplotlib
+
+        needs_matplotlib()
+    units = {}
+    for item in args.unit:
+        name, sep, unit = item.partition("=")
+        if not sep or not name.strip():
+            raise UsageError(f"--unit takes NAME=UNIT, got {item!r}")
+        units[name.strip()] = unit.strip()
+    big_error = _paired_big_errors(args.big_error)
+    bands = _bands(args.bands)
+    columns = args.measure
+    if args.table:
+        table = read_table(args.table)
+    elif args.pred_mot:
+        table = read_table(
+            pair_mot(
+                args.pred_mot,
+                args.ref_mot,
+                subject=args.subject,
+                trial=args.trial,
+                columns=columns,
+                time_offset=args.time_offset,
+            )
+        )
+    else:
+        table = read_table(
+            [
+                pair_mot(
+                    pred,
+                    ref,
+                    subject=subject,
+                    trial=trial,
+                    columns=columns,
+                    time_offset=args.time_offset,
+                )
+                for subject, trial, pred, ref in _mot_pairs(Path(args.mot_pairs))
+            ]
+        )
+    names = args.measure or list(dict.fromkeys(table["measure"]))
+    if args.plot and len(names) > 1:
+        raise UsageError(
+            "--plot draws one measure; pick one with --measure, or leave out --plot"
+        )
+    column = np.asarray(table["measure"], dtype=object)
+    unit_of = {
+        name: _unit_of(name, table, np.flatnonzero(column == name), units)
+        for name in names
+    }
+    _one_unit(args, [quantity(name, unit_of[name]) for name in names], bands)
+    if isinstance(big_error, dict):
+        big_error = _per_measure(big_error, names, unit_of)
+    return audit_paired(
+        table,
+        big_error,
+        measures=names,
+        units=units,
+        wrap=False if args.no_wrap else None,
+        bands=bands,
+        band_by=args.band_by,
+        thresholds=args.threshold,
+        threshold_side=args.side,
+        predicted_thresholds=args.pred_threshold,
+        noise_ratio=args.noise_ratio,
+        resamples=args.resamples,
+        seed=args.seed,
+        settings={
+            "table": args.table,
+            "pred_mot": args.pred_mot,
+            "ref_mot": args.ref_mot,
+            "mot_pairs": args.mot_pairs,
+            "time_offset": args.time_offset,
+        },
+    )
+
+
+def _per_measure(big_error: dict[str, float], names, unit_of) -> dict[str, float]:
+    """Each measure's own value: by its name, else its unit, else the bare
+    value (kept under the key "")."""
+    from poseaudit.paired import quantity
+
+    out = {}
+    for name in names:
+        unit = unit_of[name]
+        keys = [k for k in (name, unit, quantity(name, unit).unit) if k] + [""]
+        found = next((big_error[k] for k in keys if k in big_error), None)
+        if found is None:
+            raise UsageError(
+                f"--big-error has no value for {name} ({unit or 'no unit'}): add "
+                f"{name}:VALUE, or a bare value for the rest"
+            )
+        out[name] = found
+    return out
+
+
+def _mot_pairs(path: Path) -> list[tuple[str, str | None, Path, Path]]:
+    """The rows of a --mot-pairs CSV, the paths relative to its folder."""
+    from poseaudit.paired import _read_csv
+
+    columns = {k.strip().lower(): v for k, v in _read_csv(path).items()}
+    missing = [c for c in ("subject", "pred", "ref") if c not in columns]
+    if missing:
+        raise UsageError(
+            f"--mot-pairs: {path} needs columns subject, pred and ref (and "
+            f"optionally trial); it lacks {', '.join(missing)}"
+        )
+    trials = columns.get("trial") or [None] * len(columns["pred"])
+    return [
+        (subject, trial, path.parent / pred, path.parent / ref)
+        for subject, trial, pred, ref in zip(
+            columns["subject"], trials, columns["pred"], columns["ref"], strict=True
+        )
+    ]
+
+
 def _run(args):
+    if args.command == "paired":
+        return _run_paired(args)
     if isinstance(args.pred, list):  # as parsed; a string once a model is chosen
         models = _models(args.pred)
         args.pred = models[0][1]
@@ -973,14 +1303,7 @@ def _run(args):
     if not (args.gt_format and args.pred_format):
         raise UsageError("give --format, or both --gt-format and --pred-format")
     inputs = {Path(p).resolve() for p in (args.gt, args.pred, args.images) if p}
-    outputs = [getattr(args, f) for f in ("report", "csv", "json", "plot")]
-    for flag in ("report", "csv", "json", "plot"):
-        _writable(getattr(args, flag), f"--{flag}", inputs)
-    given = [Path(o).resolve() for o in outputs if o]
-    if any(_same(a, b) for i, a in enumerate(given) for b in given[i + 1 :]):
-        raise UsageError(
-            "two outputs name the same file; one would overwrite the other"
-        )
+    _check_outputs(args, inputs)
     _check_values(args)
     if (args.side or args.pred_threshold) and not args.threshold:
         raise UsageError("--side and --pred-threshold need --threshold")

@@ -28,8 +28,10 @@ still matches each line to the legend.
 
 ## Every statistic: --full
 
-`--full` adds the jitter reference and every agreement statistic. They are
-explained in [statistics.md](statistics.md).
+`--full` adds every agreement statistic, the bootstrap intervals of the
+normal limits (and exact ones when every reading is its own cluster), and,
+set apart under `experimental`, the jitter reference. They are explained in
+[statistics.md](statistics.md).
 
 ```text
 $ poseaudit audit --format coco --gt gt_200.json --pred pred_yolo11n.json \
@@ -40,17 +42,19 @@ angle (5, 7, 9): read 322 of 380 labelled instances
   bias         +2.27° [-1.21 to +6.15], median +0.52°
   limits       -50.90° to +79.99° (percentile, 2.5th to 97.5th; JSON percentile_limits)
   normal       -55.60° to +60.14° (bias +/- 1.96 SD; JSON limits)
+  limit CIs    lower [-63.68 to -47.32], upper [+50.60 to +70.54] (cluster bootstrap)
   |error|      mean 19.48° [17.05 to 22.13], median 12.59°, 95th pct 68.99°
   RMSE         29.57° [25.30 to 33.94]
   >= 15°       43.2% [37.9% to 48.6%]
   by size      0-30 px 58% (n 134), 30-60 px 37% (n 112), 60+ px 26% (n 76)
   slope        0.731 [0.639 to 0.814] (pred on truth, 1 is ideal); Theil-Sen 0.786
   ICC(A,1)     0.762 [0.677 to 0.827]
+  BA slope     -0.049 [-0.119 to +0.016]
+  agreement    CCC 0.761 [0.677 to 0.826], r 0.763
+  experimental, still being validated:
   vs jitter    0.871 from keypoint jitter alone; gap -0.140 [-0.199 to -0.076], p(slope <= jitter) <= 0.002*
                * swaps and gross failures lower the slope too, and noisy
                  labels make p small for an honest model: read the gap
-  BA slope     -0.049 [-0.119 to +0.016]
-  agreement    CCC 0.761 [0.677 to 0.826], r 0.763
   ! 2.5% of errors fall below the normal limits and 4.3% above them, against 2.5% each for a normal error: use the percentile limits.
 ```
 
@@ -129,6 +133,72 @@ large-error threshold of each row and each interval beside its estimate, and
 The `--pred NAME=PATH` form compares prediction files. To compare one file
 under two settings (a score filter, a confidence threshold), use Python:
 [python.md](python.md#compare-models).
+
+## Paired values
+
+Joint angles that a pipeline such as Pose2Sim, Sports2D or OpenSim's inverse
+kinematics already computed, against motion capture or a goniometer, need no
+keypoints and no matching. `poseaudit paired` takes them as they are and
+gives the same summary, tables, JSON, CSV, report and plot. Run from
+[`examples/paired`](../examples/paired), whose data is synthetic (made by its
+`make_data.py`):
+
+```text
+$ poseaudit paired --table angles.csv --big-error 5
+measure          n  bias    limits            mean |error|          RMSE   >= 5°                   slope  ICC(A,1)
+knee_angle_r   720  +0.55°  -7.57° to +9.15°  3.51° [3.19 to 3.90]  4.35°  24.7% [19.6% to 30.4%]  0.892  0.978
+hip_flexion_r  720  -0.05°  -5.15° to +5.34°  2.15° [1.96 to 2.33]  2.67°  6.8% [4.6% to 9.3%]     1.002  0.988
+  ! every measure: Only 6 subjects: bootstrap intervals are too narrow with this few.
+```
+
+**A long-format table** (`--table`, a CSV; in Python also a DataFrame or a
+dict of columns) has one row per value:
+
+| column | |
+|---|---|
+| `pred`, `ref` | required: the predicted and the reference value |
+| `measure` | which measure the row belongs to; without it every row is one measure, `value` |
+| `subject` | the readings of one subject are resampled together and get repeated-measures limits; without it every row counts as independent, and a warning says so |
+| `trial` | the trial within its subject, for the summary per trial |
+| `frame` or `time` | kept in the CSV and in the report's largest errors |
+| `unit` | the measure's unit; `deg` (or `degrees`) and `rad` make differences wrap, so 179° against -179° is 2° off |
+
+**OpenSim .mot files** (`--pred-mot P.mot --ref-mot R.mot`, with
+`--subject` and `--trial` to name them, or `--mot-pairs pairs.csv` listing
+`subject, trial, pred, ref` for several) are lined up by column name and by
+time: each prediction frame inside the reference's span is compared with the
+reference interpolated linearly there (angles the short way round, so 170°
+to -170° passes through 180°). A reference value next to a missing one is
+missing. `--time-offset S` moves the prediction onto the reference's clock.
+Columns ending `_tx`, `_ty` or `_tz` are translations in metres; the rest are
+angles, in degrees unless the header says `inDegrees=no`.
+
+```bash
+poseaudit paired --pred-mot S01_walk1_pose.mot --ref-mot S01_walk1_mocap.mot \
+    --subject S01 --trial walk1 --measure knee_angle_r --big-error 5 --full
+```
+
+With subjects, the summary adds the limits for repeated readings (Bland and
+Altman 2007) and the spread of the bias across subjects; the report has a
+table per subject and per subject and trial. Every interval resamples whole
+subjects, so with fewer than 20 they are too narrow, as the warning says.
+
+| option | what it does |
+|---|---|
+| `--table CSV` | the long-format table |
+| `--pred-mot MOT`, `--ref-mot MOT` | one predicted and one reference .mot file |
+| `--mot-pairs CSV` | several .mot pairs: columns `subject`, `trial` (optional), `pred`, `ref`, paths relative to the CSV |
+| `--subject NAME`, `--trial NAME` | with `--pred-mot`: whose files they are |
+| `--time-offset S` | seconds added to the prediction's times (default 0) |
+| `--measure NAME` | audit this measure only; repeat it for several |
+| `--unit NAME=UNIT` | a measure's unit, over the table's `unit` column |
+| `--no-wrap` | angle differences taken as they are, not the short way round |
+| `--big-error E` or `KEY:E` | required: one number, or by measure name or unit, as in `knee_angle_r:5,deg:10,m:0.02` |
+
+`--bands`, `--band-by`, `--threshold`, `--pred-threshold`, `--side`,
+`--noise-ratio`, `--seed`, `--resamples` and the outputs (`--report`,
+`--csv`, `--json`, `--plot`, `--full`) work as for `audit`. The CSV's columns
+are `subject, trial, frame, ref, pred, error, mean`.
 
 ## Options
 
@@ -393,6 +463,10 @@ each starts as below, `...` standing for a name or a number:
 | `readings mix classes ...: audit one class at a time` | Keep one class with `--classes`, or allow the mix with `--mixed-classes`. |
 | `--cluster ... matches nothing in image name ...` | Every image name must match: `--cluster "^(clip\d+)_"` reads the cluster `clip3` from `clip3_000123.jpg` ([why](#several-readings-of-one-subject)). |
 | `--plot draws one measure` | Leave out `--plot`, or give one measure. |
+| `give one of --table, --pred-mot with --ref-mot, or --mot-pairs` | `poseaudit paired` reads one source at a time ([Paired values](#paired-values)). |
+| `the files do not overlap in time` | The two .mot files cover different times: `--time-offset` moves the prediction onto the reference's clock. |
+| `the two files share no column name` | The .mot columns must have the same names in both files (`knee_angle_r` in each); rename one side's columns. |
+| `the table needs columns pred and ref` | Name the columns `pred` and `ref` (any case); `measure`, `subject`, `trial`, `frame` and `unit` are optional. |
 | `nothing was read` | The summary above it says why: no pairs, points not labelled or not predicted. The JSON, CSV and report are still written. |
 
 Exit codes and gating on the output are in [json.md](json.md).
