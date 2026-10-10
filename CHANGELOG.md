@@ -81,6 +81,10 @@
   JSON lists its keys under `experimental`.
 - Units other than degrees and pixels print after the figures (`0.05 m`).
 
+### Fixed
+
+- On Windows, runs writing the same output at the same moment no longer fail now and then: moving the finished file into place is retried briefly when Windows refuses it.
+
 ## 0.2.0
 
 ### Added

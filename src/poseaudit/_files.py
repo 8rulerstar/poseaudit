@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import contextlib
 import os
+import sys
 import tempfile
+import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
@@ -22,11 +24,24 @@ def _temporary_beside(path: str | os.PathLike[str]) -> Iterator[str]:
     os.close(fd)
     try:
         yield temporary
-        os.replace(temporary, target)
+        _replace(temporary, target)
     except BaseException:
         with contextlib.suppress(OSError):
             os.unlink(temporary)
         raise
+
+
+def _replace(source: str, target: Path) -> None:
+    """``os.replace``, retried briefly on Windows, where moving over a file
+    that another process is moving over at the same moment can be refused."""
+    for attempt in range(50):
+        try:
+            os.replace(source, target)
+            return
+        except PermissionError:
+            if sys.platform != "win32" or attempt == 49:
+                raise
+            time.sleep(0.02 * (attempt + 1) ** 0.5)
 
 
 def write_text(
