@@ -216,13 +216,20 @@ def _summary(result: "AuditResult", full: bool = False) -> str:
     lines += [
         f"  slope        {_f(result.gain, '.3f')} {_ci(result.gain_ci, '.3f')} "
         f"(pred on truth, 1 is ideal); Theil-Sen {_f(result.robust_gain, '.3f')}",
-        f"  ICC(A,1)     {_f(result.icc, '.3f')} {_ci(result.icc_ci, '.3f')}",
+        f"  ICC(A,1)     {_f(result.icc, '.3f')}{_pooled(result)} "
+        f"{_ci(result.icc_ci, '.3f')}",
     ]
     if full:
         lines += _full(result)
     lines += [_decision(th, u, d) for th in result.thresholds]
     lines += [f"  ! {w}" for w in rest]
     return "\n".join(lines)
+
+
+def _pooled(result: "AuditResult") -> str:
+    """The mark on ICC, CCC and r when they pool the frames of a time series,
+    which the range of motion inflates; a warning says so."""
+    return "*" if result.settings.get("frames_pooled") else ""
 
 
 def _repeated(result: "AuditResult") -> bool:
@@ -257,8 +264,8 @@ def _full(result: "AuditResult") -> list[str]:
             f"(noise ratio {result.settings.get('noise_ratio')})"
         )
     lines.append(
-        f"  agreement    CCC {_f(result.ccc, '.3f')} {_ci(result.ccc_ci, '.3f')}, "
-        f"r {_f(result.pearson, '.3f')}"
+        f"  agreement    CCC {_f(result.ccc, '.3f')}{_pooled(result)} "
+        f"{_ci(result.ccc_ci, '.3f')}, r {_f(result.pearson, '.3f')}{_pooled(result)}"
     )
     if result.jitter_gain is not None:
         lines.append("  experimental, still being validated:")
@@ -836,7 +843,7 @@ def _cells(result: "AuditResult", threshold: bool = False) -> list[str]:
         *own,
         f"{result.big_error_rate:.1%} {_ci(result.big_error_rate_ci, '.1%')}",
         _f(result.gain, ".3f"),
-        _f(result.icc, ".3f"),
+        _f(result.icc, ".3f") + _pooled(result),
     ]
 
 

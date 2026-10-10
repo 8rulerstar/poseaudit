@@ -55,7 +55,7 @@ angle (5, 7, 9): read 322 of 380 labelled instances
   vs jitter    0.871 from keypoint jitter alone; gap -0.140 [-0.199 to -0.076], p(slope <= jitter) <= 0.002*
                * swaps and gross failures lower the slope too, and noisy
                  labels make p small for an honest model: read the gap
-  ! 2.5% of errors fall below the normal limits and 4.3% above them, against 2.5% each for a normal error, more than chance explains: use the percentile limits.
+  ! 2.5% of errors fall below the normal limits (bias +/- 1.96 SD) and 4.3% above them, against 2.5% each for a normal error, more than chance explains: use the percentile limits.
 ```
 
 ## Several joints
@@ -75,9 +75,9 @@ angle 5,7,9     322  +2.27° [-1.21 to +6.15]  -50.90° to +79.99°  19.48° [17
 angle 6,8,10    308  +3.74° [+0.67 to +6.80]  -54.10° to +75.45°  18.07° [15.54 to 20.67]  30.11°  34.7% [29.5% to 40.2%]  0.751  0.803
 angle 11,13,15  243  +5.19° [+0.93 to +9.65]  -38.92° to +80.06°  16.40° [12.93 to 20.26]  29.80°  30.5% [24.4% to 37.2%]  0.715  0.794
 angle 12,14,16  242  +4.63° [+1.00 to +8.26]  -37.07° to +69.46°  14.62° [11.87 to 17.66]  24.38°  31.8% [25.0% to 39.0%]  0.796  0.871
-  ! angle 5,7,9: 2.5% of errors fall below the normal limits and 4.3% above them, against 2.5% each for a normal error, more than chance explains: use the percentile limits.
-  ! angle 6,8,10: 2.3% of errors fall below the normal limits and 4.2% above them, against 2.5% each for a normal error, more than chance explains: use the percentile limits.
-  ! angle 12,14,16: 1.7% of errors fall below the normal limits and 5.0% above them, against 2.5% each for a normal error, more than chance explains: use the percentile limits.
+  ! angle 5,7,9: 2.5% of errors fall below the normal limits (bias +/- 1.96 SD) and 4.3% above them, against 2.5% each for a normal error, more than chance explains: use the percentile limits.
+  ! angle 6,8,10: 2.3% of errors fall below the normal limits (bias +/- 1.96 SD) and 4.2% above them, against 2.5% each for a normal error, more than chance explains: use the percentile limits.
+  ! angle 12,14,16: 1.7% of errors fall below the normal limits (bias +/- 1.96 SD) and 5.0% above them, against 2.5% each for a normal error, more than chance explains: use the percentile limits.
 ```
 
 Measures in different units each take their own large error: by kind
@@ -145,9 +145,10 @@ gives the same summary, tables, JSON, CSV, report and plot. Run from
 ```text
 $ poseaudit paired --table angles.csv --big-error 5
 measure          n  bias                     limits            mean |error|          RMSE   >= 5°                   slope  ICC(A,1)
-knee_angle_r   720  +0.55° [-1.25 to +2.18]  -7.57° to +9.15°  3.51° [3.19 to 3.90]  4.35°  24.7% [19.6% to 30.4%]  0.892  0.978
-hip_flexion_r  720  -0.05° [-0.91 to +0.75]  -5.15° to +5.34°  2.15° [1.96 to 2.33]  2.67°  6.8% [4.6% to 9.3%]     1.002  0.988
+knee_angle_r   720  +0.55° [-1.25 to +2.18]  -7.57° to +9.15°  3.51° [3.19 to 3.90]  4.35°  24.7% [19.6% to 30.4%]  0.892  0.978*
+hip_flexion_r  720  -0.05° [-0.91 to +0.75]  -5.15° to +5.34°  2.15° [1.96 to 2.33]  2.67°  6.8% [4.6% to 9.3%]     1.002  0.988*
   ! every measure: Only 6 subjects: bootstrap intervals are too narrow with this few.
+  ! every measure: ICC, CCC and r (marked *) pool the frames of each recording, so the range of motion alone pushes them towards 1: they do not show agreement frame by frame. Judge that by the bias, the limits and the mean |error|.
 ```
 
 **A long-format table** (`--table`, a CSV; in Python also a DataFrame or a

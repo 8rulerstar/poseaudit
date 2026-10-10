@@ -1178,11 +1178,22 @@ def _warnings(
                 else "."
             )
         )
-    elif big < 10:
-        notes.append(
-            f"Only {_count(big, 'large error')}: judge the rate by its interval."
-        )
     kind = kind or ("cluster" if named_clusters else "image")
+    if 0 < big < 10:
+        if np.isfinite(result.big_error_rate_ci[0]):
+            notes.append(
+                f"Only {_count(big, 'large error')}: judge the rate by its interval."
+            )
+        else:
+            why = (
+                f"with one {kind} there is nothing to resample"
+                if result.clusters < 2
+                else "too many resamples left it undefined"
+            )
+            notes.append(
+                f"Only {_count(big, 'large error')}, and the rate has no interval "
+                f"({why}): take it as a rough count."
+            )
     if result.clusters < 2:
         notes.append(
             f"Only one {kind}: resampling it gives the same readings every time, "
@@ -1228,8 +1239,8 @@ def _warnings(
     below, above = result.tail_shares
     if ag.tails_off(result.n, result.tail_shares):
         notes.append(
-            f"{below:.1%} of errors fall below the normal limits and {above:.1%} "
-            "above them, against 2.5% each for a normal error, more than chance "
-            "explains: use the percentile limits."
+            f"{below:.1%} of errors fall below the normal limits (bias +/- 1.96 "
+            f"SD) and {above:.1%} above them, against 2.5% each for a normal "
+            "error, more than chance explains: use the percentile limits."
         )
     return notes

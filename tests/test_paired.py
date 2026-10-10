@@ -12,6 +12,7 @@ import pytest
 import poseaudit as pa
 from poseaudit import agreement as ag
 from poseaudit.cli import main
+from poseaudit.report import table
 
 FAST = {"resamples": 200}
 
@@ -655,3 +656,53 @@ def test_paired_reports_speak_of_the_reference_not_the_truth() -> None:
     keypoints = pa.audit_values([1.0, 2.0, 3.0], [1.0, 2.5, 3.5], 1, resamples=50)
     keypoints.settings["input"] = "keypoints"
     assert "pred on truth" in keypoints.summary()
+
+
+# --- figures that pool frames, and hints that point only at what is shown -----
+
+
+def test_a_time_series_marks_icc_ccc_and_r_as_pooled_over_frames(tmp_path) -> None:
+    (r,) = pa.audit_paired(_long(), big_error=5, **FAST)
+    pooled = [w for w in r.warnings if w.startswith("ICC, CCC and r (marked *)")]
+    assert len(pooled) == 1 and "range of motion" in pooled[0]
+    assert r.settings["frames_pooled"] is True
+    text = r.summary(full=True)
+    assert f"ICC(A,1)     {r.icc:.3f}* " in text
+    assert f"CCC {r.ccc:.3f}* " in text and f"r {r.pearson:.3f}*" in text
+    assert f"{r.icc:.3f}*" in table([r])
+    assert f"{r.icc:.3f}* " in r.to_markdown()
+    js = r.to_dict()
+    assert js["settings"]["frames_pooled"] is True and pooled[0] in js["warnings"]
+    # one value per subject and trial is no time series, nor is a table with
+    # no frame column
+    once = _long(frames=1)
+    for data in (once, {k: v for k, v in _long().items() if k != "frame"}):
+        (plain,) = pa.audit_paired(data, big_error=5, **FAST)
+        assert "frames_pooled" not in plain.settings
+        assert not any("marked *" in w for w in plain.warnings)
+        assert f"{plain.icc:.3f}*" not in plain.summary(full=True)
+    # .mot files are frames by nature
+    t = np.arange(0, 1.0001, 0.02)
+    knee = 40 + 30 * np.sin(2 * np.pi * t)
+    ref = _mot(tmp_path / "r.mot", t, {"knee": knee})
+    pred = _mot(tmp_path / "p.mot", t, {"knee": knee + np.cos(7 * t)})
+    (m,) = pa.audit_paired(pa.pair_mot(pred, ref, subject="S1"), big_error=5,
+                           resamples=50)  # fmt: skip
+    assert m.settings.get("frames_pooled") is True
+
+
+def test_few_large_errors_with_no_interval_do_not_point_to_one() -> None:
+    ref = np.linspace(0, 90, 60)
+    pred = ref + np.where(np.arange(60) < 3, 10.0, 0.5)
+    r = pa.audit_values(pred, ref, big_error=5, unit="deg", subject="S1",
+                        frame=np.arange(60), resamples=50)  # fmt: skip
+    assert not np.isfinite(r.big_error_rate_ci[0])
+    assert not any("judge the rate by its interval" in w for w in r.warnings)
+    assert (
+        "Only 3 large errors, and the rate has no interval (with one subject "
+        "there is nothing to resample): take it as a rough count." in r.warnings
+    )
+    many = pa.audit_values(pred, ref, big_error=5, unit="deg",
+                           subject=[f"S{k % 6}" for k in range(60)],
+                           resamples=50)  # fmt: skip
+    assert "Only 3 large errors: judge the rate by its interval." in many.warnings

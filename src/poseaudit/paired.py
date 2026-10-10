@@ -190,7 +190,26 @@ def audit_values(
         if trials is not None:
             result.by_trial = groups(readings, by_trial=True)
     result.warnings += _warnings(result, bands, named, "subject" if named else "row")
+    if frames is not None and _series(readings, named):
+        result.settings["frames_pooled"] = True
+        result.warnings.append(FRAMES_POOLED)
     return result
+
+
+FRAMES_POOLED = (
+    "ICC, CCC and r (marked *) pool the frames of each recording, so the range "
+    "of motion alone pushes them towards 1: they do not show agreement frame by "
+    "frame. Judge that by the bias, the limits and the mean |error|."
+)
+
+
+def _series(readings: Sequence[Reading], named: bool) -> bool:
+    """Some subject and trial (or, with no subject, the whole input) holds
+    several frames: a time series, not one value per trial."""
+    if not named:
+        return len(readings) > 1
+    keys = [(x.cluster, x.trial) for x in readings]
+    return len(set(keys)) < len(keys)
 
 
 def audit_paired(

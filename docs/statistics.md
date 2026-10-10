@@ -312,7 +312,12 @@ a reading either side of the +90 to -90 wrap is not 180° away; the CSV's
 - Readings are pooled across frames: with subjects named, the intervals
   resample whole subjects and each subject and trial is summarised, but the
   pooled ICC and CCC still mix between- and within-subject spread, and there
-  is no summary of the curve itself (peak angle, range of motion) yet.
+  is no summary of the curve itself (peak angle, range of motion) yet. For a
+  time series (a frame or time column, or .mot files) ICC, CCC and r pool
+  every frame, so a wide range of motion pushes them towards 1 however far
+  each frame is off: they are marked `*` in the text, tables and Markdown,
+  `settings.frames_pooled` is `true` in the JSON, and a warning says to judge
+  agreement by the bias, the limits and the mean absolute error instead.
 - Tilts near horizontal wrap from +90 to -90; the report warns when many are
   close.
 - The jitter reference is new, not a published method, and was checked by

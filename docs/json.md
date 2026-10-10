@@ -17,7 +17,11 @@ are `subject, trial, frame, ref, pred, error, mean`, and `settings.input` is
 `paired`. With subjects the JSON adds `by_subject` and `by_trial`, one entry
 each of `subject, trial, n, bias, sd, mean_abs_error, rmse` (`trial` null in
 `by_subject`); keypoint audits with `--cluster` fill `by_subject` per
-cluster. `experimental` lists the keys whose method is still being validated
+cluster. When the values are a time series (a frame or time column with
+several frames to a subject and trial, as from .mot files), `settings.frames_pooled`
+is `true` and a warning says that `icc`, `ccc` and `pearson` pool the frames,
+so the range of motion inflates them; the text and Markdown mark them with
+`*`. `experimental` lists the keys whose method is still being validated
 (the jitter reference): read them apart from the core figures.
 
 With several measures the JSON is `{"poseaudit", "schema", "settings",

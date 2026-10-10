@@ -171,7 +171,7 @@ print(c.summary())
 score>=0.0:
 measure        n  bias                     limits              mean |error|             RMSE    >= 15°                  slope  ICC(A,1)
 angle 5,7,9  322  +2.27° [-1.21 to +6.15]  -50.90° to +79.99°  19.48° [17.05 to 22.13]  29.57°  43.2% [37.9% to 48.6%]  0.731  0.762
-  ! angle 5,7,9: 2.5% of errors fall below the normal limits and 4.3% above them, against 2.5% each for a normal error, more than chance explains: use the percentile limits.
+  ! angle 5,7,9: 2.5% of errors fall below the normal limits (bias +/- 1.96 SD) and 4.3% above them, against 2.5% each for a normal error, more than chance explains: use the percentile limits.
 
 score>=0.7:
 measure        n  bias                     limits              mean |error|             RMSE    >= 15°                  slope  ICC(A,1)
