@@ -1,6 +1,6 @@
 [project]
 name = "poseaudit"
-version = "0.3.0"
+version = "0.3.1"
 description = "Audit a pose model as a measuring instrument: how far off are the angles, tilts and lengths it reads, against keypoint labels, motion capture or a goniometer?"
 readme = "README.md"
 license = "MIT"
