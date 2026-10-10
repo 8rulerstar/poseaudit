@@ -285,7 +285,7 @@ def _repeated_keys(name: str, pick: dict) -> str | None:
     n = len(pick["frame"])
     keys = [
         tuple(
-            "" if pick[k] is None else str(pick[k][i])
+            "" if pick[k] is None else _key_text(pick[k][i])
             for k in ("subject", "trial", "frame")
         )
         for i in range(n)
@@ -293,6 +293,8 @@ def _repeated_keys(name: str, pick: dict) -> str | None:
     seen: set[tuple[str, ...]] = set()
     repeated = []
     for key in keys:
+        if key[2] in ("", "nan", "None"):  # a row with no frame is not one frame
+            continue
         if key in seen:
             repeated.append(key)
         seen.add(key)
@@ -304,11 +306,24 @@ def _repeated_keys(name: str, pick: dict) -> str | None:
         for label, value in (("subject", subject), ("trial", trial), ("frame", frame))
         if value
     )
+    rows = "1 row" if len(repeated) == 1 else f"{len(repeated)} rows"
     return (
-        f"{len(repeated)} rows of {name} repeat the subject, trial and frame of "
-        f"an earlier row (first: {shown}) and are counted again; is the table "
-        "stacked twice?"
+        f"{rows} of {name} repeat the subject, trial and frame of an earlier row "
+        f"(first: {shown}) and are counted again: is the table stacked or joined "
+        "twice, or are several people in one frame without a subject column? "
+        "Repeated trials of one subject need a trial column."
     )
+
+
+def _key_text(value: Any) -> str:
+    """1, 1.0 and "01" are one frame; other values compare as text."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if not math.isfinite(number):
+        return str(value)
+    return str(int(number)) if number.is_integer() else repr(number)
 
 
 def big_error_of(name: str, unit: str, big_error: float | Mapping[str, float]) -> float:

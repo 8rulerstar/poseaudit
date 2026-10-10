@@ -23,6 +23,10 @@
   the interpolation between samples, the limits for repeated readings
   against Bland and Altman (2007) worked by hand, and the count of rows
   empty on both sides; the plot test skips without matplotlib.
+- `--mot-pairs` rows with no trial are named by their prediction file, so two
+  recordings of one subject are not warned about as repeated rows.
+- The repeated-row warning treats `1`, `1.0` and `01` as one frame, skips rows
+  with no frame, and says one row in the singular.
 
 ## 0.3.0
 

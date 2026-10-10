@@ -1230,7 +1230,11 @@ def _run_paired(args):
                     pred,
                     ref,
                     subject=subject,
-                    trial=trial,
+                    # Each row is its own recording: with no trial given, the
+                    # prediction file names it, so two recordings of one subject
+                    # are not taken for one table stacked twice (the same file
+                    # listed twice still is).
+                    trial=trial or pred.name,
                     columns=columns,
                     time_offset=args.time_offset,
                     match=match,

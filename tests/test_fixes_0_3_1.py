@@ -177,3 +177,56 @@ def test_a_table_without_repeats_or_frames_does_not_warn() -> None:
     del rows["frame"]  # repeated readings of a subject are expected here
     for result in pa.audit_paired(rows, big_error=5):
         assert not [w for w in result.warnings if "repeat" in w]
+
+
+def test_mot_pairs_without_a_trial_column_are_separate_recordings(
+    tmp_path, capsys
+) -> None:
+    """Two recordings of one subject with no trial column are not one table stacked
+    twice; listing the same file twice still is."""
+    import csv
+
+    from test_paired import _mot
+
+    from poseaudit.cli import main
+
+    t = np.arange(0, 1, 0.02)
+    for name in ("a", "b"):
+        _mot(tmp_path / f"{name}_ref.mot", t, {"knee": 30 + 20 * np.cos(4 * t)})
+        _mot(tmp_path / f"{name}_pred.mot", t, {"knee": 31 + 20 * np.cos(4 * t)})
+
+    def run(rows):
+        with open(tmp_path / "pairs.csv", "w", newline="", encoding="utf-8") as f:
+            csv.writer(f).writerows([["subject", "pred", "ref"], *rows])
+        main(["paired", "--mot-pairs", str(tmp_path / "pairs.csv"),
+              "--big-error", "5", "--resamples", "50"])  # fmt: skip
+        return capsys.readouterr()
+
+    two = run([["S1", "a_pred.mot", "a_ref.mot"], ["S1", "b_pred.mot", "b_ref.mot"]])
+    assert "joined twice" not in two.out + two.err
+    same = run([["S1", "a_pred.mot", "a_ref.mot"], ["S1", "a_pred.mot", "a_ref.mot"]])
+    assert "joined twice" in same.out + same.err
+
+
+def test_frames_written_as_1_and_1_0_and_01_are_one_key() -> None:
+    rows = {
+        "subject": ["A", "A", "A"],
+        "frame": ["1", "1.0", "01"],
+        "measure": ["k", "k", "k"],
+        "pred": [10.0, 12.0, 11.0],
+        "ref": [12.0, 12.0, 12.0],
+    }
+    (result,) = pa.audit_paired(rows, big_error=5)
+    assert any(w.startswith("2 rows of k repeat") for w in result.warnings)
+
+
+def test_rows_with_an_empty_frame_are_not_taken_for_repeats() -> None:
+    rows = {
+        "subject": ["A", "A", "A"],
+        "frame": ["", "", float("nan")],
+        "measure": ["k", "k", "k"],
+        "pred": [10.0, 12.0, 11.0],
+        "ref": [12.0, 12.0, 12.0],
+    }
+    (result,) = pa.audit_paired(rows, big_error=5)
+    assert not [w for w in result.warnings if "repeat the subject" in w]
