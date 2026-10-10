@@ -81,8 +81,12 @@ pandas first (`pd.read_excel`):
 
 ```python
 sheet = {"Patient": ["A", "B", "C"], "Goniometer": [92, 118, 75], "App": [95, 114, 80]}
-(r,) = pa.audit_paired(sheet, big_error=5, units={"value": "deg"},
-                       columns={"ref": "Goniometer", "pred": "App", "subject": "Patient"})
+(r,) = pa.audit_paired(
+    sheet,
+    big_error=5,
+    units={"value": "deg"},
+    columns={"ref": "Goniometer", "pred": "App", "subject": "Patient"},
+)
 ```
 
 OpenSim .mot files (Pose2Sim, Sports2D, inverse kinematics) are read with
@@ -165,15 +169,14 @@ print(c.summary())
 
 ```text
 score>=0.0:
-measure        n  bias    limits              mean |error|             RMSE    >= 15°                  slope  ICC(A,1)
-angle 5,7,9  322  +2.27°  -50.90° to +79.99°  19.48° [17.05 to 22.13]  29.57°  43.2% [37.9% to 48.6%]  0.731  0.762
-  ! angle 5,7,9: 2.5% of errors fall below the normal limits and 4.3% above them, against 2.5% each for a normal error: use the percentile limits.
+measure        n  bias                     limits              mean |error|             RMSE    >= 15°                  slope  ICC(A,1)
+angle 5,7,9  322  +2.27° [-1.21 to +6.15]  -50.90° to +79.99°  19.48° [17.05 to 22.13]  29.57°  43.2% [37.9% to 48.6%]  0.731  0.762
+  ! angle 5,7,9: 2.5% of errors fall below the normal limits and 4.3% above them, against 2.5% each for a normal error, more than chance explains: use the percentile limits.
 
 score>=0.7:
-measure        n  bias    limits              mean |error|             RMSE    >= 15°                  slope  ICC(A,1)
-angle 5,7,9  254  +2.86°  -41.80° to +65.51°  17.32° [14.97 to 19.66]  26.00°  39.8% [33.9% to 45.9%]  0.787  0.816
+measure        n  bias                     limits              mean |error|             RMSE    >= 15°                  slope  ICC(A,1)
+angle 5,7,9  254  +2.86° [-0.22 to +6.14]  -41.80° to +65.51°  17.32° [14.97 to 19.66]  26.00°  39.8% [33.9% to 45.9%]  0.787  0.816
   ! angle 5,7,9: 126 of 380 labelled instances were not read: the figures describe the ones that were, which are usually easier.
-  ! angle 5,7,9: 2.4% of errors fall below the normal limits and 4.3% above them, against 2.5% each for a normal error: use the percentile limits.
 
 measure      a - b                    shared  n a  n b  mean |error| a - b       large-error rate a - b
 angle 5,7,9  score>=0.0 - score>=0.7     254  322  254  -0.06° [-0.20 to +0.00]  +0.0 pt [+0.0 to +0.0]

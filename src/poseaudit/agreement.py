@@ -217,6 +217,37 @@ def empirical_limits(e: np.ndarray) -> tuple[float, float]:
     return float(low), float(high)
 
 
+def binomial_tail(k: int, n: int, p: float) -> float:
+    """P(X >= k) for X binomial with `n` trials and chance `p`."""
+    if k <= 0:
+        return 1.0
+    if k > n:
+        return 0.0
+    i = np.arange(k)
+    log_pmf = (
+        math.lgamma(n + 1)
+        - np.array([math.lgamma(x + 1) + math.lgamma(n - x + 1) for x in i])
+        + i * math.log(p)
+        + (n - i) * math.log1p(-p)
+    )
+    return float(max(0.0, 1.0 - np.exp(log_pmf).sum()))
+
+
+def tails_off(n: int, tail_shares: tuple[float, float]) -> bool:
+    """Whether more errors fall outside one of the normal limits than a normal
+    error would put there: above 4% (against 2.5%) and, by a one-sided
+    binomial test, more than chance gives (p under 0.05). Small samples
+    scatter well past 4% by chance: with 30 to 60 normal errors the share
+    alone flagged about one sample in five; with the test, about one in a
+    hundred at any size (simulated, 4000 samples each from 30 to 1000)."""
+    if n < 30 or not all(np.isfinite(tail_shares)):
+        return False
+    return any(
+        share > 0.04 and binomial_tail(round(share * n), n, 0.025) < 0.05
+        for share in tail_shares
+    )
+
+
 def repeated_limits(e: np.ndarray, clusters: np.ndarray) -> tuple[float, float]:
     """Limits for several readings per subject, the true value varying within
     a subject (Bland and Altman 2007): between- and within-subject variance

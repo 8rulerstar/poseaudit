@@ -878,7 +878,7 @@ def _fill(result, bands, size_bands, noise_ratio, resamples, seed, jitter) -> No
     repeated = len(np.unique(clusters)) < len(clusters)
     if not repeated:  # the exact intervals assume independent readings
         result.lower_limit_exact_ci, result.upper_limit_exact_ci = ag.limits_exact_ci(e)
-    if repeated:
+    if repeated and len(np.unique(clusters)) > 1:
         result.repeated_limits = ag.repeated_limits(e, clusters)
     result.gain, result.offset = ag.gain(t, p)
     result.robust_gain = ag.robust_gain(t, p)
@@ -1226,10 +1226,10 @@ def _warnings(
                 "round and are not affected."
             )
     below, above = result.tail_shares
-    if result.n >= 30 and max(below, above) > 0.04:
+    if ag.tails_off(result.n, result.tail_shares):
         notes.append(
             f"{below:.1%} of errors fall below the normal limits and {above:.1%} "
-            "above them, against 2.5% each for a normal error: use the percentile "
-            "limits."
+            "above them, against 2.5% each for a normal error, more than chance "
+            "explains: use the percentile limits."
         )
     return notes

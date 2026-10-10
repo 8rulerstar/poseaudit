@@ -55,6 +55,19 @@
 
 ### Changed
 
+- "Use the percentile limits" (and hiding the normal limits) now needs more
+  than chance: over 4% of errors past a normal limit and a one-sided
+  binomial p under 0.05. The share alone fired for about one sample in five
+  of 30 to 60 normal errors, the size of a typical clinical study; now about
+  one in a hundred. On the demo it still fires for three of the four joints.
+- The normal limits are printed from 3 readings up (were 30), so a small
+  goniometer study sees bias +/- 1.96 SD beside the percentile limits.
+- The table of several measures gives the bias with its 95% interval.
+- With one reading per subject, the summary and report leave out the
+  table per subject; with one subject, there are no limits for repeated
+  readings (they were the normal limits under another name).
+- A table cut to fit the terminal stops one column short of its width, as
+  other lines do, so that Windows does not wrap it.
 - The jitter reference is marked experimental: `--full` prints it last,
   under `experimental, still being validated`, the report says so, and the
   JSON lists its keys under `experimental`.

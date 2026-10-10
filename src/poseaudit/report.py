@@ -108,8 +108,11 @@ def _size_unit(result: "AuditResult") -> str:
 
 def _normal_fits(result: "AuditResult") -> bool:
     """The normal limits are worth showing beside the percentile ones: enough
-    readings, and tails close to 2.5% each (the same test as the warning)."""
-    return result.n >= 30 and max(result.tail_shares) <= 0.04
+    readings to give them (3), and no more errors past either than chance
+    allows (the same test as the warning)."""
+    from poseaudit.agreement import tails_off
+
+    return result.n >= 3 and not tails_off(result.n, result.tail_shares)
 
 
 def summary(result: "AuditResult", full: bool = False) -> str:
@@ -166,7 +169,7 @@ def summary(result: "AuditResult", full: bool = False) -> str:
         rlo, rhi = result.repeated_limits
         who = "subjects" if result.settings.get("cluster") == "subject" else "clusters"
         lines.append(f"  repeated     {_range(rlo, rhi, f2, u)} ({who})")
-    if len(result.by_subject) > 1:
+    if len(result.by_subject) > 1 and _repeated(result):
         lines.append(_by_subject_line(result, f2, u, d))
     lines += [
         f"  |error|      mean {result.mean_abs_error:.{d}f}{u} "
@@ -198,6 +201,12 @@ def summary(result: "AuditResult", full: bool = False) -> str:
     lines += [_decision(th, u, d) for th in result.thresholds]
     lines += [f"  ! {w}" for w in rest]
     return "\n".join(lines)
+
+
+def _repeated(result: "AuditResult") -> bool:
+    """Some subject (or cluster) holds several readings: with one each, a
+    summary per subject only repeats the readings."""
+    return any(g.n > 1 for g in result.by_subject)
 
 
 def _by_subject_line(result: "AuditResult", f2: str, u: str, d: int) -> str:
@@ -670,7 +679,7 @@ def _group_tables(result: "AuditResult", u: str, d: int) -> list[str]:
         (f"## Error by {who}", result.by_subject, False),
         (f"## Error by {who} and trial", result.by_trial, True),
     ):
-        if not rows:
+        if not rows or not _repeated(result):
             continue
         head = f"| {who} |" + (" trial |" if trials else "")
         rule = "|---|" + ("---|" if trials else "")
@@ -793,7 +802,7 @@ def _cells(result: "AuditResult", threshold: bool = False) -> list[str]:
     return [
         label(result),
         str(result.n),
-        f"{_f(result.bias, f'+.{d}f')}{u}",
+        f"{_f(result.bias, f'+.{d}f')}{u} {_ci(result.bias_ci, f'+.{d}f')}",
         _range(lo, hi, f"+.{d}f", u),
         f"{result.mean_abs_error:.{d}f}{u} {_ci(result.mean_abs_error_ci, f'.{d}f')}",
         f"{result.rmse:.{d}f}{u}",
@@ -846,7 +855,8 @@ def layout(
         blocks = [[]]
         used = lead
         for k in range(keep, len(widths)):
-            if blocks[-1] and used + widths[k] > width:
+            # a line filling the last column wraps on Windows: stop one short
+            if blocks[-1] and used + widths[k] >= width:
                 blocks.append([])
                 used = lead
             blocks[-1].append(k)

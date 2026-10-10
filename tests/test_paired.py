@@ -587,3 +587,61 @@ def test_frames_outside_the_reference_are_counted_in_a_warning(tmp_path) -> None
     with pytest.warns(UserWarning, match="4 of 15 predicted frames lie outside"):
         table = pa.pair_mot(pred, ref)
     assert len(table["frame"]) == 11
+
+
+# --- what the summary claims about the limits ----------------------------------
+
+
+def test_the_binomial_tail_is_exact() -> None:
+    assert ag.binomial_tail(0, 10, 0.3) == 1.0
+    assert ag.binomial_tail(11, 10, 0.3) == 0.0
+    # P(X >= 2) for X ~ Binomial(4, 0.5) is 11/16
+    assert ag.binomial_tail(2, 4, 0.5) == pytest.approx(11 / 16)
+    assert ag.binomial_tail(3, 30, 0.025) == pytest.approx(
+        1 - sum(math.comb(30, i) * 0.025**i * 0.975 ** (30 - i) for i in range(3))
+    )
+
+
+def test_normal_errors_are_rarely_told_to_use_the_percentile_limits() -> None:
+    """With 30 to 60 normal errors a 4% share alone said "use the percentile
+    limits" for about one sample in five; the binomial test keeps it rare,
+    and a skewed error is still caught."""
+    rng = np.random.default_rng(0)
+    for n in (30, 60, 100):
+        flagged = 0
+        for _ in range(400):
+            e = rng.normal(0, 1, n)
+            lo, hi = ag.limits(e)
+            flagged += ag.tails_off(n, ((e < lo).mean(), (e > hi).mean()))
+        assert flagged / 400 < 0.03, n
+    e = rng.lognormal(0, 0.6, 1000)
+    lo, hi = ag.limits(e)
+    assert ag.tails_off(1000, ((e < lo).mean(), (e > hi).mean()))
+
+
+def test_a_goniometer_study_shows_its_normal_limits() -> None:
+    rng = np.random.default_rng(3)
+    ref = rng.uniform(60, 140, 30)
+    pred = ref + rng.normal(1, 3, 30)
+    patients = [f"P{i}" for i in range(30)]
+    r = pa.audit_values(pred, ref, 5, unit="deg", subject=patients, resamples=200)
+    text = r.summary()
+    assert "  normal       " in text and "use the percentile" not in text
+    # one reading per patient: no table per patient, no repeated-readings limits
+    assert "by subject" not in text and r.repeated_limits is None
+    assert "## Error by subject" not in r.to_markdown()
+    assert np.isfinite(r.upper_limit_exact_ci[0])
+
+
+def test_one_subject_gives_no_repeated_limits() -> None:
+    ref = np.linspace(0, 60, 40)
+    pred = ref + np.sin(np.arange(40))
+    r = pa.audit_values(pred, ref, 5, unit="deg", subject="S01", resamples=50)
+    assert r.repeated_limits is None and "repeated" not in r.summary(full=True)
+
+
+def test_the_table_of_measures_gives_the_bias_with_its_interval() -> None:
+    (r,) = pa.audit_paired(_long(), big_error=5, resamples=200)
+    row = pa.report.table([r, r])
+    lo, hi = r.bias_ci
+    assert f"{r.bias:+.2f}° [{lo:+.2f} to {hi:+.2f}]" in row
