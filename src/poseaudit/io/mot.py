@@ -3,8 +3,8 @@ Sports2D write them: a header ending in `endheader`, then a row of column
 names led by `time`, then one row of numbers per frame.
 
 Columns ending in _tx, _ty or _tz are translations in metres; the others are
-angles, in degrees when the header says `inDegrees=yes` (or says nothing) and
-in radians when it says `inDegrees=no`.
+angles, in degrees when the header says `inDegrees=yes` (or says nothing,
+with a warning) and in radians when it says `inDegrees=no`.
 """
 
 import math
@@ -61,10 +61,12 @@ def load_mot(path: str | Path) -> Motion:
                 "led by time; is it a .mot file?"
             )
     in_degrees = True
+    stated = False
     for line in header:
         key, _, value = line.partition("=")
         if key.strip().lower() == "indegrees":
             in_degrees = value.strip().lower() not in ("no", "false", "0")
+            stated = True
     names = _split(lines[names_at])
     if not names or names[0].lower() != "time":
         raise ValueError(
@@ -94,7 +96,29 @@ def load_mot(path: str | Path) -> Motion:
     if not np.isfinite(time).all() or (np.diff(time) <= 0).any():
         raise ValueError(f"{path}: the times must be finite and increasing")
     columns = {name: values[:, j] for j, name in enumerate(names) if j}
+    if not stated:
+        _unstated(path, columns)
     return Motion(time, columns, in_degrees)
+
+
+def _unstated(path: Path, columns: dict[str, np.ndarray]) -> None:
+    """Warn that a file with angle columns and no inDegrees line is read as
+    degrees, the more firmly when every angle lies where radians would."""
+    angles = [v for name, v in columns.items() if not TRANSLATION.search(name)]
+    if not angles:
+        return
+    finite = np.concatenate(angles)
+    finite = finite[np.isfinite(finite)]
+    text = f"{path}: no inDegrees line in the header, so the angles are read as degrees"
+    if finite.size and (np.abs(finite) <= 2 * math.pi).all():
+        text += (
+            f"; but every angle lies within +/-2 pi ({np.abs(finite).max():.2f} "
+            "at most), as radians would: if the file is in radians, add "
+            "inDegrees=no to its header"
+        )
+    else:
+        text += "; add inDegrees=yes or inDegrees=no to the header to say which"
+    warnings.warn(text, stacklevel=3)
 
 
 def pair_mot(

@@ -220,9 +220,9 @@ The summary prints the percentile limits, and the normal ones beside them
 unless more errors fall past one normal limit than chance explains: above
 4% (against 2.5%) and a one-sided binomial p under 0.05. Then a warning says
 to use the percentile limits. The share alone is a poor guide in small
-samples: with 30 to 60 normal errors it passed 4% in about one sample in
-five, while the test flags about one in a hundred at any size from 30 to
-1000 (simulated). It mostly catches skew; a symmetric heavy tail widens
+samples: with 30 to 60 normal errors it passed 4% in 19 to 39% of
+samples, while the test flagged at most about 1.3% at any size from 30 to
+1000 (simulated, 4000 samples each). It mostly catches skew; a symmetric heavy tail widens
 the SD too, so the normal limits can still hold 95% of errors while being
 far from the percentile ones, which is why both are printed. With 40
 readings or fewer the percentile limits are little more than the extremes;

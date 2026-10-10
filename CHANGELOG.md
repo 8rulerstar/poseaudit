@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- A `.mot` file with no `inDegrees` line in its header is still read as
+  degrees, but now with a warning (in the summary, the JSON and on stderr);
+  when every angle lies within +/-2 pi, as radians would, the warning says to
+  add `inDegrees=no` if the file is in radians. A radian file without the
+  line used to give a bias of about -29.5° with no sign of why.
+- A paired table whose rows of one measure repeat the same subject, trial
+  and frame (a table stacked or joined twice) now warns with the number of
+  such rows and the first of them; they are still counted.
+- The README says the demo's elbows disagree with COCO's labels by 15° or
+  more, rather than are off by it, and gives the share the labels' own
+  spread would explain.
+- The rate at which the normal limits are flagged by chance, in the docs and
+  the docstring, is the simulated one: the 4% share alone fires in 19 to 39%
+  of samples of 30 to 60 normal errors, the binomial test in at most about
+  1.3% (0.3.0's changelog said one in five and one in a hundred).
+- Tests pin down the degree and radian conversion between two `.mot` files,
+  the interpolation between samples, the limits for repeated readings
+  against Bland and Altman (2007) worked by hand, and the count of rows
+  empty on both sides; the plot test skips without matplotlib.
+
 ## 0.3.0
 
 ### Added

@@ -28,8 +28,9 @@ The mean |error| is one line of numpy. The work is around it (brackets are 95% i
   unlabelled in the truth stay out of the count instead of counting as errors.
 - **Honest intervals.** Readings from one image, or from one subject with `--cluster`,
   are resampled together.
-- **Where it goes wrong.** 58% of elbows are off by 15° or more when the arm segments
-  average under 30 px, against 26% above 60 px.
+- **Where it goes wrong.** 58% of elbows disagree with COCO's labels by 15° or more when
+  the arm segments average under 30 px, against 26% above 60 px; the labels' own spread
+  alone would put 25.9 to 39.9% of arms there ([statistics](https://github.com/8rulerstar/poseaudit/blob/main/docs/statistics.md#reading-the-demo)).
 
 ![The score filter person by person: the mean drops only because the worst-read people were dropped](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/score-filter.gif)
 

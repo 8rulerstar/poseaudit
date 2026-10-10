@@ -186,7 +186,8 @@ the reference's clock. Columns named otherwise, as a Sports2D angle file
 A sign or zero convention that differs shows as a slope near -1 or a large
 bias; convert such a column first.
 Columns ending `_tx`, `_ty` or `_tz` are translations in metres; the rest are
-angles, in degrees unless the header says `inDegrees=no`.
+angles, in degrees unless the header says `inDegrees=no` (with no inDegrees line at
+all, a warning says the file is read as degrees).
 
 ```bash
 poseaudit paired --pred-mot S01_walk1_pose.mot --ref-mot S01_walk1_mocap.mot \

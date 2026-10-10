@@ -49,7 +49,7 @@ def test_the_readme_quotes_what_the_demo_prints(capsys, monkeypatch) -> None:
     bands = re.search(r"0-30 px (\d+)% .* 60\+ px (\d+)% ", out)
     assert bands
     small, large = bands.groups()
-    assert f"{small}% of elbows are off by 15° or more" in readme
+    assert f"{small}% of elbows disagree with COCO's labels by 15° or more" in readme
     assert f"against {large}% above 60 px" in readme
 
 

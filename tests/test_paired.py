@@ -225,7 +225,8 @@ def test_a_mot_file_is_read_with_its_units(tmp_path) -> None:
     assert m.unit("knee_angle_r") == "deg" and m.unit("pelvis_tx") == "m"
     radians = pa.load_mot(_mot(tmp_path / "b.mot", t, {"hip": t}, degrees=False))
     assert radians.unit("hip") == "rad"
-    bare = pa.load_mot(_mot(tmp_path / "c.mot", t, {"hip": t}, header=False))
+    with pytest.warns(UserWarning, match="no inDegrees line"):
+        bare = pa.load_mot(_mot(tmp_path / "c.mot", t, {"hip": t}, header=False))
     assert bare.columns["hip"].tolist() == t.tolist()
     (tmp_path / "bad.mot").write_text("endheader\ntime\thip\n0\t1\t2\n")
     with pytest.raises(ValueError, match="3 values under 2 column names"):
@@ -340,6 +341,7 @@ def test_the_cli_says_what_is_wrong(tmp_path, monkeypatch, capsys, extra, messag
 
 
 def test_the_cli_refuses_a_plot_of_several_measures(tmp_path) -> None:
+    pytest.importorskip("matplotlib")
     table = _long(subjects=2, frames=3)
     table["measure"] = ["knee", "hip"] * (len(table["measure"]) // 2)
     _write_table(tmp_path / "t.csv", table)

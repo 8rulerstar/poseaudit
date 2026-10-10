@@ -269,7 +269,46 @@ def audit_paired(
                 **options,
             )
         )
+        twice = _repeated_keys(name, pick)
+        if twice:
+            results[-1].warnings.append(twice)
     return results
+
+
+def _repeated_keys(name: str, pick: dict) -> str | None:
+    """A warning when rows of one measure share subject, trial and frame, as
+    a table stacked or joined twice makes: each is counted once more. Without
+    a frame column repeated readings of a subject are expected, so only
+    tables with frames are checked."""
+    if pick["frame"] is None:
+        return None
+    n = len(pick["frame"])
+    keys = [
+        tuple(
+            "" if pick[k] is None else str(pick[k][i])
+            for k in ("subject", "trial", "frame")
+        )
+        for i in range(n)
+    ]
+    seen: set[tuple[str, ...]] = set()
+    repeated = []
+    for key in keys:
+        if key in seen:
+            repeated.append(key)
+        seen.add(key)
+    if not repeated:
+        return None
+    subject, trial, frame = min(repeated)
+    shown = ", ".join(
+        f"{label} {value}"
+        for label, value in (("subject", subject), ("trial", trial), ("frame", frame))
+        if value
+    )
+    return (
+        f"{len(repeated)} rows of {name} repeat the subject, trial and frame of "
+        f"an earlier row (first: {shown}) and are counted again; is the table "
+        "stacked twice?"
+    )
 
 
 def big_error_of(name: str, unit: str, big_error: float | Mapping[str, float]) -> float:
