@@ -75,6 +75,16 @@ r = pa.audit_values(pred, ref, big_error=5, unit="deg", subject=["a", "a", "b", 
 print([x.error for x in r.readings])  # [2.0, -3.0, 2.0, -1.0]: 179 to -179 is 2
 ```
 
+Columns named otherwise are given their roles with `columns`, as for a
+goniometer sheet with one row per patient; an Excel file is read with
+pandas first (`pd.read_excel`):
+
+```python
+sheet = {"Patient": ["A", "B", "C"], "Goniometer": [92, 118, 75], "App": [95, 114, 80]}
+(r,) = pa.audit_paired(sheet, big_error=5, units={"value": "deg"},
+                       columns={"ref": "Goniometer", "pred": "App", "subject": "Patient"})
+```
+
 OpenSim .mot files (Pose2Sim, Sports2D, inverse kinematics) are read with
 `load_mot` and lined up by time and column name with `pair_mot`, which gives
 a table for `audit_paired`; a list of such tables is stacked:
@@ -86,6 +96,14 @@ tables = [
 ]
 results = pa.audit_paired(tables, big_error={"deg": 5, "m": 0.02})
 ```
+
+Columns named otherwise in the two files, as a Sports2D angle file against
+OpenSim's inverse kinematics, are paired with `match`, prediction's name to
+the reference's: `pa.pair_mot("S01_sports2d.mot", "S01_ik.mot",
+match={"right knee": "knee_angle_r"})`. A difference in sign convention or
+zero (flexion positive in one, negative in the other) shows as a slope
+near -1 or a large bias: convert the column first (`table["pred"]` is a
+plain list).
 
 Values of one subject are resampled together for every interval; the limits
 for repeated readings and `by_subject` and `by_trial` (each a
@@ -214,7 +232,9 @@ worse. A plain mean over each set would call that a 2° improvement.
   as values is a `Quantity` (its `period`, 360 for degrees, makes
   differences wrap). `load_mot(path)` returns a `Motion` (times, columns,
   `unit(name)`); `pair_mot(pred, ref, subject=..., trial=...,
-  time_offset=...)` lines up two of them as a table.
+  time_offset=..., match=...)` lines up two of them as a table.
+  `audit_paired(..., columns={"pred": "App", ...})` reads columns named
+  otherwise.
 - Repeated measures: with named clusters or subjects, `by_subject` holds a
   `GroupSummary` per subject (or cluster), and for paired values with trials
   `by_trial` one per subject and trial.

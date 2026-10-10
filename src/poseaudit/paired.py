@@ -10,8 +10,11 @@ for repeated readings and a summary per subject and per trial.
 """
 
 import csv
+import io
+import locale
 import math
 import numbers
+import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -196,6 +199,7 @@ def audit_paired(
     measures: Sequence[str] | None = None,
     units: Mapping[str, str] | None = None,
     wrap: bool | float | None = None,
+    columns: Mapping[str, str] | None = None,
     **options,
 ) -> list[AuditResult]:
     """Audit every measure in a long-format table, one result per measure in
@@ -209,9 +213,12 @@ def audit_paired(
     big_error: one value, or a mapping by measure name or by unit, such as
         {"knee_angle": 5, "deg": 10, "m": 0.02}; a name wins over a unit.
     measures: audit these only. units: a unit per measure name, over the
-        `unit` column. The other options are `audit_values`'s.
+        `unit` column.
+    columns: which of the data's columns holds each role, when they are named
+        otherwise, such as {"ref": "Goniometer", "pred": "App",
+        "subject": "Patient"}. The other options are `audit_values`'s.
     """
-    table = read_table(data)
+    table = read_table(data, columns)
     names = list(dict.fromkeys(table["measure"]))
     if measures is not None:
         unknown = [m for m in measures if m not in names]
@@ -268,31 +275,34 @@ def big_error_of(name: str, unit: str, big_error: float | Mapping[str, float]) -
     return number
 
 
-def read_table(data) -> dict[str, list]:
+def read_table(data, columns: Mapping[str, str] | None = None) -> dict[str, list]:
     """A long-format table as a dict of equal-length lists, with the columns
     named as `COLUMNS` (lower case; `time` read as `frame`) and a `measure`
-    column filled in when the table has none."""
+    column filled in when the table has none.
+
+    columns: the data's own name for a role, such as {"pred": "App",
+    "ref": "Goniometer"}; a column of that role's own name is then ignored.
+    A CSV may be separated by commas, semicolons or tabs (as Excel saves it
+    in many languages); with semicolons or tabs, 10,5 reads as 10.5."""
     if isinstance(data, (str, Path)):
-        columns = _read_csv(Path(data))
+        table = _read_csv(Path(data))
     elif isinstance(data, Mapping):
-        columns = {str(k): list(np.asarray(v, dtype=object)) for k, v in data.items()}
+        table = {str(k): list(np.asarray(v, dtype=object)) for k, v in data.items()}
     elif hasattr(data, "columns") and hasattr(data, "__getitem__"):  # a DataFrame
-        columns = {
-            str(k): list(np.asarray(data[k], dtype=object)) for k in data.columns
-        }
+        table = {str(k): list(np.asarray(data[k], dtype=object)) for k in data.columns}
     elif (
         isinstance(data, Sequence)
         and data
         and all(isinstance(x, Mapping) for x in data)
     ):
-        return _stack([read_table(x) for x in data])
+        return _stack([read_table(x, columns) for x in data])
     else:
         raise TypeError(
             "data is a CSV path, a DataFrame, a mapping of columns, or a list of "
             f"mappings; got {type(data).__name__}"
         )
     named: dict[str, list] = {}
-    for key, values in columns.items():
+    for key, values in _renamed(table, columns).items():
         name = key.strip().lower()
         name = "frame" if name == "time" else name
         if name in named:
@@ -305,7 +315,8 @@ def read_table(data) -> dict[str, list]:
     if missing:
         raise ValueError(
             f"the table needs columns pred and ref; it lacks {' and '.join(missing)} "
-            f"(it has {', '.join(columns) or 'none'})"
+            f"(it has {', '.join(table) or 'none'}); name them with "
+            "columns={'pred': ..., 'ref': ...} (--column pred=NAME)"
         )
     if "measure" not in named:
         named["measure"] = ["value"] * len(named["pred"])
@@ -314,6 +325,35 @@ def read_table(data) -> dict[str, list]:
         if key in named:
             named[key] = [_text(x) for x in named[key]]
     return named
+
+
+def _renamed(table: dict[str, list], columns: Mapping[str, str] | None) -> dict:
+    """`table` with each column named in `columns` given its role's name."""
+    if not columns:
+        return table
+    roles = {"time": "frame"}
+    picked: dict[str, str] = {}
+    for role, given in columns.items():
+        key = roles.get(role.strip().lower(), role.strip().lower())
+        if key not in COLUMNS:
+            raise ValueError(
+                f"columns names a role {role!r}; the roles are {', '.join(COLUMNS)}"
+            )
+        found = [c for c in table if c == given] or [
+            c for c in table if c.strip().lower() == str(given).strip().lower()
+        ]
+        if not found:
+            raise ValueError(
+                f"no column {given!r} for {key}; the table has {', '.join(table)}"
+            )
+        picked[found[0]] = key
+    out = {picked[c]: v for c, v in table.items() if c in picked}
+    taken = set(out)
+    for c, v in table.items():
+        name = c.strip().lower()
+        if c not in picked and roles.get(name, name) not in taken:
+            out[c] = v
+    return out
 
 
 def _stack(tables: list[dict[str, list]]) -> dict[str, list]:
@@ -326,12 +366,35 @@ def _stack(tables: list[dict[str, list]]) -> dict[str, list]:
     return {k: [x for t in tables for x in t[k]] for k in tables[0]}
 
 
+_DECIMAL_COMMA = re.compile(r"\s*[+-]?\d+,\d+\s*")
+
+
 def _read_csv(path: Path) -> dict[str, list]:
-    with open(path, newline="", encoding="utf-8-sig") as f:
-        reader = csv.reader(f)
-        rows = [row for row in reader if any(cell.strip() for cell in row)]
+    """A CSV's columns by name. Commas, semicolons or tabs, whichever the
+    first line holds most of; UTF-8, else the system's own encoding (Excel's
+    plain "CSV" on Windows)."""
+    raw = path.read_bytes()
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        own = locale.getpreferredencoding(False)
+        try:
+            text = raw.decode(own)
+        except (UnicodeDecodeError, LookupError):
+            raise ValueError(
+                f"{path} is neither UTF-8 nor {own}: save it as CSV UTF-8"
+            ) from None
+    first = next((line for line in text.splitlines() if line.strip()), "")
+    delimiter = max((",", ";", "\t"), key=first.count)
+    reader = csv.reader(io.StringIO(text, newline=""), delimiter=delimiter)
+    rows = [row for row in reader if any(cell.strip() for cell in row)]
     if not rows:
         raise ValueError(f"{path} is empty")
+    if delimiter != ",":  # 10,5 is ten and a half where Excel uses semicolons
+        rows = [rows[0]] + [
+            [c.replace(",", ".") if _DECIMAL_COMMA.fullmatch(c) else c for c in row]
+            for row in rows[1:]
+        ]
     head, body = rows[0], rows[1:]
     for k, row in enumerate(body, start=2):
         if len(row) != len(head):

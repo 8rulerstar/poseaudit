@@ -41,6 +41,15 @@
   Bland-Altman example of Bland and Altman (1986) (mean difference -2.1,
   SD 38.8, limits -79.7 to 75.5 at 2 SD); the exact intervals against
   `scipy.stats.nct` and by simulated coverage.
+- Tables as spreadsheets save them: a CSV separated by semicolons or tabs
+  (with `10,5` read as 10.5) as well as commas, and one in the system's own
+  encoding (Excel's plain "CSV" on Windows) when it is not UTF-8.
+  `--column ROLE=NAME` (`columns=` in Python) reads columns named otherwise,
+  as `--column ref=Goniometer --column pred=App --column subject=Patient`.
+- `--match PRED=REF` (`match=` in `pa.pair_mot`) pairs .mot columns named
+  otherwise, such as a Sports2D `right knee` with OpenSim's `knee_angle_r`.
+  Predicted frames outside the reference's time span are left out with a
+  warning that counts them, instead of silently.
 - `examples/paired`: a synthetic long CSV and a pair of `.mot` files, made
   by its `make_data.py`, for the docs' examples.
 

@@ -9,7 +9,8 @@ in radians when it says `inDegrees=no`.
 
 import math
 import re
-from collections.abc import Sequence
+import warnings
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -103,6 +104,7 @@ def pair_mot(
     trial: str | None = None,
     columns: Sequence[str] | None = None,
     time_offset: float = 0.0,
+    match: Mapping[str, str] | None = None,
 ) -> dict[str, list]:
     """Line up a predicted and a reference .mot file by time and column name,
     as a long-format table for `audit_paired`: one row per frame and column
@@ -114,9 +116,15 @@ def pair_mot(
     there, angles unwrapped first so that 179 to -179 interpolates through
     180. A reference value next to a missing one (NaN) is missing too.
     `columns` picks the columns; by default every one both files hold.
+    `match` pairs columns named differently, prediction's name to the
+    reference's, such as {"right knee": "knee_angle_r"}; the measure takes
+    the reference's name. Predicted frames outside the reference's span are
+    left out with a warning that counts them.
     """
     p = pred if isinstance(pred, Motion) else load_mot(pred)
     r = ref if isinstance(ref, Motion) else load_mot(ref)
+    if match:
+        p = _matched(p, r, match)
     shared = [c for c in r.columns if c in p.columns]
     if columns is not None:
         for c in columns:
@@ -138,6 +146,12 @@ def pair_mot(
             f"the files do not overlap in time: prediction {t[0]:g} to {t[-1]:g} s, "
             f"reference {r.time[0]:g} to {r.time[-1]:g} s; a time offset moves the "
             "prediction"
+        )
+    if not inside.all():
+        warnings.warn(
+            f"{int((~inside).sum())} of {len(inside)} predicted frames lie outside "
+            f"the reference's {r.time[0]:g} to {r.time[-1]:g} s and are left out",
+            stacklevel=2,
         )
     t = t[inside]
     table: dict[str, list] = {
@@ -163,6 +177,29 @@ def pair_mot(
     if trial is not None:
         table["trial"] = [str(trial)] * n
     return table
+
+
+def _matched(p: Motion, r: Motion, match: Mapping[str, str]) -> Motion:
+    """The prediction with its columns renamed to the reference's names."""
+    for given, wanted in match.items():
+        if given not in p.columns:
+            raise ValueError(
+                f"match: no column {given!r} in the prediction file; it has "
+                f"{_few(p.columns)}"
+            )
+        if wanted not in r.columns:
+            raise ValueError(
+                f"match: no column {wanted!r} in the reference file; it has "
+                f"{_few(r.columns)}"
+            )
+    targets = set(match.values())
+    if len(targets) < len(match):
+        raise ValueError("match pairs two prediction columns with one reference")
+    renamed = {match[k]: v for k, v in p.columns.items() if k in match}
+    renamed |= {
+        k: v for k, v in p.columns.items() if k not in match and k not in targets
+    }
+    return Motion(p.time, renamed, p.in_degrees)
 
 
 def _at(times: np.ndarray, values: np.ndarray, at: np.ndarray, period) -> np.ndarray:

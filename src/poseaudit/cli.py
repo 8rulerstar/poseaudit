@@ -733,12 +733,28 @@ def _paired_parser(sub) -> None:
         help="long-format CSV: pred and ref, and optionally measure, subject, "
         "trial, frame (or time) and unit",
     )
+    data.add_argument(
+        "--column",
+        action="append",
+        default=[],
+        metavar="ROLE=NAME",
+        help="with --table: the column that holds a role when it is named "
+        "otherwise, as in pred=App or ref=Goniometer or subject=Patient",
+    )
     data.add_argument("--pred-mot", metavar="MOT", help="predicted .mot file")
     data.add_argument("--ref-mot", metavar="MOT", help="reference .mot file")
     data.add_argument(
         "--mot-pairs",
         metavar="CSV",
         help="CSV of .mot pairs: columns subject, trial (optional), pred, ref",
+    )
+    data.add_argument(
+        "--match",
+        action="append",
+        default=[],
+        metavar="PRED=REF",
+        help="(.mot) pair a prediction column with a reference column named "
+        "otherwise, as in 'right knee=knee_angle_r'; repeat it for several",
     )
     data.add_argument("--subject", help="with --pred-mot: the subject's name")
     data.add_argument("--trial", help="with --pred-mot: the trial's name")
@@ -1184,11 +1200,17 @@ def _run_paired(args):
         if not sep or not name.strip():
             raise UsageError(f"--unit takes NAME=UNIT, got {item!r}")
         units[name.strip()] = unit.strip()
+    if args.column and not args.table:
+        raise UsageError("--column names the columns of --table")
+    if args.match and args.table:
+        raise UsageError("--match pairs the columns of .mot files")
+    roles = _pairs(args.column, "--column", "ROLE=NAME")
+    match = _pairs(args.match, "--match", "PRED=REF")
     big_error = _paired_big_errors(args.big_error)
     bands = _bands(args.bands)
     columns = args.measure
     if args.table:
-        table = read_table(args.table)
+        table = read_table(args.table, roles)
     elif args.pred_mot:
         table = read_table(
             pair_mot(
@@ -1198,6 +1220,7 @@ def _run_paired(args):
                 trial=args.trial,
                 columns=columns,
                 time_offset=args.time_offset,
+                match=match,
             )
         )
     else:
@@ -1210,6 +1233,7 @@ def _run_paired(args):
                     trial=trial,
                     columns=columns,
                     time_offset=args.time_offset,
+                    match=match,
                 )
                 for subject, trial, pred, ref in _mot_pairs(Path(args.mot_pairs))
             ]
@@ -1247,8 +1271,23 @@ def _run_paired(args):
             "ref_mot": args.ref_mot,
             "mot_pairs": args.mot_pairs,
             "time_offset": args.time_offset,
+            **({"columns": roles} if roles else {}),
+            **({"match": match} if match else {}),
         },
     )
+
+
+def _pairs(given: list[str], flag: str, form: str) -> dict[str, str]:
+    """KEY=VALUE options as a dict, in the order given."""
+    out: dict[str, str] = {}
+    for item in given:
+        key, sep, value = (x.strip() for x in item.partition("="))
+        if not (sep and key and value):
+            raise UsageError(f"{flag} takes {form}, got {item!r}")
+        if key in out:
+            raise UsageError(f"{flag} gives {key} twice")
+        out[key] = value
+    return out
 
 
 def _per_measure(big_error: dict[str, float], names, unit_of) -> dict[str, float]:

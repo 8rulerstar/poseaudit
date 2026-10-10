@@ -238,7 +238,8 @@ def test_mot_files_are_aligned_by_time_and_column_name(tmp_path) -> None:
     ref = _mot(tmp_path / "ref.mot", ref_t, {"knee": knee(ref_t), "hip": ref_t})
     pred = _mot(tmp_path / "pred.mot", pred_t + 0.1,
                 {"knee": knee(pred_t) + 1, "ankle": pred_t})  # fmt: skip
-    table = pa.pair_mot(pred, ref, subject="S1", trial="t1", time_offset=-0.1)
+    with pytest.warns(UserWarning, match="14 of 75 predicted frames"):
+        table = pa.pair_mot(pred, ref, subject="S1", trial="t1", time_offset=-0.1)
     assert set(table["measure"]) == {"knee"}  # the only column both hold
     assert max(table["frame"]) <= 2.0 + 1e-9 and len(table["frame"]) == 61
     (r,) = pa.audit_paired(table, big_error=5, resamples=50)
@@ -497,3 +498,92 @@ def test_the_paired_block_in_the_docs_is_what_the_example_prints(
     monkeypatch.chdir(example)
     main(command.split()[2:])
     assert capsys.readouterr().out == shown
+
+
+# --- tables as spreadsheets save them, and columns named otherwise ------------
+
+
+def test_a_semicolon_csv_with_decimal_commas_reads_as_numbers(tmp_path) -> None:
+    path = tmp_path / "excel.csv"
+    path.write_text(
+        "subject;pred;ref;unit\nA;10,5;11,0;deg\nB;20,1;19,0;deg\nC;-3,25;-2;deg\n",
+        encoding="utf-8",
+    )
+    table = pa.paired.read_table(path)
+    assert table["pred"] == ["10.5", "20.1", "-3.25"]
+    (r,) = pa.audit_paired(path, big_error=5, resamples=50)
+    assert r.bias == pytest.approx((-0.5 + 1.1 - 1.25) / 3)
+    tabs = tmp_path / "tabs.csv"
+    tabs.write_text("pred\tref\n1,5\t2\n2\t2,5\n", encoding="utf-8")
+    assert pa.paired.read_table(tabs)["ref"] == ["2", "2.5"]
+    # with commas between cells a quoted 1,000 stays as it is, not 1.0
+    commas = tmp_path / "commas.csv"
+    commas.write_text('pred,ref\n"1,000",2\n', encoding="utf-8")
+    with pytest.raises(ValueError, match="not a number"):
+        pa.audit_paired(commas, big_error=5)
+
+
+def test_a_csv_in_the_systems_own_encoding_is_read(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "ansi.csv"
+    path.write_bytes("subject,pred,ref\nJosé,1,2\nZoë,2,2\n".encode("cp1252"))
+    monkeypatch.setattr(pa.paired.locale, "getpreferredencoding", lambda _: "cp1252")
+    assert pa.paired.read_table(path)["subject"] == ["José", "Zoë"]
+    monkeypatch.setattr(pa.paired.locale, "getpreferredencoding", lambda _: "ascii")
+    with pytest.raises(ValueError, match="save it as CSV UTF-8"):
+        pa.paired.read_table(path)
+
+
+def test_columns_named_otherwise_are_given_their_roles(tmp_path, capsys) -> None:
+    data = {"Patient": ["A", "B", "C"], "Goniometer": [10, 20, 30],
+            "App": [11, 19, 33], "pred": [0, 0, 0]}  # fmt: skip
+    (r,) = pa.audit_paired(
+        data,
+        big_error=5,
+        columns={"ref": "goniometer", "pred": "App", "subject": "Patient"},
+        units={"value": "deg"},
+        resamples=50,
+    )
+    assert [x.error for x in r.readings] == [1.0, -1.0, 3.0]  # not the pred column
+    assert [g.subject for g in r.by_subject] == ["A", "B", "C"]
+    with pytest.raises(ValueError, match="no column 'Nope' for pred"):
+        pa.audit_paired(data, big_error=5, columns={"pred": "Nope"})
+    with pytest.raises(ValueError, match="names a role 'patient'"):
+        pa.audit_paired(data, big_error=5, columns={"patient": "Patient"})
+    with pytest.raises(ValueError, match="--column pred=NAME"):
+        pa.audit_paired({"a": [1], "b": [2]}, big_error=5)
+    path = tmp_path / "wide.csv"
+    path.write_text("Patient,Goniometer,App\nA,10,11\nB,20,19\nC,30,33\n")
+    main(["paired", "--table", str(path), "--column", "pred=App", "--column",
+          "ref=Goniometer", "--column", "subject=Patient", "--big-error", "5",
+          "--resamples", "50"])  # fmt: skip
+    assert "read 3 of 3" in capsys.readouterr().out
+    for bad in (["--column", "pred"], ["--match", "a=b"]):
+        with pytest.raises(SystemExit):
+            main(["paired", "--table", str(path), *bad, "--big-error", "5"])
+
+
+def test_mot_columns_named_otherwise_are_matched(tmp_path, capsys) -> None:
+    t = np.arange(0, 1, 0.02)
+    ref = _mot(tmp_path / "ref.mot", t, {"knee_angle_r": 40 + 10 * t, "hip": t})
+    pred = _mot(tmp_path / "pred.mot", t,
+                {"right knee": 41 + 10 * t, "knee_angle_r": t * 0})  # fmt: skip
+    table = pa.pair_mot(pred, ref, match={"right knee": "knee_angle_r"})
+    assert set(table["measure"]) == {"knee_angle_r"}
+    (r,) = pa.audit_paired(table, big_error=5, resamples=50)
+    assert r.bias == pytest.approx(1.0)  # the matched column, not the other one
+    with pytest.raises(ValueError, match="no column 'left knee' in the prediction"):
+        pa.pair_mot(pred, ref, match={"left knee": "knee_angle_r"})
+    with pytest.raises(ValueError, match="no column 'ankle' in the reference"):
+        pa.pair_mot(pred, ref, match={"right knee": "ankle"})
+    main(["paired", "--pred-mot", str(pred), "--ref-mot", str(ref),
+          "--match", "right knee=knee_angle_r", "--big-error", "5",
+          "--resamples", "50"])  # fmt: skip
+    assert "knee_angle_r: read 50 of 50" in capsys.readouterr().out
+
+
+def test_frames_outside_the_reference_are_counted_in_a_warning(tmp_path) -> None:
+    ref = _mot(tmp_path / "r.mot", np.arange(0, 1.001, 0.01), {"knee": np.ones(101)})
+    pred = _mot(tmp_path / "p.mot", np.arange(0, 1.5, 0.1), {"knee": np.ones(15)})
+    with pytest.warns(UserWarning, match="4 of 15 predicted frames lie outside"):
+        table = pa.pair_mot(pred, ref)
+    assert len(table["frame"]) == 11

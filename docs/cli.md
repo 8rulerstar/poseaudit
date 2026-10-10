@@ -163,13 +163,28 @@ dict of columns) has one row per value:
 | `frame` or `time` | kept in the CSV and in the report's largest errors |
 | `unit` | the measure's unit; `deg` (or `degrees`) and `rad` make differences wrap, so 179° against -179° is 2° off |
 
+Columns named otherwise get their role with `--column ROLE=NAME`, as for a
+goniometer sheet with one row per patient:
+`--column ref=Goniometer --column pred=App --column subject=Patient`. The
+CSV may be separated by commas, semicolons or tabs, whichever the first
+line holds most of; with semicolons or tabs, `10,5` reads as 10.5, as Excel
+saves it in many languages. It is read as UTF-8, else in the system's own
+encoding (Excel's plain "CSV" on Windows). An `.xlsx` file is saved as CSV
+first, or read with pandas in Python.
+
 **OpenSim .mot files** (`--pred-mot P.mot --ref-mot R.mot`, with
 `--subject` and `--trial` to name them, or `--mot-pairs pairs.csv` listing
 `subject, trial, pred, ref` for several) are lined up by column name and by
 time: each prediction frame inside the reference's span is compared with the
 reference interpolated linearly there (angles the short way round, so 170°
 to -170° passes through 180°). A reference value next to a missing one is
-missing. `--time-offset S` moves the prediction onto the reference's clock.
+missing, and predicted frames outside the reference's span are left out
+with a warning that counts them. `--time-offset S` moves the prediction onto
+the reference's clock. Columns named otherwise, as a Sports2D angle file
+(`right knee`) against inverse kinematics (`knee_angle_r`), are paired with
+`--match "right knee=knee_angle_r"`; the measure takes the reference's name.
+A sign or zero convention that differs shows as a slope near -1 or a large
+bias; convert such a column first.
 Columns ending `_tx`, `_ty` or `_tz` are translations in metres; the rest are
 angles, in degrees unless the header says `inDegrees=no`.
 
@@ -186,10 +201,12 @@ subjects, so with fewer than 20 they are too narrow, as the warning says.
 | option | what it does |
 |---|---|
 | `--table CSV` | the long-format table |
+| `--column ROLE=NAME` | with `--table`: the column holding `pred`, `ref`, `subject`, `trial`, `frame`, `measure` or `unit` when it is named otherwise |
 | `--pred-mot MOT`, `--ref-mot MOT` | one predicted and one reference .mot file |
 | `--mot-pairs CSV` | several .mot pairs: columns `subject`, `trial` (optional), `pred`, `ref`, paths relative to the CSV |
 | `--subject NAME`, `--trial NAME` | with `--pred-mot`: whose files they are |
 | `--time-offset S` | seconds added to the prediction's times (default 0) |
+| `--match PRED=REF` | pair a prediction column with a reference column named otherwise; repeat it for several |
 | `--measure NAME` | audit this measure only; repeat it for several |
 | `--unit NAME=UNIT` | a measure's unit, over the table's `unit` column |
 | `--no-wrap` | angle differences taken as they are, not the short way round |
