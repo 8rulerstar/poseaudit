@@ -459,25 +459,8 @@ class _Parser(argparse.ArgumentParser):
         super().error(message)
 
 
-def _parser() -> argparse.ArgumentParser:
-    parser = _Parser(
-        prog="poseaudit",
-        description="How far off are the joint angles, tilts and lengths read "
-        "from a pose model? Judged against labels, the way a measuring "
-        "instrument is judged.",
-        epilog="poseaudit audit --help lists every option, with examples.",
-    )
-    parser.add_argument("--version", action="version", version=__version__)
-    sub = parser.add_subparsers(
-        dest="command", required=True, title="commands", metavar="COMMAND"
-    )
-    run = sub.add_parser(
-        "audit",
-        help="how far measures read off predicted keypoints are from the truth",
-        description=AUDIT,
-        epilog=EXAMPLES,
-        formatter_class=_Help,
-    )
+def _data_args(run) -> None:
+    """The data options `audit` and `budget` share."""
     data = run.add_argument_group("data")
     data.add_argument(
         "--gt", required=True, metavar="PATH", help="YOLO label folder or COCO json"
@@ -549,6 +532,28 @@ def _parser() -> argparse.ArgumentParser:
         help="smallest keypoint similarity that pairs them when a side has no box "
         "(default 0.5)",
     )
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = _Parser(
+        prog="poseaudit",
+        description="How far off are the joint angles, tilts and lengths read "
+        "from a pose model? Judged against labels, the way a measuring "
+        "instrument is judged.",
+        epilog="poseaudit audit --help lists every option, with examples.",
+    )
+    parser.add_argument("--version", action="version", version=__version__)
+    sub = parser.add_subparsers(
+        dest="command", required=True, title="commands", metavar="COMMAND"
+    )
+    run = sub.add_parser(
+        "audit",
+        help="how far measures read off predicted keypoints are from the truth",
+        description=AUDIT,
+        epilog=EXAMPLES,
+        formatter_class=_Help,
+    )
+    _data_args(run)
     what = run.add_argument_group(
         "measure",
         # the formatter keeps descriptions as written: lines under 80 columns
@@ -690,7 +695,72 @@ def _parser() -> argparse.ArgumentParser:
         "--full", action="store_true", help="every statistic in the summary"
     )
     _paired_parser(sub)
+    _budget_parser(sub)
     return parser
+
+
+BUDGET = """\
+How large must a limb be in the image for its angle to be usable? Fits each
+keypoint's error as a fixed part plus a part that grows with the limb, checks
+the fit on a held-out half of the readings, and gives the smallest limb whose
+angle is off by --big-error or more in at most --target of readings. Straight
+and bent limbs are fitted apart.
+"""
+
+BUDGET_EXAMPLES = """\
+example:
+  the left elbow of a COCO results file, at most 20% of angles off by 15
+  degrees or more:
+    poseaudit budget --format coco --gt labels.json --pred results.json --angle 5,7,9 --big-error 15 --target 0.2
+
+more: https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#budget
+"""  # noqa: E501
+
+
+def _budget_parser(sub) -> None:
+    """`poseaudit budget`: the smallest limb whose angle is usable."""
+    run = sub.add_parser(
+        "budget",
+        help="how large a limb must be in the image for its angle to be usable",
+        description=BUDGET,
+        epilog=BUDGET_EXAMPLES,
+        formatter_class=_Help,
+    )
+    _data_args(run)
+    what = run.add_argument_group("measure and goal")
+    what.add_argument(
+        "--angle",
+        required=True,
+        metavar="A,B,C",
+        help="angle at B between B-A and B-C, keypoints counted from 0",
+    )
+    what.add_argument(
+        "--big-error",
+        required=True,
+        type=float,
+        metavar="DEG",
+        help="required: an error at least this large, in degrees, counts as large",
+    )
+    what.add_argument(
+        "--target",
+        type=float,
+        default=0.2,
+        metavar="RATE",
+        help="largest share of large errors allowed, 0 to 1 (default 0.2)",
+    )
+    what.add_argument(
+        "--straight-from",
+        type=float,
+        default=150.0,
+        metavar="DEG",
+        help="labelled angles from this up are fitted as straight (default 150)",
+    )
+    what.add_argument(
+        "--seed", type=int, default=0, metavar="N", help="seed (default 0)"
+    )
+    run.add_argument_group("output").add_argument(
+        "--json", metavar="FILE", help="every figure"
+    )
 
 
 PAIRED = """\
@@ -879,8 +949,17 @@ def main(argv: list[str] | None = None) -> None:
         if type(error).__module__.startswith("PIL"):
             sys.exit(f"poseaudit: an image could not be read: {error}")
         raise
+    from poseaudit.budget import BudgetResult
     from poseaudit.compare import Comparison
 
+    if isinstance(result, BudgetResult):
+        print(_console(result.summary(), sys.stdout))
+        if args.json:
+            try:
+                write_text(args.json, json.dumps(result.to_dict(), indent=2))
+            except OSError as error:
+                sys.exit(f"poseaudit: could not write: {error}")
+        return
     if isinstance(result, Comparison):
         _finish_compare(result, args, loader_notes)
         return
@@ -1336,6 +1415,8 @@ def _mot_pairs(path: Path) -> list[tuple[str, str | None, Path, Path]]:
 def _run(args):
     if args.command == "paired":
         return _run_paired(args)
+    if args.command == "budget":
+        return _run_budget(args)
     if isinstance(args.pred, list):  # as parsed; a string once a model is chosen
         models = _models(args.pred)
         args.pred = models[0][1]
@@ -1374,6 +1455,44 @@ def _run(args):
         _audit(args, pairing, m, big, bands, size_bands)
         for m, big in zip(measures, big_errors, strict=True)
     ]
+
+
+def _run_budget(args):
+    from poseaudit.budget import budget
+
+    models = _models(args.pred)
+    if len(models) > 1:
+        raise UsageError("budget reads one model: give --pred once")
+    args.pred = models[0][1]
+    args.gt_format = args.gt_format or args.format
+    args.pred_format = args.pred_format or args.format
+    if not (args.gt_format and args.pred_format):
+        raise UsageError("give --format, or both --gt-format and --pred-format")
+    inputs = {Path(p).resolve() for p in (args.gt, args.pred, args.images) if p}
+    _writable(args.json, "--json", inputs)
+    if args.image_size and min(args.image_size) <= 0:
+        raise UsageError("--image-size takes a width and height above 0")
+    if not (np.isfinite(args.big_error) and args.big_error > 0):
+        raise UsageError("--big-error must be above 0")
+    if not 0 < args.target < 1:
+        raise UsageError("--target must be between 0 and 1, as in 0.2")
+    measure = _measure("angle", args.angle)
+    truth = _load(args, args.gt_format, args.gt, is_prediction=False)
+    predicted = _load(args, args.pred_format, args.pred, is_prediction=True)
+    pairing = pair(
+        truth,
+        predicted,
+        min_iou=args.min_iou,
+        min_keypoint_similarity=args.min_similarity,
+    )
+    return budget(
+        pairing,
+        measure,
+        args.big_error,
+        target=args.target,
+        straight_from=args.straight_from,
+        seed=args.seed,
+    )
 
 
 # A run's time grows with pairs x (resamples + _REBUILD x jitter rebuilds) for

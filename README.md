@@ -83,6 +83,13 @@ jq -e '(.mean_abs_error_ci[1] // 1e9) <= 25 and (.big_error_rate_ci[1] // 1) <= 
 It fails unless the 95% intervals end at or below 25° of mean |error| and 50% of large errors.
 Resampling is seeded, so reruns agree; one image or `--cluster` group gives `null`, which fails.
 
+## How large must a limb be
+
+`poseaudit budget --format coco --gt labels.json --pred results.json --angle 5,7,9 --big-error 15`
+gives the smallest limb, in pixels, whose angle is off by 15° or more in at most 20% of
+readings, after checking its fit on a held-out half. On COCO val2017 the fit held for elbows
+and the check refused it for knees ([budget](https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#how-large-must-a-limb-be)).
+
 ## Caveats
 
 - The figures are agreement with one human label, not error against the world ([demo](https://github.com/8rulerstar/poseaudit/blob/main/docs/statistics.md#reading-the-demo)).

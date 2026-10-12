@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `poseaudit budget` (and `poseaudit.budget.budget`): the smallest limb, in
+  pixels, whose angle is off by `--big-error` or more in at most `--target`
+  of readings. Each point's error is fitted as a fixed part plus a part that
+  grows with the limb, leaving out the shift the three points share; straight
+  and bent limbs are fitted apart, and each fit must predict a held-out half,
+  its shorter and its longer limbs, before a size is given. On COCO val2017
+  with four YOLO11 pose models the fit held for 14 of 16 elbow groups and 3 of
+  16 knee groups (`validation/error_budget.py`).
+
 ## 0.3.1
 
 ### Fixed
