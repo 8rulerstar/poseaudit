@@ -382,7 +382,9 @@ def _group(
         first = np.isin(keys, units[order[: len(order) // 2]])
         halves = np.flatnonzero(first), np.flatnonzero(~first)
         if not (len(halves[0]) and len(halves[1])):
-            halves = np.array_split(rng.permutation(len(truth)), 2)
+            # one image or cluster only: split its readings instead
+            shuffled = rng.permutation(len(truth))
+            halves = shuffled[: len(truth) // 2], shuffled[len(truth) // 2 :]
         for fit_on, check_on in (halves, halves[::-1]):
             fixed, share = fit_spread(truth[fit_on], predicted[fit_on])
             expected[check_on] += large_rate(
