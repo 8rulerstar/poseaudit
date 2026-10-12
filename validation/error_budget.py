@@ -39,7 +39,6 @@ import numpy as np
 
 from poseaudit import angle, load_coco, load_coco_results, pair
 from poseaudit.budget import _lengths, _readings, budget, fit_spread, large_rate
-from poseaudit.pairing import Pair, Pairing
 
 JOINTS = {
     "left elbow": (5, 7, 9),
@@ -159,33 +158,16 @@ def _stability(truth, gt, predictions) -> None:
 
 
 def _redrawn(pairing, name: str, draws: int = 20) -> None:
-    """The left elbow of one model on the images drawn again with
-    replacement: does the verdict hold when the data, not the seed, change?"""
-    rng = np.random.default_rng(0)
-    by_image: dict[str, list] = {}
-    for p in pairing.pairs:
-        by_image.setdefault(p.image, []).append(p)
-    images = sorted(by_image)
-    found: dict[str, list] = {"straight": [], "bent": []}
-    for k in range(draws):
-        pairs = [
-            Pair(f"{n}_{p.image}", p.truth, p.predicted)
-            for n, i in enumerate(rng.choice(len(images), len(images)))
-            for p in by_image[images[i]]
-        ]
-        result = budget(Pairing(pairs=pairs), angle(5, 7, 9), BIG_ERROR, TARGET, seed=k)
-        for g in result.groups:
-            found[g.name].append((g.n, g.passed, g.smallest_limb_px))
+    """The left elbow of one model with `redraw`: does the verdict hold when
+    the data, not the seed, change?"""
+    result = budget(pairing, angle(5, 7, 9), BIG_ERROR, TARGET, redraw=draws)
     print(f"## {name}, left elbow, images drawn again {draws} times\n")
-    print("| group | readings (median) | check passed | sizes |")
+    print("| group | readings | check passed | sizes |")
     print("|---|---|---|---|")
-    for group, rows in found.items():
-        sizes = [s for _, _, s in rows if s is not None]
+    for g in result.groups:
+        sizes = g.redraw_sizes
         span = f"{min(sizes):.0f} to {max(sizes):.0f} px" if sizes else "-"
-        print(
-            f"| {group} | {int(np.median([r[0] for r in rows]))} | "
-            f"{sum(r[1] for r in rows)}/{draws} | {span} |"
-        )
+        print(f"| {g.name} | {g.n} | {g.redraw_passed}/{draws} | {span} |")
     print()
 
 

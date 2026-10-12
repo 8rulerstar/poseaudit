@@ -764,6 +764,15 @@ def _budget_parser(sub) -> None:
         "check, and clusters are what is counted",
     )
     what.add_argument(
+        "--redraw",
+        type=int,
+        default=0,
+        metavar="N",
+        help="also run it on the images (or clusters) drawn again N times, and "
+        "say how often the check passed and how far the sizes spread "
+        "(default 0; 20 is a fair start)",
+    )
+    what.add_argument(
         "--seed", type=int, default=0, metavar="N", help="seed (default 0)"
     )
     run.add_argument_group("output").add_argument(
@@ -1486,6 +1495,8 @@ def _run_budget(args):
         raise UsageError("--big-error must be above 0")
     if not 0 < args.target < 1:
         raise UsageError("--target must be between 0 and 1, as in 0.2")
+    if args.redraw < 0:
+        raise UsageError("--redraw must be 0 or more")
     measure = _measure("angle", args.angle)
     truth = _load(args, args.gt_format, args.gt, is_prediction=False)
     predicted = _load(args, args.pred_format, args.pred, is_prediction=True)
@@ -1503,6 +1514,7 @@ def _run_budget(args):
         straight_from=args.straight_from,
         seed=args.seed,
         cluster=_cluster(args.cluster),
+        redraw=args.redraw,
     )
 
 

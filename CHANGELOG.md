@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0
+
+### Added
+
+- `poseaudit budget --redraw N` (`redraw=` in Python): runs the budget again
+  on the images, or the clusters, drawn again with replacement N times, and
+  says for each group how often the check passed and how far the sizes
+  spread. One size from one data set can hide how much it would move.
+- `budget`, `BudgetResult` and `BudgetGroup` are importable from `poseaudit`
+  and documented in docs/python.md. `poseaudit.budget.Group`, the class's
+  name in 0.4.0, still works.
+
 ## 0.4.0
 
 ### Added

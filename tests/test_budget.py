@@ -1,3 +1,4 @@
+import importlib
 import json
 from pathlib import Path
 
@@ -297,7 +298,7 @@ def test_budget_help_does_not_offer_comparing_models(capsys):
 def test_frames_of_one_subject_stay_together_and_are_counted_once(monkeypatch):
     """A clip copied ten times used to lose the few-readings warning and
     narrow the check as if it were ten times the people."""
-    import poseaudit.budget as module
+    module = importlib.import_module("poseaudit.budget")
 
     rng = np.random.default_rng(17)
     truth = limbs(120, rng)
@@ -339,7 +340,7 @@ def test_frames_of_one_subject_stay_together_and_are_counted_once(monkeypatch):
 
 
 def test_a_fit_never_predicts_what_it_was_fitted_on(monkeypatch):
-    import poseaudit.budget as module
+    module = importlib.import_module("poseaudit.budget")
 
     rng = np.random.default_rng(18)
     truth = limbs(300, rng)
@@ -372,7 +373,7 @@ def test_the_tolerance_is_two_standard_errors_and_at_least_six_points():
 
 def test_a_target_out_of_reach_gives_no_size(monkeypatch):
     """The search stops at its largest size and says so, rather than give it."""
-    import poseaudit.budget as module
+    module = importlib.import_module("poseaudit.budget")
 
     monkeypatch.setattr(module, "_LIMBS", np.arange(5.0, 11.0))
     rng = np.random.default_rng(19)
@@ -383,3 +384,55 @@ def test_a_target_out_of_reach_gives_no_size(monkeypatch):
     assert bent.passed and bent.floor_rate < 0.2
     assert bent.smallest_limb_px is None
     assert "not reached by 10 px" in bent.note
+
+
+def test_redraw_reports_how_the_answer_moves_with_the_data():
+    rng = np.random.default_rng(20)
+    truth = limbs(400, rng)
+    data = pairing(truth, noisy(truth, 1.5, 0.03, rng))
+    result = budget(data, angle(0, 1, 2), 15, redraw=6)
+    bent = result.groups[1]
+    assert result.redraws == 6
+    assert 0 <= bent.redraw_passed <= 6
+    assert len(bent.redraw_sizes) <= bent.redraw_passed
+    assert "data drawn again 6 times" in result.summary()
+    json.dumps(result.to_dict(), allow_nan=False)
+    # the first answer is the one without redrawing
+    plain = budget(data, angle(0, 1, 2), 15)
+    assert bent.smallest_limb_px == plain.groups[1].smallest_limb_px
+    assert plain.groups[1].redraw_passed is None
+
+
+def test_redraw_draws_whole_clusters():
+    """A subject drawn again brings all its frames, and a subject drawn twice
+    counts as two."""
+    rng = np.random.default_rng(21)
+    truth = limbs(100, rng)
+    predicted = noisy(truth, 1.5, 0.05, rng)
+    box, seen = np.array([-1e4, -1e4, 1e4, 1e4]), np.ones(3, bool)
+    frames = Pairing(
+        pairs=[
+            Pair(f"s{i}_{copy}.jpg", Instance(box, t, seen), Instance(box, p, seen))
+            for copy in range(3)
+            for i, (t, p) in enumerate(zip(truth, predicted, strict=True))
+        ]
+    )
+    result = budget(
+        frames, angle(0, 1, 2), 15, cluster=lambda n: n.split("_")[0], redraw=3
+    )
+    assert result.groups[1].redraw_passed is not None
+    assert result.groups[1].clusters == result.groups[1].n // 3
+
+
+def test_redraw_must_not_be_negative():
+    rng = np.random.default_rng(22)
+    truth = limbs(50, rng)
+    with pytest.raises(ValueError, match="redraw"):
+        budget(pairing(truth, truth), angle(0, 1, 2), 10, redraw=-1)
+
+
+def test_budget_is_importable_from_the_package():
+    import poseaudit
+
+    assert poseaudit.budget is budget
+    assert "BudgetResult" in poseaudit.__all__
