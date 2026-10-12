@@ -292,3 +292,94 @@ def test_budget_help_does_not_offer_comparing_models(capsys):
     with pytest.raises(SystemExit):
         main(["budget", "--help"])
     assert "compare models" not in capsys.readouterr().out
+
+
+def test_frames_of_one_subject_stay_together_and_are_counted_once(monkeypatch):
+    """A clip copied ten times used to lose the few-readings warning and
+    narrow the check as if it were ten times the people."""
+    import poseaudit.budget as module
+
+    rng = np.random.default_rng(17)
+    truth = limbs(120, rng)
+    predicted = noisy(truth, 3.0, 0.12, rng)
+    box, seen = np.array([-1e4, -1e4, 1e4, 1e4]), np.ones(3, bool)
+    frames = Pairing(
+        pairs=[
+            Pair(f"s{i}_{copy}.jpg", Instance(box, t, seen), Instance(box, p, seen))
+            for copy in range(10)
+            for i, (t, p) in enumerate(zip(truth, predicted, strict=True))
+        ]
+    )
+    fitted = []
+    real_fit = module.fit_spread
+
+    def recording_fit(t, p):
+        fitted.append({tuple(np.round(x.ravel(), 6)) for x in t})
+        return real_fit(t, p)
+
+    real_rate = module.large_rate
+
+    def checking_rate(t, *args, **kwargs):
+        # every limb predicted is one the latest fit did not see
+        assert not fitted[-1] & {tuple(np.round(x.ravel(), 6)) for x in t}
+        return real_rate(t, *args, **kwargs)
+
+    monkeypatch.setattr(module, "fit_spread", recording_fit)
+    monkeypatch.setattr(module, "large_rate", checking_rate)
+    result = budget(frames, angle(0, 1, 2), 15, cluster=lambda name: name.split("_")[0])
+    bent = result.groups[1]
+    assert bent.n == 1200 and bent.clusters == 120
+    assert bent.few
+    rate = bent.read_rate  # the check's width is that of 120 subjects, not 1,200
+    assert bent.tolerance == pytest.approx(
+        max(0.06, 2 * np.sqrt(rate * (1 - rate) / 120))
+    )
+    assert bent.tolerance > 0.06
+    assert "in 120 clusters" in result.summary()
+
+
+def test_a_fit_never_predicts_what_it_was_fitted_on(monkeypatch):
+    import poseaudit.budget as module
+
+    rng = np.random.default_rng(18)
+    truth = limbs(300, rng)
+    fitted = []
+    real_fit = module.fit_spread
+    real_rate = module.large_rate
+
+    def recording_fit(t, p):
+        fitted.append({tuple(x.ravel()) for x in t})
+        return real_fit(t, p)
+
+    def checking_rate(t, *args, **kwargs):
+        assert not fitted[-1] & {tuple(x.ravel()) for x in t}
+        return real_rate(t, *args, **kwargs)
+
+    monkeypatch.setattr(module, "fit_spread", recording_fit)
+    monkeypatch.setattr(module, "large_rate", checking_rate)
+    budget(pairing(truth, noisy(truth, 1.0, 0.05, rng)), angle(0, 1, 2), 15)
+    assert len(fitted) >= 2 * 5  # two halves, five splits, in each group
+
+
+def test_the_tolerance_is_two_standard_errors_and_at_least_six_points():
+    from poseaudit.budget import _tolerance
+
+    large = np.array([True] * 30 + [False] * 70)
+    assert _tolerance(large) == pytest.approx(2 * np.sqrt(0.3 * 0.7 / 100))
+    assert _tolerance(large, 25) == pytest.approx(2 * np.sqrt(0.3 * 0.7 / 25))
+    assert _tolerance(np.array([True] * 30 + [False] * 970)) == 0.06
+
+
+def test_a_target_out_of_reach_gives_no_size(monkeypatch):
+    """The search stops at its largest size and says so, rather than give it."""
+    import poseaudit.budget as module
+
+    monkeypatch.setattr(module, "_LIMBS", np.arange(5.0, 11.0))
+    rng = np.random.default_rng(19)
+    truth = limbs(400, rng)
+    bent = budget(
+        pairing(truth, noisy(truth, 3.0, 0.0, rng)), angle(0, 1, 2), 15
+    ).groups[1]
+    assert bent.passed and bent.floor_rate < 0.2
+    assert bent.smallest_limb_px is None
+    assert "not reached by 10 px" in bent.note

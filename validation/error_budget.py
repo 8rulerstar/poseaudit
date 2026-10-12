@@ -21,11 +21,13 @@ Then:
       data/pred_s.json data/pred_m.json data/pred_x.json \\
       > validation/error_budget.out.md
 
-A large error is 15 degrees or more; the target is 20%. Then two more
-tables: how many groups pass on seeds 0 to 9, and how many pass when the
-large error or the straight limit changes. Seeded, so the tables are the same
-on every machine with the same numpy. Predictions for the published table
-came from ultralytics 8.4.150; other versions may read differently.
+A large error is 15 degrees or more; the target is 20%. Then three more
+tables: how many groups pass on seeds 0 to 9, how many pass when the large
+error or the straight limit changes, and how the last model's left elbow
+fares when the images are drawn again with replacement. Seeded, so the
+tables are the same on every machine with the same numpy. Predictions for
+the published table came from ultralytics 8.4.150; other versions may read
+differently.
 """
 
 import json
@@ -37,6 +39,7 @@ import numpy as np
 
 from poseaudit import angle, load_coco, load_coco_results, pair
 from poseaudit.budget import _lengths, _readings, budget, fit_spread, large_rate
+from poseaudit.pairing import Pair, Pairing
 
 JOINTS = {
     "left elbow": (5, 7, 9),
@@ -81,7 +84,11 @@ def run(gt: str, predictions: list[str]) -> None:
     warnings.simplefilter("ignore")
     truth = load_coco(gt)
     three = angle(0, 1, 2)
-    print(f"# budget on COCO val2017: {BIG_ERROR:g} degrees, target {TARGET:.0%}\n")
+    images = len(json.loads(Path(gt).read_text(encoding="utf-8"))["images"])
+    print(
+        f"# budget on COCO val2017 ({images:,} images): {BIG_ERROR:g} degrees, "
+        f"target {TARGET:.0%}\n"
+    )
     print(
         "predicted / read large-error rate, each reading predicted by a fit "
         "made without it (all, shorter, "
@@ -148,10 +155,42 @@ def _stability(truth, gt, predictions) -> None:
         elbow, knee = _count(pairings, big_error, straight_from)
         print(f"| {big_error}° | {straight_from}° | {elbow} | {knee} |")
     print()
+    _redrawn(pairings[sorted(pairings)[-1]], sorted(pairings)[-1])
+
+
+def _redrawn(pairing, name: str, draws: int = 20) -> None:
+    """The left elbow of one model on the images drawn again with
+    replacement: does the verdict hold when the data, not the seed, change?"""
+    rng = np.random.default_rng(0)
+    by_image: dict[str, list] = {}
+    for p in pairing.pairs:
+        by_image.setdefault(p.image, []).append(p)
+    images = sorted(by_image)
+    found: dict[str, list] = {"straight": [], "bent": []}
+    for k in range(draws):
+        pairs = [
+            Pair(f"{n}_{p.image}", p.truth, p.predicted)
+            for n, i in enumerate(rng.choice(len(images), len(images)))
+            for p in by_image[images[i]]
+        ]
+        result = budget(Pairing(pairs=pairs), angle(5, 7, 9), BIG_ERROR, TARGET, seed=k)
+        for g in result.groups:
+            found[g.name].append((g.n, g.passed, g.smallest_limb_px))
+    print(f"## {name}, left elbow, images drawn again {draws} times\n")
+    print("| group | readings (median) | check passed | sizes |")
+    print("|---|---|---|---|")
+    for group, rows in found.items():
+        sizes = [s for _, _, s in rows if s is not None]
+        span = f"{min(sizes):.0f} to {max(sizes):.0f} px" if sizes else "-"
+        print(
+            f"| {group} | {int(np.median([r[0] for r in rows]))} | "
+            f"{sum(r[1] for r in rows)}/{draws} | {span} |"
+        )
+    print()
 
 
 def _bins(pairing, measure, three) -> dict[str, str]:
-    t, p = _readings(pairing, measure)
+    t, p, _ = _readings(pairing, measure)
     angles = three.read_many(t)
     out = {}
     for name, chosen in (("straight", angles >= 150), ("bent", angles < 150)):

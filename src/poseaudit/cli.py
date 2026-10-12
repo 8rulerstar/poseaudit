@@ -757,6 +757,13 @@ def _budget_parser(sub) -> None:
         help="labelled angles from this up are fitted as straight (default 150)",
     )
     what.add_argument(
+        "--cluster",
+        metavar="REGEX",
+        help="group readings by the first capture group of the image name (a "
+        "subject or clip): a cluster is never split between a fit and its "
+        "check, and clusters are what is counted",
+    )
+    what.add_argument(
         "--seed", type=int, default=0, metavar="N", help="seed (default 0)"
     )
     run.add_argument_group("output").add_argument(
@@ -1495,6 +1502,7 @@ def _run_budget(args):
         target=args.target,
         straight_from=args.straight_from,
         seed=args.seed,
+        cluster=_cluster(args.cluster),
     )
 
 
