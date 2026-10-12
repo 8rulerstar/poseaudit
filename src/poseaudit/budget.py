@@ -23,15 +23,18 @@ of the errors is right: a fit off by a few points passes. A group that fails
 gets no size.
 
 With COCO val2017, four YOLO11 pose models, a large error of 15 degrees and
-straight from 150 degrees, the check passed all 16 elbow groups and 3 of
-16 knee groups (validation/error_budget.out.md); at other settings the
-groups that pass change. In simulation the check passed a right fit 85 to
-95% of the time with 100 to 300 readings a group, depending on the simulated
-limbs, and every time with 1,000.
+straight from 150 degrees, the check passed all 16 elbow groups and 3 of 16
+knee groups (validation/error_budget.out.md); at other settings the groups
+that pass change. In simulation (validation/budget_power.py) the check
+passed a right fit in 36 of 40 data sets of 100 readings and in all 40 of
+300 and of 1,000; the sizes given ranged from 13 to 98 px at 100 readings,
+35 to 68 at 300 and 44 to 59 at 1,000, around 48. The verdict rarely turns on
+the seed; it can turn on the data drawn.
 
 The figures are agreement with the labels: the labels' own spread is in them.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -69,7 +72,8 @@ class Group:
     floor_rate: float = float("nan")  # large-error rate on a limb of any size
     smallest_limb_px: float | None = None
     note: str = ""
-    few: bool = False  # fewer than _ENOUGH readings: the check is weak
+    few: bool = False  # fewer than _ENOUGH readings (or clusters): weak check
+    clusters: int | None = None  # named clusters among the readings
     below_search: bool = False  # the size is the search's smallest, 5 px
     outside_data: bool = False  # the size lies outside the limbs read
     near_floor: bool = False  # the floor is near the target: the size is touchy
@@ -83,6 +87,7 @@ class BudgetResult:
     big_error: float
     target: float
     straight_from: float
+    clustered: bool = False
     groups: list[Group] = field(default_factory=list)
 
     def summary(self) -> str:
@@ -98,15 +103,19 @@ class BudgetResult:
                 if (g.name == "straight")
                 else f"{g.name} (below {self.straight_from:g}{deg})"
             )
-            lines.append(f"{head}: {g.n} reading{'' if g.n == 1 else 's'}")
+            count = f"{g.n} reading{'' if g.n == 1 else 's'}"
+            if g.clusters is not None:
+                count += f" in {g.clusters} cluster{'' if g.clusters == 1 else 's'}"
+            lines.append(f"{head}: {count}")
             if np.isnan(g.fixed_px):
                 lines.append(f"  {g.note}")
                 lines.append("")
                 continue
             if g.few:
                 lines.append(
-                    f"  few readings: under {_ENOUGH:,}, the check fails a right "
-                    "fit about one time in seven (simulated)"
+                    f"  few {'clusters' if g.clusters is not None else 'readings'}"
+                    f": under {_ENOUGH:,}, a right fit fails the check about one "
+                    "time in ten, and the size can be off by a third or more"
                 )
             lines += [
                 f"  point error: {g.fixed_px:.1f} px + {g.share:.1%} of the limb "
@@ -127,9 +136,10 @@ class BudgetResult:
                     else f"{g.smallest_limb_px:.0f} px"
                 )
                 lines.append(
-                    f"  smallest limb for {self.target:.0%} or fewer: {size} a "
-                    "segment, on limbs bent like this group's (median "
-                    f"{g.typical_angle:.0f}{deg})"
+                    f"  smallest limb for {self.target:.0%} or fewer: {size}, the "
+                    "mean of its two segments, on limbs bent like this group's "
+                    f"(median {g.typical_angle:.0f}{deg}): the group as a whole "
+                    "meets the target, straighter or more bent limbs of it may not"
                 )
                 if g.outside_data:
                     lines.append("  outside the limb lengths read: an extrapolation")
@@ -142,7 +152,13 @@ class BudgetResult:
                 lines.append(f"  smallest limb: none. {g.note}")
             lines.append("")
         lines.append(
-            "Agreement with the labels, for this model on images like these: the "
+            (
+                "Readings of one cluster were kept together. "
+                if self.clustered
+                else "Every reading counted as independent; frames of one video or "
+                "person need --cluster. "
+            )
+            + "Agreement with the labels, for this model on images like these: the "
             "labels' own spread is in these figures, and the check passes a fit "
             "within its tolerance (6 percentage points or more), so a size can "
             "miss the target by that much."
@@ -187,10 +203,17 @@ def budget(
     target: float = 0.2,
     straight_from: float = 150.0,
     seed: int = 0,
+    cluster: Callable[[str], str] | None = None,
 ) -> BudgetResult:
     """Fit the keypoint error of `measure`'s three points on the pairs, check
-    the fit on readings it did not see, and find the smallest limb whose angle is off
-    by `big_error` or more in at most `target` of readings."""
+    the fit on readings it did not see, and find the smallest limb whose angle
+    is off by `big_error` or more in at most `target` of readings.
+
+    Readings of one image are never split between a fit and its check. Give
+    `cluster`, a function from image name to subject or clip, when frames of
+    one video or one person repeat: readings of a cluster then stay together,
+    and the clusters, not the readings, are counted for the check and for
+    the few-readings warning."""
     if not isinstance(measure, Angle):
         raise ValueError("budget reads an angle: give three keypoints")
     if not 0 < target < 1:
@@ -211,12 +234,15 @@ def budget(
             f"{measure.title()}: keypoint {max(measure.points)} is past the "
             f"{longest} keypoints (counted from 0) the data has"
         )
-    truth, predicted = _readings(pairing, measure)
+    truth, predicted, images = _readings(pairing, measure)
+    keys = np.array([cluster(i) for i in images] if cluster else images, dtype=object)
     if not len(truth):
         raise ValueError(
             f"{measure.title()}: no pair shows all three keypoints on both sides"
         )
-    result = BudgetResult(measure.title(), big_error, target, straight_from)
+    result = BudgetResult(
+        measure.title(), big_error, target, straight_from, cluster is not None
+    )
     three = Angle("angle", (0, 1, 2), "deg")
     angles = three.read_many(truth) if len(truth) else np.empty(0)
     rng = np.random.default_rng(seed)
@@ -226,17 +252,25 @@ def budget(
     ):
         result.groups.append(
             _group(
-                name, truth[chosen], predicted[chosen], three, big_error, target, rng
+                name,
+                truth[chosen],
+                predicted[chosen],
+                keys[chosen],
+                cluster is not None,
+                three,
+                big_error,
+                target,
+                rng,
             )
         )
     return result
 
 
 def _readings(pairing: Pairing, measure: Angle):
-    """(n, 3, 2) truth and prediction for pairs that show all three points on
-    both sides, with neither segment shorter than a pixel."""
+    """(n, 3, 2) truth and prediction, and the image names, for pairs that
+    show all three points on both sides, neither segment under a pixel."""
     points = list(measure.points)
-    truth, predicted = [], []
+    truth, predicted, images = [], [], []
     for p in pairing.pairs:
         if max(points) >= min(len(p.truth.keypoints), len(p.predicted.keypoints)):
             continue
@@ -247,7 +281,12 @@ def _readings(pairing: Pairing, measure: Angle):
             continue
         truth.append(g)
         predicted.append(np.asarray(p.predicted.keypoints, float)[points])
-    return (np.array(truth).reshape(-1, 3, 2), np.array(predicted).reshape(-1, 3, 2))
+        images.append(p.image)
+    return (
+        np.array(truth).reshape(-1, 3, 2),
+        np.array(predicted).reshape(-1, 3, 2),
+        images,
+    )
 
 
 def _lengths(truth: np.ndarray) -> np.ndarray:
@@ -304,19 +343,32 @@ def large_rate(
     return rates
 
 
-def _tolerance(large: np.ndarray) -> float:
+def _tolerance(large: np.ndarray, n: int | None = None) -> float:
     """How far a predicted rate may be from the rate read: two standard
-    errors of the rate read, and never under 6 percentage points."""
+    errors of the rate read over `n` independent units (the readings by
+    default), and never under 6 percentage points."""
     rate = large.mean()
-    return float(max(0.06, 2 * np.sqrt(rate * (1 - rate) / len(large))))
+    n = len(large) if n is None else n
+    return float(max(0.06, 2 * np.sqrt(rate * (1 - rate) / n)))
 
 
-def _group(name, truth, predicted, measure, big_error, target, rng) -> Group:
+def _group(
+    name, truth, predicted, keys, named, measure, big_error, target, rng
+) -> Group:
     group = Group(name, len(truth))
+    units = np.unique(keys) if len(keys) else np.empty(0, object)
+    if named:
+        group.clusters = len(units)
     if len(truth) < _MIN_GROUP:
         group.note = f"too few to fit ({_MIN_GROUP} needed)"
         return group
-    group.few = len(truth) < _ENOUGH
+    group.few = (len(units) if named else len(truth)) < _ENOUGH
+
+    def tolerance(inside: np.ndarray) -> float:
+        # named clusters count once each: their readings are not independent
+        n = len(np.unique(keys[inside])) if named else int(inside.sum())
+        return _tolerance(large[inside], n)
+
     group.typical_angle = float(np.median(measure.read_many(truth)))
     off = np.abs(measure.read_many(predicted) - measure.read_many(truth))
     large = off >= big_error
@@ -325,8 +377,12 @@ def _group(name, truth, predicted, measure, big_error, target, rng) -> Group:
     # split alone decided some groups by the luck of the split.
     expected = np.zeros(len(truth))
     for _ in range(_SPLITS):
-        order = rng.permutation(len(truth))
-        halves = order[: len(order) // 2], order[len(order) // 2 :]
+        # split images (or named clusters), never the readings of one of them
+        order = rng.permutation(len(units))
+        first = np.isin(keys, units[order[: len(order) // 2]])
+        halves = np.flatnonzero(first), np.flatnonzero(~first)
+        if not (len(halves[0]) and len(halves[1])):
+            halves = np.array_split(rng.permutation(len(truth)), 2)
         for fit_on, check_on in (halves, halves[::-1]):
             fixed, share = fit_spread(truth[fit_on], predicted[fit_on])
             expected[check_on] += large_rate(
@@ -335,7 +391,7 @@ def _group(name, truth, predicted, measure, big_error, target, rng) -> Group:
     expected /= _SPLITS
     group.read_rate = float(large.mean())
     group.predicted_rate = float(expected.mean())
-    group.tolerance = _tolerance(large)
+    group.tolerance = tolerance(np.ones(len(truth), bool))
     # all readings, then the shorter and longer limbs: a fit can match the
     # whole by luck, too high on one side and too low on the other
     size = _lengths(truth)[:, 1]
@@ -352,7 +408,7 @@ def _group(name, truth, predicted, measure, big_error, target, rng) -> Group:
     for part, inside in parts:
         guess, read = float(expected[inside].mean()), float(large[inside].mean())
         group.checks.append(
-            (part, guess, read, bool(abs(guess - read) <= _tolerance(large[inside])))
+            (part, guess, read, bool(abs(guess - read) <= tolerance(inside)))
         )
     group.passed = all(check[3] for check in group.checks)
     group.fixed_px, group.share = fit_spread(truth, predicted)

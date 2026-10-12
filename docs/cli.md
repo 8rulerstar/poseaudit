@@ -151,9 +151,10 @@ not change its angle), and simulates the angle's error from that. Straight
 limbs (labelled at 150° or more; `--straight-from`) and bent ones are fitted
 apart: their errors differ. For each group it prints the fit, its check, the
 floor (the large-error rate however large the limbs) and the smallest limb,
-in pixels a segment, that meets `--target` on limbs bent like the group's:
-each of its limbs (up to 300) keeps its angle and the ratio of its segments
-and is scaled to that size. A size judged at one median angle missed the
+in pixels (the mean of the two segments), that meets `--target` on limbs
+bent like the group's: each of its limbs (up to 300) keeps its angle and the
+ratio of its segments and is scaled to that size. The group as a whole meets
+the target there; its straighter or more bent limbs may not. A size judged at one median angle missed the
 target on straight limbs, where the rate changes fast near 180°.
 
 The fit is checked before it is used. Every reading is predicted by a fit
@@ -169,17 +170,32 @@ to the floor, where a small change in the error moves it a lot.
 On COCO val2017 (2,346 images, four YOLO11 pose models;
 [validation/error_budget.out.md](../validation/error_budget.out.md)), with a
 large error of 15° and straight from 150°, the check passed all 16 elbow
-groups and 3 of 16 knee groups, on each of ten seeds. For knees the fit
+groups and 3 of 16 knee groups; on nine of ten seeds the same, on the
+other 15 elbow groups. For knees the fit
 predicts 1.6 to 1.9 times the large errors read on straight legs. The verdicts depend
 on the settings: at 10° 10 elbow groups passed, at 20° 8 knee groups did.
-At 15° and a 20% target, `yolo11x-pose` needs 19 to 21 px a segment on
-straight arms and 27 to 29 on bent ones; on arms `yolo11n-pose` has a floor
-of 21 to 26% and no size reaches the target.
+At 15° and a 20% target, `yolo11x-pose` needs 20 px on straight arms and 26
+to 29 on bent ones; on arms `yolo11n-pose` has a floor of 21 to 26% and no
+size reaches the target.
 
 The figures hold for that model on images like the ones given, and they are
-agreement with the labels, their own spread included. In simulation the check
-passed a right fit 85 to 95% of the time with 100 to 300 readings a group,
-depending on the simulated limbs, and every time with 1,000; the summary says when a group has fewer than 1,000.
+agreement with the labels, their own spread included.
+
+Readings of one image are never split between a fit and its check, but
+every reading counts as independent. Frames of one video, or one person
+filmed many times, are not: give `--cluster REGEX` (as for `audit`), and
+readings of a cluster stay together and the clusters are counted. Without
+it, a clip copied ten times reads as ten times the people.
+
+How much data a group needs ([validation/budget_power.out.md](../validation/budget_power.out.md)):
+with errors the fit describes exactly, the check passed 36 of 40 data sets
+of 100 readings and all 40 of 300 and of 1,000, and the sizes given ranged
+from 13 to 98 px at 100 readings, 35 to 68 at 300 and 44 to 59 at 1,000,
+around 48. The summary says when a group has fewer than 1,000 readings (or
+clusters). The verdict rarely turns on the seed, but it can turn on the
+data: with the images drawn again, the straight left elbows of
+`yolo11x-pose` (about 1,100 arms) passed in 11 of 20 draws, with sizes from
+17 to 22 px.
 
 ## Paired values
 
