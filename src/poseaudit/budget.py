@@ -25,11 +25,14 @@ gets no size.
 With COCO val2017, four YOLO11 pose models, a large error of 15 degrees and
 straight from 150 degrees, the check passed all 16 elbow groups and 3 of 16
 knee groups (validation/error_budget.out.md); at other settings the groups
-that pass change. In simulation (validation/budget_power.py) the check
-passed a right fit in 36 of 40 data sets of 100 readings and in all 40 of
-300 and of 1,000; the sizes given ranged from 13 to 98 px at 100 readings,
-35 to 68 at 300 and 44 to 59 at 1,000, around 48. The verdict rarely turns on
-the seed; it can turn on the data drawn.
+that pass change. In simulation (validation/budget_power.py), with errors
+the fit describes exactly, the check ran and passed in 17 of 40 data sets of
+100 readings (the others were too few to check) and in all 40 of 300 and of
+1,000; the sizes given ranged from 16 to 92 px at 100 readings, 35 to 68 at
+300 and 44 to 59 at 1,000. A group whose check would pass anything within
+more than 12 percentage points, too few readings or clusters, gets no check
+and no size. The verdict rarely turns on the seed; it can turn on the data
+drawn.
 
 The figures are agreement with the labels: the labels' own spread is in them.
 """
@@ -48,6 +51,7 @@ _RAYLEIGH_MEDIAN = float(np.sqrt(2 * np.log(2)))
 _UNSHARED = float(np.sqrt(3 / 2))
 _MIN_GROUP = 30  # readings a group needs before it is fitted
 _ENOUGH = 1000  # readings a group needs before its check can be trusted
+_WIDEST = 0.12  # a check wider than this, twice its floor, tells nothing
 _MIN_PART = 20  # held-out readings each of the shorter and longer limbs needs
 _DRAWS = 400  # simulated readings per limb in the check
 _SPLITS = 5  # random two-way splits the check averages over
@@ -116,15 +120,26 @@ class BudgetResult:
             if g.clusters is not None:
                 count += f" in {g.clusters} cluster{'' if g.clusters == 1 else 's'}"
             lines.append(f"{head}: {count}")
-            if np.isnan(g.fixed_px):
+            if np.isnan(g.fixed_px) or not g.checks:
+                if not np.isnan(g.fixed_px):
+                    lines.append(
+                        f"  point error: {g.fixed_px:.1f} px + {g.share:.1%} of "
+                        "the limb; no check, so no size"
+                    )
                 lines.append(f"  {g.note}")
+                if g.redraw_passed is not None:
+                    lines.append(
+                        f"  data drawn again {self.redraws} "
+                        f"time{'' if self.redraws == 1 else 's'}: the check passed "
+                        f"{g.redraw_passed}"
+                    )
                 lines.append("")
                 continue
             if g.few:
                 lines.append(
                     f"  few {'clusters' if g.clusters is not None else 'readings'}"
-                    f": under {_ENOUGH:,}, a right fit fails the check about one "
-                    "time in ten, and the size can be off by a third or more"
+                    f": under {_ENOUGH:,}, the size can be off by a third or more "
+                    "from one data set to the next"
                 )
             lines += [
                 f"  point error: {g.fixed_px:.1f} px + {g.share:.1%} of the limb "
@@ -461,14 +476,29 @@ def _group(
     # split alone decided some groups by the luck of the split.
     expected = np.zeros(len(truth))
     parts_of = np.unique(split)
-    if len(parts_of) < 2:
-        # with one image or cluster no fit can be made without it: no check,
-        # so no size (splitting its readings would check a fit on itself)
+    size = _lengths(truth)[:, 1]
+    middle = np.median(size)
+    halves_by_size = size < middle, size >= middle
+    by_size = min(h.sum() for h in halves_by_size) >= _MIN_PART
+    # the check's width on the whole group and, where it is checked by size,
+    # on each half: a half too wide to check makes the whole uncheckable
+    width = max(
+        [tolerance(np.ones(len(truth), bool))]
+        + ([tolerance(h) for h in halves_by_size] if by_size else [])
+    )
+    if len(parts_of) < 2 or width > _WIDEST:
+        # with one image or cluster no fit can be made without it, and with
+        # a handful of clusters the check's width (two standard errors over
+        # so few) passes almost any fit: no check, so no size
         group.fixed_px, group.share = fit_spread(truth, predicted)
         group.read_rate = float(large.mean())
         group.note = (
             "the check needs readings from two images or clusters at least, "
             "and these come from one"
+            if len(parts_of) < 2
+            else f"too few {'clusters' if named else 'readings'} to check: the "
+            f"check would pass a fit within {width * 100:.1f} percentage points "
+            f"of the rate read, more than {_WIDEST * 100:.0f}"
         )
         return group
     for _ in range(_SPLITS):
@@ -487,11 +517,9 @@ def _group(
     group.tolerance = tolerance(np.ones(len(truth), bool))
     # all readings, then the shorter and longer limbs: a fit can match the
     # whole by luck, too high on one side and too low on the other
-    size = _lengths(truth)[:, 1]
     parts = [("all", np.ones(len(size), bool))]
-    middle = np.median(size)
-    shorter, longer = size < middle, size >= middle
-    if min(shorter.sum(), longer.sum()) >= _MIN_PART:
+    shorter, longer = halves_by_size
+    if by_size:
         parts += [
             (f"under {middle:.0f} px", shorter),
             (f"from {middle:.0f} px", longer),

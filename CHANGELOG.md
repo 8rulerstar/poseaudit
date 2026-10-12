@@ -6,8 +6,9 @@
 
 - `poseaudit budget --redraw N` (`redraw=` in Python): runs the budget again
   on the images, or the clusters, drawn again with replacement N times, and
-  says for each group how often the check passed and how far the sizes
-  spread. One size from one data set can hide how much it would move.
+  says for each group how often the check passed, how many draws had too
+  few readings to fit (`redraw_unfitted`) and how far the sizes spread. One
+  size from one data set can hide how much it would move.
 - `BudgetResult` and `BudgetGroup` are importable from `poseaudit`, and
   `budget` is documented in docs/python.md (import it from
   `poseaudit.budget`, as in 0.4.0). `poseaudit.budget.Group`, the class's
@@ -17,7 +18,15 @@
 
 - A budget whose readings all came from one image or one `--cluster` group
   passed its check by splitting the readings of that one group, a fit
-  checked on itself; it now says there is no check and gives no size.
+  checked on itself; it now says there is no check and gives no size. A
+  size 0.4.0 gave for such a group should be dropped.
+- A group whose check would pass a fit within more than 12 percentage
+  points of the rate read (a hundred or so readings, or a handful of
+  clusters) is no longer checked or sized: such a check passed almost any
+  fit. On the 200-image demo the straight elbows are now too few to check.
+- `--cluster` with an optional group that matches nothing in an image name
+  stopped with a type error that blamed the file format (in `audit` too); it
+  now names the image and the group.
 
 ## 0.4.0
 

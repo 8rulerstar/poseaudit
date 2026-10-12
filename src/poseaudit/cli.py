@@ -298,7 +298,15 @@ def _cluster(pattern: str | None):
                 "the regex is searched for in every image name, and its first "
                 "group (or the whole match) names the cluster"
             )
-        return found.group(1) if found.groups() else found.group(0)
+        if not found.groups():
+            return found.group(0)
+        if found.group(1) is None:
+            raise ValueError(
+                f"--cluster '{pattern}': its first group matched nothing in "
+                f"image name {image!r} (it is optional in the regex); every "
+                "image needs a cluster name"
+            )
+        return found.group(1)
 
     return cluster_of
 

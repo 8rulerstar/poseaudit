@@ -189,12 +189,14 @@ it, a clip copied ten times reads as ten times the people.
 
 How much data a group needs
 ([validation/budget_power.out.md](../validation/budget_power.out.md)): with
-errors the fit describes exactly, the check passed 36 of 40 data sets of 100
-readings and all 40 of 300 and of 1,000, and the sizes given ranged (5th to
-95th percentile over the 40) from 13 to 98 px at 100 readings, 35 to 68 at
-300 and 44 to 59 at 1,000, around 48. The summary says when a group has
-fewer than 1,000 readings (or clusters). With readings from only one image
-or cluster there is no check and no size.
+errors the fit describes exactly, the check ran and passed in 17 of 40 data
+sets of 100 readings, the others being too few to check, and in all 40 of
+300 and of 1,000; the sizes given ranged (5th to 95th percentile) from 16 to
+92 px at 100 readings, 35 to 68 at 300 and 44 to 59 at 1,000. A group gets
+no check and no size when its readings come from one image or cluster, or
+when the check would pass anything within more than 12 percentage points, as
+it does on a hundred readings or a handful of clusters. The summary says
+when a group has fewer than 1,000 readings (or clusters).
 
 The verdict rarely turns on the seed, but it can turn on the data. `--redraw
 20` runs the budget again on the images (or clusters) drawn again with
@@ -203,11 +205,14 @@ and prints for each group how often the check passed and the smallest and
 largest of the sizes the draws gave. That span is not a confidence interval:
 it comes only from the draws whose check passed, it widens with more draws,
 and the size from the data as given can lie outside it. Nor is the count of
-checks passed a chance of passing on new data. Read it as a warning: when
-many draws fail or the sizes spread wide, the data are too few to trust one
-size, and the largest size is the cautious choice. On the COCO arms, the
-straight left elbows of `yolo11x-pose` (about 1,100 arms) passed in 10 of 20
-draws, with sizes from 17 to 21 px among those 10.
+checks passed a chance of passing on new data, and it leans low: draws
+repeat images, and in simulation a right fit on 300 readings that passed on
+every new data set failed in some draws. Read it as a warning: when many
+draws fail or the sizes spread wide, one size from these data is not to be
+relied on; the largest of the sizes seen is the more cautious choice, but
+still not a bound. On the COCO arms, the straight left elbows of
+`yolo11x-pose` (about 1,100 arms) passed in 10 of 20 draws, with sizes from
+17 to 21 px among those 10.
 
 ## Paired values
 

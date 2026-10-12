@@ -90,7 +90,8 @@ gives the smallest limb, in pixels, whose angle is off by 15° or more in at mos
 readings, for that model on images like those, after checking its fit on readings it did
 not see (to within at least 6 percentage points, so a size can miss the target by that
 much). On COCO val2017 at these settings the check passed all 16 elbow groups and 3 of 16
-knee groups. Frames of one video need `--cluster` ([budget](https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#how-large-must-a-limb-be)).
+knee groups, though one of the elbow groups passed in only 10 of 20 redraws of the data
+(`--redraw`). Frames of one video need `--cluster` ([budget](https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#how-large-must-a-limb-be)).
 
 ## Caveats
 
