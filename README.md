@@ -87,8 +87,9 @@ Resampling is seeded, so reruns agree; one image or `--cluster` group gives `nul
 
 `poseaudit budget --format coco --gt labels.json --pred results.json --angle 5,7,9 --big-error 15`
 gives the smallest limb, in pixels, whose angle is off by 15° or more in at most 20% of
-readings, after checking its fit on a held-out half. On COCO val2017 the fit held for elbows
-and the check refused it for knees ([budget](https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#how-large-must-a-limb-be)).
+readings, for that model on images like those, after checking its fit on readings it did
+not see. On COCO val2017 at these settings the check passed all 16 elbow groups and 3 of 16
+knee groups ([budget](https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#how-large-must-a-limb-be)).
 
 ## Caveats
 

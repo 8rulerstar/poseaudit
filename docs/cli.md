@@ -148,26 +148,33 @@ not change its angle), and simulates the angle's error from that. Straight
 limbs (labelled at 150° or more; `--straight-from`) and bent ones are fitted
 apart: their errors differ. For each group it prints the fit, its check, the
 floor (the large-error rate however large the limb) and the smallest limb, in
-pixels per segment at the group's typical angle, that meets `--target`.
+pixels a segment, that meets `--target` at the group's median angle; more
+bent limbs need less and straighter ones more.
 
-The fit is checked before it is used: fitted on half the readings, it must
-predict the large-error rate of the other half, of its shorter limbs and of
-its longer ones, within two standard errors (never under 6 points). A group
-that fails gets no size; nor does one whose floor is above the target.
+The fit is checked before it is used. Every reading is predicted by a fit
+made without it (two halves predicting each other, over five random splits),
+and the predicted large-error rate must match the rate read, overall and on
+the shorter and the longer limbs, within two standard errors and never closer
+than 6 points. A group that fails gets no size; nor does one whose floor is
+above the target. The check asks for agreement within that tolerance, so a
+size meant for 20% can be a few points off. The summary says when a size is
+the search's smallest (5 px or less), outside the limb lengths read, or close
+to the floor, where a small change in the error moves it a lot.
 
 On COCO val2017 (2,346 images, four YOLO11 pose models;
-[validation/error_budget.out.md](../validation/error_budget.out.md)) the fit
-held for 14 of 16 elbow groups and 3 of 16 knee groups. For knees it predicts
-about twice the large errors on straight legs, and too few on bent legs read
-large, so there the check refuses it. For a 20% target at 15°,
-`yolo11x-pose` needs about 13 px a segment on straight arms and 24 to 27 on
-bent ones; on bent arms `yolo11n-pose` has a floor of 22 to 24% and no size
-reaches the target.
+[validation/error_budget.out.md](../validation/error_budget.out.md)), with a
+large error of 15° and straight from 150°, the check passed all 16 elbow
+groups and 3 of 16 knee groups, on each of ten seeds. For knees the fit
+predicts 1.6 to 1.9 times the large errors read on straight legs. The verdicts depend
+on the settings: at 10° 10 elbow groups passed, at 20° 8 knee groups did.
+At 15° and a 20% target, `yolo11x-pose` needs 12 to 13 px a segment on
+straight arms and 24 to 27 on bent ones; on bent arms `yolo11n-pose` has a
+floor of 22 to 26% and no size reaches the target.
 
-Give it about a thousand readings a group. On the 200-image demo (a hundred
-or two a group) the check fails fits that hold on the full set; the summary
-says so when a group has fewer. The figures are agreement with the labels,
-their own spread included.
+The figures hold for that model on images like the ones given, and they are
+agreement with the labels, their own spread included. In simulation the check
+passed a right fit 85 to 88% of the time with 100 to 300 readings a group and
+every time with 1,000; the summary says when a group has fewer than 1,000.
 
 ## Paired values
 

@@ -21,8 +21,11 @@ Then:
       data/pred_s.json data/pred_m.json data/pred_x.json \\
       > validation/error_budget.out.md
 
-A large error is 15 degrees or more; the target is 20%. Seeded, so the table
-is the same on every machine with the same numpy.
+A large error is 15 degrees or more; the target is 20%. Then two more
+tables: how many groups pass on seeds 0 to 9, and how many pass when the
+large error or the straight limit changes. Seeded, so the tables are the same
+on every machine with the same numpy. Predictions for the published table
+came from ultralytics 8.4.150; other versions may read differently.
 """
 
 import json
@@ -80,7 +83,8 @@ def run(gt: str, predictions: list[str]) -> None:
     three = angle(0, 1, 2)
     print(f"# budget on COCO val2017: {BIG_ERROR:g} degrees, target {TARGET:.0%}\n")
     print(
-        "predicted / read large-error rate on the held-out half (all, shorter, "
+        "predicted / read large-error rate, each reading predicted by a fit "
+        "made without it (all, shorter, "
         "longer limbs; * outside the tolerance), and on all readings in five "
         "bins of limb length\n"
     )
@@ -109,6 +113,41 @@ def run(gt: str, predictions: list[str]) -> None:
                     f"{size} | {g.floor_rate:.2f} | {bins[g.name]} |"
                 )
         print()
+    _stability(truth, gt, predictions)
+
+
+def _pairings(truth, gt, predictions):
+    return {Path(p).stem: pair(truth, load_coco_results(p, gt)) for p in predictions}
+
+
+def _count(pairings, big_error, straight_from, seed=0) -> tuple[int, int]:
+    """(elbow groups passed, knee groups passed)."""
+    passed = {"elbow": 0, "knee": 0}
+    for pairing in pairings.values():
+        for joint, points in JOINTS.items():
+            result = budget(
+                pairing, angle(*points), big_error, TARGET, straight_from, seed
+            )
+            passed[joint.split()[1]] += sum(g.passed for g in result.groups)
+    return passed["elbow"], passed["knee"]
+
+
+def _stability(truth, gt, predictions) -> None:
+    pairings = _pairings(truth, gt, predictions)
+    groups = 4 * len(pairings)
+    print(f"## groups passed, of {groups} elbow and {groups} knee groups\n")
+    print("| seed | elbow | knee |")
+    print("|---|---|---|")
+    for seed in range(10):
+        elbow, knee = _count(pairings, BIG_ERROR, 150.0, seed)
+        print(f"| {seed} | {elbow} | {knee} |")
+    print("\n| large error | straight from | elbow | knee |")
+    print("|---|---|---|---|")
+    for big_error, straight_from in [(10, 150), (15, 150), (20, 150), (15, 140),
+                                     (15, 160)]:  # fmt: skip
+        elbow, knee = _count(pairings, big_error, straight_from)
+        print(f"| {big_error}° | {straight_from}° | {elbow} | {knee} |")
+    print()
 
 
 def _bins(pairing, measure, three) -> dict[str, str]:
