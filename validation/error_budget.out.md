@@ -79,8 +79,8 @@ predicted / read large-error rate, each reading predicted by a fit made without 
 
 ## pred_yolo11x, left elbow, images drawn again 20 times
 
-| group | readings (median) | check passed | sizes |
+| group | readings | check passed | sizes |
 |---|---|---|---|
-| straight | 1119 | 11/20 | 17 to 22 px |
-| bent | 2150 | 20/20 | 26 to 31 px |
+| straight | 1127 | 11/20 | 18 to 22 px |
+| bent | 2132 | 20/20 | 26 to 33 px |
 

@@ -59,7 +59,9 @@ _LIMBS = np.unique(np.round(np.geomspace(5, 2000, 200)))  # px, searched for the
 
 
 @dataclass
-class Group:
+class BudgetGroup:
+    """One group of a budget: the straight or the bent limbs."""
+
     name: str
     n: int
     typical_angle: float = float("nan")
@@ -74,11 +76,16 @@ class Group:
     note: str = ""
     few: bool = False  # fewer than _ENOUGH readings (or clusters): weak check
     clusters: int | None = None  # named clusters among the readings
+    redraw_passed: int | None = None  # checks passed on the data drawn again
+    redraw_sizes: list[float] = field(default_factory=list)  # sizes they gave
     below_search: bool = False  # the size is the search's smallest, 5 px
     outside_data: bool = False  # the size lies outside the limbs read
     near_floor: bool = False  # the floor is near the target: the size is touchy
     # the check: (part, predicted rate, rate read, passed)
     checks: list[tuple[str, float, float, bool]] = field(default_factory=list)
+
+
+Group = BudgetGroup  # its name in 0.4.0
 
 
 @dataclass
@@ -88,7 +95,8 @@ class BudgetResult:
     target: float
     straight_from: float
     clustered: bool = False
-    groups: list[Group] = field(default_factory=list)
+    redraws: int = 0
+    groups: list[BudgetGroup] = field(default_factory=list)
 
     def summary(self) -> str:
         deg = "\N{DEGREE SIGN}"
@@ -150,6 +158,22 @@ class BudgetResult:
                     )
             else:
                 lines.append(f"  smallest limb: none. {g.note}")
+            if g.redraw_passed is not None:
+                again = (
+                    f"  data drawn again {self.redraws} times: the check passed "
+                    f"{g.redraw_passed}"
+                )
+                if len(g.redraw_sizes) == 1:
+                    again += f"; 1 gave a size, {g.redraw_sizes[0]:.0f} px"
+                elif g.redraw_sizes:
+                    low, middle, high = np.percentile(g.redraw_sizes, [0, 50, 100])
+                    again += (
+                        f"; {len(g.redraw_sizes)} gave a size, from {low:.0f} to "
+                        f"{high:.0f} px (median {middle:.0f})"
+                    )
+                else:
+                    again += "; none gave a size"
+                lines.append(again)
             lines.append("")
         lines.append(
             (
@@ -171,6 +195,8 @@ class BudgetResult:
             "big_error": self.big_error,
             "target": self.target,
             "straight_from": self.straight_from,
+            "clustered": self.clustered,
+            "redraws": self.redraws,
             "groups": [
                 {
                     **{k: _finite(v) for k, v in g.__dict__.items() if k != "checks"},
@@ -204,6 +230,7 @@ def budget(
     straight_from: float = 150.0,
     seed: int = 0,
     cluster: Callable[[str], str] | None = None,
+    redraw: int = 0,
 ) -> BudgetResult:
     """Fit the keypoint error of `measure`'s three points on the pairs, check
     the fit on readings it did not see, and find the smallest limb whose angle
@@ -213,7 +240,12 @@ def budget(
     `cluster`, a function from image name to subject or clip, when frames of
     one video or one person repeat: readings of a cluster then stay together,
     and the clusters, not the readings, are counted for the check and for
-    the few-readings warning."""
+    the few-readings warning.
+
+    `redraw` repeats the whole budget on the images (or clusters) drawn
+    again with replacement that many times, and reports for each group how
+    often the check passed and the spread of the sizes given: how much the
+    answer depends on the data at hand."""
     if not isinstance(measure, Angle):
         raise ValueError("budget reads an angle: give three keypoints")
     if not 0 < target < 1:
@@ -224,6 +256,8 @@ def budget(
         raise ValueError(
             f"straight_from must be between 0 and 180 degrees, got {straight_from}"
         )
+    if redraw < 0:
+        raise ValueError(f"redraw must be 0 or more, got {redraw}")
     if not pairing.pairs:
         raise ValueError("no prediction was paired with a label: nothing to fit")
     longest = max(
@@ -240,30 +274,62 @@ def budget(
         raise ValueError(
             f"{measure.title()}: no pair shows all three keypoints on both sides"
         )
-    result = BudgetResult(
-        measure.title(), big_error, target, straight_from, cluster is not None
-    )
-    three = Angle("angle", (0, 1, 2), "deg")
-    angles = three.read_many(truth) if len(truth) else np.empty(0)
-    rng = np.random.default_rng(seed)
-    for name, chosen in (
-        ("straight", angles >= straight_from),
-        ("bent", angles < straight_from),
-    ):
-        result.groups.append(
-            _group(
-                name,
-                truth[chosen],
-                predicted[chosen],
-                keys[chosen],
-                cluster is not None,
-                three,
-                big_error,
-                target,
-                rng,
+    named = cluster is not None
+    result = BudgetResult(measure.title(), big_error, target, straight_from, named)
+    settings = (named, big_error, target, straight_from)
+    result.groups = _groups(truth, predicted, keys, *settings, seed)
+    if redraw:
+        result.redraws = redraw
+        units = np.unique(keys)
+        rng = np.random.default_rng(seed)
+        found: list[list[BudgetGroup]] = []
+        for k in range(redraw):
+            # each unit drawn keeps its readings; a unit drawn twice counts
+            # as two, so its copies are named apart
+            drawn = rng.choice(len(units), len(units))
+            rows = [np.flatnonzero(keys == units[i]) for i in drawn]
+            index = np.concatenate(rows)
+            copies = np.concatenate(
+                [
+                    [f"{n}#{units[i]}"] * len(r)
+                    for n, (i, r) in enumerate(zip(drawn, rows, strict=True))
+                ]
+            ).astype(object)
+            found.append(
+                _groups(truth[index], predicted[index], copies, *settings, seed + 1 + k)
             )
-        )
+        for g, again in zip(result.groups, zip(*found, strict=True), strict=True):
+            g.redraw_passed = sum(other.passed for other in again)
+            g.redraw_sizes = [
+                other.smallest_limb_px
+                for other in again
+                if other.smallest_limb_px is not None
+            ]
     return result
+
+
+def _groups(truth, predicted, keys, named, big_error, target, straight_from, seed):
+    """The straight and the bent group, each fitted, checked and sized."""
+    three = Angle("angle", (0, 1, 2), "deg")
+    angles = three.read_many(truth)
+    rng = np.random.default_rng(seed)
+    return [
+        _group(
+            name,
+            truth[chosen],
+            predicted[chosen],
+            keys[chosen],
+            named,
+            three,
+            big_error,
+            target,
+            rng,
+        )
+        for name, chosen in (
+            ("straight", angles >= straight_from),
+            ("bent", angles < straight_from),
+        )
+    ]
 
 
 def _readings(pairing: Pairing, measure: Angle):
@@ -354,8 +420,8 @@ def _tolerance(large: np.ndarray, n: int | None = None) -> float:
 
 def _group(
     name, truth, predicted, keys, named, measure, big_error, target, rng
-) -> Group:
-    group = Group(name, len(truth))
+) -> BudgetGroup:
+    group = BudgetGroup(name, len(truth))
     units = np.unique(keys) if len(keys) else np.empty(0, object)
     if named:
         group.clusters = len(units)
