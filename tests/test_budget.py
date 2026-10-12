@@ -521,3 +521,52 @@ def test_cli_passes_redraw(tmp_path):
     figures = json.loads(out.read_text(encoding="utf-8"))
     assert figures["redraws"] == 2
     assert all(g["redraw_passed"] is not None for g in figures["groups"])
+
+
+def test_a_handful_of_clusters_is_too_wide_to_check():
+    """Five clusters made the check pass a fit within about 37 points."""
+    rng = np.random.default_rng(26)
+    truth = limbs(300, rng)
+    predicted = noisy(truth, 3.0, 0.12, rng)
+    result = budget(
+        pairing(truth, predicted),
+        angle(0, 1, 2),
+        15,
+        cluster=lambda n: str(int(n[:-4]) % 5),
+    )
+    bent = result.groups[1]
+    assert bent.clusters == 5
+    assert not bent.passed and bent.smallest_limb_px is None
+    assert "too few clusters to check" in bent.note
+    text = result.summary()
+    assert "no check, so no size" in text
+    assert "predicted vs read large:  -" not in text and "nan" not in text
+
+
+def test_redraw_counts_draws_too_small_to_fit():
+    """Thirty bent arms and one straight one: draws that leave the straight
+    group under thirty readings are counted apart from failed checks."""
+    rng = np.random.default_rng(27)
+    truth = np.concatenate([limbs(31, rng, straight=True), limbs(400, rng)])
+    result = budget(
+        pairing(truth, noisy(truth, 1.0, 0.02, rng)), angle(0, 1, 2), 15, redraw=8
+    )
+    straight = result.groups[0]
+    assert straight.redraw_unfitted >= 1
+    assert straight.redraw_unfitted + straight.redraw_passed <= 8
+    assert "had too few readings to fit" in result.summary()
+
+
+@pytest.mark.parametrize("command", ["audit", "budget"])
+def test_a_cluster_group_that_matches_nothing_is_named(command, capsys):
+    argv = [
+        command, "--format", "coco",
+        "--gt", str(DEMO / "gt_200.json"),
+        "--pred", str(DEMO / "pred_yolo11n.json"),
+        "--angle", "5,7,9", "--big-error", "15",
+        "--cluster", "^0*([0-4])?",
+    ]  # fmt: skip
+    if command == "audit":
+        argv += ["--jitter-repeats", "0", "--resamples", "50"]
+    with pytest.raises(SystemExit, match="first group matched nothing"):
+        main(argv)
