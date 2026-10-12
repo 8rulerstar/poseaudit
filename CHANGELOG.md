@@ -1,20 +1,21 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
 
 ### Added
 
 - `poseaudit budget` (and `poseaudit.budget.budget`): the smallest limb, in
   pixels, whose angle is off by `--big-error` or more in at most `--target`
   of readings. Each point's error is fitted as a fixed part plus a part that
-  grows with the limb, leaving out the shift the three points share; straight
-  and bent limbs are fitted apart, and each fit must predict readings it did
-  not see, overall and on the shorter and longer limbs, before a size is
-  given. The size is judged on the group's own limbs, scaled with their
-  angles and segment ratios kept. `--cluster` keeps frames of one subject or
-  clip together and counts them once. On COCO val2017 with four YOLO11 pose models, at 15° and straight
-  from 150°, the check passed all 16 elbow groups and 3 of 16 knee groups
-  (15 elbow groups on one of ten seeds; `validation/error_budget.py`).
+  grows with the limb, leaving out the shift the three points share;
+  straight and bent limbs are fitted apart, and each fit must predict
+  readings it did not see, overall and on the shorter and longer limbs,
+  before a size is given. The size is judged on the group's own limbs,
+  scaled with their angles and segment ratios kept. `--cluster` keeps frames
+  of one subject or clip together and counts them once. On COCO val2017 with
+  four YOLO11 pose models, at 15° and straight from 150°, the check passed
+  all 16 elbow groups and 3 of 16 knee groups (15 elbow groups on one of ten
+  seeds; `validation/error_budget.py`).
 
 ## 0.3.1
 
