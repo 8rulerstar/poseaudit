@@ -215,24 +215,77 @@ def test_the_verdict_does_not_turn_on_the_seed():
     assert len(verdicts) == 1
 
 
-def test_the_size_is_the_first_that_meets_the_target():
-    from poseaudit.budget import _LIMBS, _limb, _rate
+def group_rate(truth, length, fixed, share, big_error, seed=0, draws=4000):
+    """Written apart from the module: the large-error rate of these limbs,
+    each scaled to a mean segment of `length` and read `draws` times."""
+    rng = np.random.default_rng(seed)
+    rates = []
+    for limb in truth - truth[:, 1:2]:
+        first, second = (np.hypot(*(limb[i] - limb[1])) for i in (0, 2))
+        limb = limb * length / ((first + second) / 2)
+        sizes = (
+            np.array([first, (first + second) / 2, second])
+            * length
+            / ((first + second) / 2)
+        )
+        spread = np.sqrt(fixed**2 + (share * sizes) ** 2)
+        drawn = limb + rng.normal(size=(draws, 3, 2)) * spread[None, :, None]
+        u, v = drawn[:, 0] - drawn[:, 1], drawn[:, 2] - drawn[:, 1]
+        read = np.degrees(
+            np.arccos(np.clip((u * v).sum(1) / np.hypot(*u.T) / np.hypot(*v.T), -1, 1))
+        )
+        a, c = limb[0] - limb[1], limb[2] - limb[1]
+        true = np.degrees(np.arccos(a @ c / np.hypot(*a) / np.hypot(*c)))
+        rates.append(np.mean(np.abs(read - true) >= big_error))
+    return float(np.mean(rates))
+
+
+@pytest.mark.parametrize("straight", [False, True])
+def test_the_size_meets_the_target_on_the_groups_own_limbs(straight):
+    """The size is judged on limbs bent like the group's: one median angle
+    gave straight groups sizes that missed the target (28% for 20%)."""
+    from poseaudit.budget import _LIMBS
 
     rng = np.random.default_rng(14)
-    truth = limbs(1000, rng)
-    bent = budget(
-        pairing(truth, noisy(truth, 1.5, 0.03, rng)), angle(0, 1, 2), 15, 0.2
-    ).groups[1]
-    size = bent.smallest_limb_px
+    truth = limbs(600, rng, straight=straight)
+    result = budget(pairing(truth, noisy(truth, 1.5, 0.03, rng)), angle(0, 1, 2), 15)
+    group = result.groups[0 if straight else 1]
+    size = group.smallest_limb_px
     assert size is not None and size > _LIMBS[0]
     before = _LIMBS[np.searchsorted(_LIMBS, size) - 1]
-    draws = np.random.default_rng(0).normal(size=(200_000, 3, 2))
-    rate = lambda length: _rate(  # noqa: E731
-        _limb(length, bent.typical_angle), bent.fixed_px, bent.share, 15, draws,
-        angle(0, 1, 2),
+    shapes = truth[rng.choice(len(truth), 200, replace=False)]
+    args = (group.fixed_px, group.share, 15)
+    assert group_rate(shapes, size, *args) <= 0.2 + 0.015
+    assert group_rate(shapes, before, *args) > 0.2 - 0.015
+
+
+def test_flags_say_when_a_size_is_outside_the_data_or_near_the_floor():
+    rng = np.random.default_rng(15)
+    truth = limbs(600, rng)
+    near = budget(pairing(truth, noisy(truth, 0.5, 0.09, rng)), angle(0, 1, 2), 15)
+    bent = near.groups[1]
+    assert bent.smallest_limb_px is not None
+    assert bent.near_floor == (bent.floor_rate > 0.15)
+    assert bent.near_floor
+    short = truth * 0.5  # segments of 5 to 100 px, a size of about 200 needed
+    far = budget(pairing(short, noisy(short, 18.0, 0.0, rng)), angle(0, 1, 2), 15)
+    bent = far.groups[1]
+    assert bent.smallest_limb_px > np.hypot(*(short[:, 0] - short[:, 1]).T).max()
+    assert bent.outside_data
+    assert "extrapolation" in far.summary()
+
+
+def test_no_readable_pair_is_an_error():
+    rng = np.random.default_rng(16)
+    truth = limbs(50, rng)
+    seen = np.array([True, False, True])
+    box = np.array([-1e4, -1e4, 1e4, 1e4])
+    hidden = Pairing(
+        pairs=[Pair("a.jpg", Instance(box, t, seen), Instance(box, t, seen))
+               for t in truth]
     )  # fmt: skip
-    assert rate(size) <= 0.2 + 0.005
-    assert rate(before) > 0.2 - 0.005
+    with pytest.raises(ValueError, match="no pair shows all three"):
+        budget(hidden, angle(0, 1, 2), 10)
 
 
 def test_budget_help_does_not_offer_comparing_models(capsys):

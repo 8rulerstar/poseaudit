@@ -135,8 +135,11 @@ under two settings (a score filter, a confidence threshold), use Python:
 
 ## How large must a limb be
 
-`poseaudit budget` answers a question an audit cannot carry to new footage:
-how many pixels a limb needs in the image before its angle is usable.
+`poseaudit budget` turns an audit's keypoint errors into a size: how many
+pixels a limb needs in the image before its angle is off by `--big-error` or
+more in no more than `--target` of readings. OKS and mAP score where the
+points land; this says how large the limb must be for the angle read from
+them to agree with the labels that often.
 
 ```bash
 poseaudit budget --format coco --gt labels.json --pred results.json --angle 5,7,9 --big-error 15 --target 0.2
@@ -147,15 +150,17 @@ limb, leaving out the part all three points share (moving the whole limb does
 not change its angle), and simulates the angle's error from that. Straight
 limbs (labelled at 150° or more; `--straight-from`) and bent ones are fitted
 apart: their errors differ. For each group it prints the fit, its check, the
-floor (the large-error rate however large the limb) and the smallest limb, in
-pixels a segment, that meets `--target` at the group's median angle; more
-bent limbs need less and straighter ones more.
+floor (the large-error rate however large the limbs) and the smallest limb,
+in pixels a segment, that meets `--target` on limbs bent like the group's:
+each of its limbs (up to 300) keeps its angle and the ratio of its segments
+and is scaled to that size. A size judged at one median angle missed the
+target on straight limbs, where the rate changes fast near 180°.
 
 The fit is checked before it is used. Every reading is predicted by a fit
 made without it (two halves predicting each other, over five random splits),
 and the predicted large-error rate must match the rate read, overall and on
 the shorter and the longer limbs, within two standard errors and never closer
-than 6 points. A group that fails gets no size; nor does one whose floor is
+than 6 percentage points. A group that fails gets no size; nor does one whose floor is
 above the target. The check asks for agreement within that tolerance, so a
 size meant for 20% can be a few points off. The summary says when a size is
 the search's smallest (5 px or less), outside the limb lengths read, or close
@@ -167,14 +172,14 @@ large error of 15° and straight from 150°, the check passed all 16 elbow
 groups and 3 of 16 knee groups, on each of ten seeds. For knees the fit
 predicts 1.6 to 1.9 times the large errors read on straight legs. The verdicts depend
 on the settings: at 10° 10 elbow groups passed, at 20° 8 knee groups did.
-At 15° and a 20% target, `yolo11x-pose` needs 12 to 13 px a segment on
-straight arms and 24 to 27 on bent ones; on bent arms `yolo11n-pose` has a
-floor of 22 to 26% and no size reaches the target.
+At 15° and a 20% target, `yolo11x-pose` needs 19 to 21 px a segment on
+straight arms and 27 to 29 on bent ones; on arms `yolo11n-pose` has a floor
+of 21 to 26% and no size reaches the target.
 
 The figures hold for that model on images like the ones given, and they are
 agreement with the labels, their own spread included. In simulation the check
-passed a right fit 85 to 88% of the time with 100 to 300 readings a group and
-every time with 1,000; the summary says when a group has fewer than 1,000.
+passed a right fit 85 to 95% of the time with 100 to 300 readings a group,
+depending on the simulated limbs, and every time with 1,000; the summary says when a group has fewer than 1,000.
 
 ## Paired values
 

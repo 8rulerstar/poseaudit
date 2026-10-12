@@ -1,7 +1,8 @@
-"""How large must a limb be in the image for its angle to be usable?
+"""How large must a limb be for its angle to agree with the labels often enough?
 
 The audit says how far off the angles were on the images given. This turns
-the keypoint errors behind them into a rule that carries over: each point's
+the keypoint errors behind them into a size, for that model on images like
+those: each point's
 error is fitted as a fixed part plus a part that grows with the limb,
 
     spread(L) = hypot(fixed_px, share * L)        (per axis, in pixels)
@@ -16,16 +17,17 @@ are read worse and their points move less together). Each fit is checked
 before it is used: every reading is predicted by a fit made without it (two
 halves predicting each other, over five random splits), and the predicted
 large-error rate must match the rate read, overall and on the shorter and
-the longer limbs, within two standard errors and never closer than 6 points.
+the longer limbs, within two standard errors and never closer than 6 percentage points.
 That is a check for agreement within a tolerance, not a test that the model
 of the errors is right: a fit off by a few points passes. A group that fails
 gets no size.
 
 With COCO val2017, four YOLO11 pose models, a large error of 15 degrees and
-straight from 150 degrees, the check passed most elbow groups and refused
-most knee groups (validation/error_budget.out.md); at other settings the
+straight from 150 degrees, the check passed all 16 elbow groups and 3 of
+16 knee groups (validation/error_budget.out.md); at other settings the
 groups that pass change. In simulation the check passed a right fit 85 to
-88% of the time with 100 to 300 readings a group, and every time with 1,000.
+95% of the time with 100 to 300 readings a group, depending on the simulated
+limbs, and every time with 1,000.
 
 The figures are agreement with the labels: the labels' own spread is in them.
 """
@@ -46,7 +48,8 @@ _ENOUGH = 1000  # readings a group needs before its check can be trusted
 _MIN_PART = 20  # held-out readings each of the shorter and longer limbs needs
 _DRAWS = 400  # simulated readings per limb in the check
 _SPLITS = 5  # random two-way splits the check averages over
-_SEARCH_DRAWS = 20000  # for the one limb of the size search and the floor
+_SHAPES = 300  # of the group's limbs, at most, the size is judged on
+_SEARCH_DRAWS = 1000  # simulated readings of each of them
 _FIXED = np.linspace(0, 20, 401)  # px
 _SHARE = np.linspace(0, 0.5, 251)  # of the limb's length
 _LIMBS = np.unique(np.round(np.geomspace(5, 2000, 200)))  # px, searched for the size
@@ -95,7 +98,7 @@ class BudgetResult:
                 if (g.name == "straight")
                 else f"{g.name} (below {self.straight_from:g}{deg})"
             )
-            lines.append(f"{head}: {g.n} readings")
+            lines.append(f"{head}: {g.n} reading{'' if g.n == 1 else 's'}")
             if np.isnan(g.fixed_px):
                 lines.append(f"  {g.note}")
                 lines.append("")
@@ -125,9 +128,8 @@ class BudgetResult:
                 )
                 lines.append(
                     f"  smallest limb for {self.target:.0%} or fewer: {size} a "
-                    f"segment, at the group's median angle, {g.typical_angle:.0f}"
-                    f"{deg}; more bent limbs of the group need less, straighter "
-                    "ones more"
+                    "segment, on limbs bent like this group's (median "
+                    f"{g.typical_angle:.0f}{deg})"
                 )
                 if g.outside_data:
                     lines.append("  outside the limb lengths read: an extrapolation")
@@ -142,8 +144,8 @@ class BudgetResult:
         lines.append(
             "Agreement with the labels, for this model on images like these: the "
             "labels' own spread is in these figures, and the check passes a fit "
-            "within its tolerance (6 points or more), so a size can miss the "
-            "target by that much."
+            "within its tolerance (6 percentage points or more), so a size can "
+            "miss the target by that much."
         )
         return "\n".join(lines)
 
@@ -193,8 +195,8 @@ def budget(
         raise ValueError("budget reads an angle: give three keypoints")
     if not 0 < target < 1:
         raise ValueError(f"target must be between 0 and 1, got {target}")
-    if not big_error > 0:
-        raise ValueError(f"big error must be above 0, got {big_error}")
+    if not 0 < big_error < 180:
+        raise ValueError(f"big error must be above 0 and below 180, got {big_error}")
     if not 0 < straight_from < 180:
         raise ValueError(
             f"straight_from must be between 0 and 180 degrees, got {straight_from}"
@@ -210,6 +212,10 @@ def budget(
             f"{longest} keypoints (counted from 0) the data has"
         )
     truth, predicted = _readings(pairing, measure)
+    if not len(truth):
+        raise ValueError(
+            f"{measure.title()}: no pair shows all three keypoints on both sides"
+        )
     result = BudgetResult(measure.title(), big_error, target, straight_from)
     three = Angle("angle", (0, 1, 2), "deg")
     angles = three.read_many(truth) if len(truth) else np.empty(0)
@@ -300,16 +306,9 @@ def large_rate(
 
 def _tolerance(large: np.ndarray) -> float:
     """How far a predicted rate may be from the rate read: two standard
-    errors of the rate read, and never under 6 points."""
+    errors of the rate read, and never under 6 percentage points."""
     rate = large.mean()
     return float(max(0.06, 2 * np.sqrt(rate * (1 - rate) / len(large))))
-
-
-def _limb(length: float, degrees: float) -> np.ndarray:
-    turn = np.radians(degrees)
-    return np.array(
-        [[length, 0.0], [0.0, 0.0], [length * np.cos(turn), length * np.sin(turn)]]
-    )
 
 
 def _group(name, truth, predicted, measure, big_error, target, rng) -> Group:
@@ -357,36 +356,46 @@ def _group(name, truth, predicted, measure, big_error, target, rng) -> Group:
         )
     group.passed = all(check[3] for check in group.checks)
     group.fixed_px, group.share = fit_spread(truth, predicted)
-    # the same draws for every size, so the rate falls smoothly as the limb grows
-    draws = rng.normal(size=(_SEARCH_DRAWS, 3, 2))
-    group.floor_rate = _rate(
-        _limb(1e5, group.typical_angle), 0.0, group.share, big_error, draws, measure
+    # the group's own limbs, their angles and the ratio of their segments
+    # kept, each scaled to a mean segment of one: a size is judged on limbs
+    # shaped like the group's, since the rate is far from even across angles
+    # (one median angle gave sizes that missed the target on straight limbs)
+    shapes = truth - truth[:, 1:2]
+    segments = _lengths(shapes)[:, [0, 2]].mean(axis=1)
+    shapes = shapes / segments[:, None, None]
+    if len(shapes) > _SHAPES:
+        shapes = shapes[rng.choice(len(shapes), _SHAPES, replace=False)]
+    # the same draws for every size, so the rate falls smoothly as limbs grow
+    draws = rng.normal(size=(len(shapes), _SEARCH_DRAWS, 3, 2))
+    group.floor_rate = _group_rate(
+        shapes, 1e5, 0.0, group.share, big_error, draws, measure
     )
     if not group.passed:
         group.note += "the fit failed its check on these readings"
         return group
     if group.floor_rate > target:
         group.note += (
-            f"even a very large limb is off by that much in "
+            f"even very large limbs are off by that much in "
             f"{group.floor_rate:.0%} of readings"
         )
         return group
-    for length in _LIMBS:
-        rate = _rate(
-            _limb(length, group.typical_angle),
-            group.fixed_px,
-            group.share,
-            big_error,
-            draws,
-            measure,
+
+    def meets(length: float) -> bool:
+        rate = _group_rate(
+            shapes, length, group.fixed_px, group.share, big_error, draws, measure
         )
-        if rate <= target:
-            group.smallest_limb_px = float(length)
-            break
-    else:
+        return rate <= target
+
+    if not meets(_LIMBS[-1]):
         group.note += f"not reached by {_LIMBS[-1]:.0f} px"
         return group
-    if group.smallest_limb_px <= _LIMBS[0]:
+    # the rate falls as the limbs grow: halve the range until one size is left
+    low, high = -1, len(_LIMBS) - 1
+    while high - low > 1:
+        middle = (low + high) // 2
+        low, high = (low, middle) if meets(_LIMBS[middle]) else (middle, high)
+    group.smallest_limb_px = float(_LIMBS[high])
+    if high == 0:
         group.below_search = True
     seen = _lengths(truth)[:, [0, 2]]
     if not seen.min() <= group.smallest_limb_px <= seen.max():
@@ -396,10 +405,11 @@ def _group(name, truth, predicted, measure, big_error, target, rng) -> Group:
     return group
 
 
-def _rate(limb, fixed_px, share, big_error, draws, measure) -> float:
-    """The large-error rate of one limb, from given standard normal draws."""
-    spread = np.hypot(fixed_px, share * _lengths(limb[None])[0])
-    drawn = limb + draws * spread[None, :, None]
-    return float(
-        np.mean(np.abs(measure.read_many(drawn) - measure.read(limb)) >= big_error)
-    )
+def _group_rate(shapes, length, fixed_px, share, big_error, draws, measure) -> float:
+    """The large-error rate of the group's limb shapes scaled to a mean
+    segment of `length` px, from given standard normal draws."""
+    limbs = shapes * length
+    spread = np.hypot(fixed_px, share * _lengths(limbs))  # (k, 3)
+    drawn = limbs[:, None] + draws * spread[:, None, :, None]
+    read = measure.read_many(drawn.reshape(-1, 3, 2)).reshape(len(limbs), -1)
+    return float(np.mean(np.abs(read - measure.read_many(limbs)[:, None]) >= big_error))

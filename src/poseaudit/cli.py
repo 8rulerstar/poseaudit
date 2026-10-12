@@ -700,11 +700,12 @@ def _parser() -> argparse.ArgumentParser:
 
 
 BUDGET = """\
-How large must a limb be in the image for its angle to be usable? Fits each
-keypoint's error as a fixed part plus a part that grows with the limb, checks
-the fit on readings it was not fitted to, and gives the smallest limb whose
-angle is off by --big-error or more in at most --target of readings. Straight
-and bent limbs are fitted apart.
+How large must a limb be in the image for its angle to agree with the
+labels? Fits each keypoint's error as a fixed part plus a part that grows
+with the limb, checks the fit on readings it was not fitted to, and gives the
+smallest limb whose angle is off by --big-error or more in at most --target
+of readings, on limbs bent like the ones read. Straight and bent limbs are
+fitted apart.
 """
 
 BUDGET_EXAMPLES = """\
@@ -713,15 +714,15 @@ example:
   degrees or more:
     poseaudit budget --format coco --gt labels.json --pred results.json --angle 5,7,9 --big-error 15 --target 0.2
 
-more: https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#budget
+more: https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#how-large-must-a-limb-be
 """  # noqa: E501
 
 
 def _budget_parser(sub) -> None:
-    """`poseaudit budget`: the smallest limb whose angle is usable."""
+    """`poseaudit budget`: the smallest limb whose angle agrees often enough."""
     run = sub.add_parser(
         "budget",
-        help="how large a limb must be in the image for its angle to be usable",
+        help="how large a limb must be for its angle to agree with the labels",
         description=BUDGET,
         epilog=BUDGET_EXAMPLES,
         formatter_class=_Help,
