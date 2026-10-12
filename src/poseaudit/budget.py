@@ -77,6 +77,7 @@ class BudgetGroup:
     few: bool = False  # fewer than _ENOUGH readings (or clusters): weak check
     clusters: int | None = None  # named clusters among the readings
     redraw_passed: int | None = None  # checks passed on the data drawn again
+    redraw_unfitted: int | None = None  # draws with too few readings to fit
     redraw_sizes: list[float] = field(default_factory=list)  # sizes they gave
     below_search: bool = False  # the size is the search's smallest, 5 px
     outside_data: bool = False  # the size lies outside the limbs read
@@ -160,16 +161,20 @@ class BudgetResult:
                 lines.append(f"  smallest limb: none. {g.note}")
             if g.redraw_passed is not None:
                 again = (
-                    f"  data drawn again {self.redraws} times: the check passed "
+                    f"  data drawn again {self.redraws} "
+                    f"time{'' if self.redraws == 1 else 's'}: the check passed "
                     f"{g.redraw_passed}"
                 )
+                if g.redraw_unfitted:
+                    again += f" ({g.redraw_unfitted} had too few readings to fit)"
                 if len(g.redraw_sizes) == 1:
                     again += f"; 1 gave a size, {g.redraw_sizes[0]:.0f} px"
                 elif g.redraw_sizes:
                     low, middle, high = np.percentile(g.redraw_sizes, [0, 50, 100])
                     again += (
                         f"; {len(g.redraw_sizes)} gave a size, from {low:.0f} to "
-                        f"{high:.0f} px (median {middle:.0f})"
+                        f"{high:.0f} px (median {middle:.0f}). Not a confidence "
+                        "interval: the smallest and largest of the sizes given"
                     )
                 else:
                     again += "; none gave a size"
@@ -277,15 +282,16 @@ def budget(
     named = cluster is not None
     result = BudgetResult(measure.title(), big_error, target, straight_from, named)
     settings = (named, big_error, target, straight_from)
-    result.groups = _groups(truth, predicted, keys, *settings, seed)
+    result.groups = _groups(truth, predicted, keys, keys, *settings, seed)
     if redraw:
         result.redraws = redraw
         units = np.unique(keys)
         rng = np.random.default_rng(seed)
         found: list[list[BudgetGroup]] = []
         for k in range(redraw):
-            # each unit drawn keeps its readings; a unit drawn twice counts
-            # as two, so its copies are named apart
+            # each unit drawn keeps its readings. A unit drawn twice counts as
+            # two (its copies are named apart), but its copies are split as
+            # one: a fit must not see a copy of what it then predicts
             drawn = rng.choice(len(units), len(units))
             rows = [np.flatnonzero(keys == units[i]) for i in drawn]
             index = np.concatenate(rows)
@@ -295,11 +301,20 @@ def budget(
                     for n, (i, r) in enumerate(zip(drawn, rows, strict=True))
                 ]
             ).astype(object)
+            originals = keys[index]
             found.append(
-                _groups(truth[index], predicted[index], copies, *settings, seed + 1 + k)
+                _groups(
+                    truth[index],
+                    predicted[index],
+                    copies,
+                    originals,
+                    *settings,
+                    seed + 1 + k,
+                )
             )
         for g, again in zip(result.groups, zip(*found, strict=True), strict=True):
             g.redraw_passed = sum(other.passed for other in again)
+            g.redraw_unfitted = sum(bool(np.isnan(other.fixed_px)) for other in again)
             g.redraw_sizes = [
                 other.smallest_limb_px
                 for other in again
@@ -308,7 +323,9 @@ def budget(
     return result
 
 
-def _groups(truth, predicted, keys, named, big_error, target, straight_from, seed):
+def _groups(
+    truth, predicted, keys, split, named, big_error, target, straight_from, seed
+):
     """The straight and the bent group, each fitted, checked and sized."""
     three = Angle("angle", (0, 1, 2), "deg")
     angles = three.read_many(truth)
@@ -319,6 +336,7 @@ def _groups(truth, predicted, keys, named, big_error, target, straight_from, see
             truth[chosen],
             predicted[chosen],
             keys[chosen],
+            split[chosen],
             named,
             three,
             big_error,
@@ -419,7 +437,7 @@ def _tolerance(large: np.ndarray, n: int | None = None) -> float:
 
 
 def _group(
-    name, truth, predicted, keys, named, measure, big_error, target, rng
+    name, truth, predicted, keys, split, named, measure, big_error, target, rng
 ) -> BudgetGroup:
     group = BudgetGroup(name, len(truth))
     units = np.unique(keys) if len(keys) else np.empty(0, object)
@@ -442,15 +460,22 @@ def _group(
     # each fitted and predicting the other, over several random splits. One
     # split alone decided some groups by the luck of the split.
     expected = np.zeros(len(truth))
+    parts_of = np.unique(split)
+    if len(parts_of) < 2:
+        # with one image or cluster no fit can be made without it: no check,
+        # so no size (splitting its readings would check a fit on itself)
+        group.fixed_px, group.share = fit_spread(truth, predicted)
+        group.read_rate = float(large.mean())
+        group.note = (
+            "the check needs readings from two images or clusters at least, "
+            "and these come from one"
+        )
+        return group
     for _ in range(_SPLITS):
         # split images (or named clusters), never the readings of one of them
-        order = rng.permutation(len(units))
-        first = np.isin(keys, units[order[: len(order) // 2]])
+        order = rng.permutation(len(parts_of))
+        first = np.isin(split, parts_of[order[: len(order) // 2]])
         halves = np.flatnonzero(first), np.flatnonzero(~first)
-        if not (len(halves[0]) and len(halves[1])):
-            # one image or cluster only: split its readings instead
-            shuffled = rng.permutation(len(truth))
-            halves = shuffled[: len(truth) // 2], shuffled[len(truth) // 2 :]
         for fit_on, check_on in (halves, halves[::-1]):
             fixed, share = fit_spread(truth[fit_on], predicted[fit_on])
             expected[check_on] += large_rate(

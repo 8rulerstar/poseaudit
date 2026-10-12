@@ -81,6 +81,6 @@ predicted / read large-error rate, each reading predicted by a fit made without 
 
 | group | readings | check passed | sizes |
 |---|---|---|---|
-| straight | 1127 | 11/20 | 18 to 22 px |
-| bent | 2132 | 20/20 | 26 to 33 px |
+| straight | 1127 | 10/20 | 17 to 21 px |
+| bent | 2132 | 20/20 | 26 to 31 px |
 
