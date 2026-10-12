@@ -52,10 +52,13 @@ def pairing(truth: np.ndarray, predicted: np.ndarray) -> Pairing:
 
 def main() -> None:
     warnings.simplefilter("ignore")
-    print("| readings | check passed | size, 5th / 50th / 95th percentile |")
-    print("|---|---|---|")
+    print(
+        "| readings | check passed | failed | too few to check | "
+        "size, 5th / 50th / 95th percentile |"
+    )
+    print("|---|---|---|---|---|")
     for n in (100, 300, 1000):
-        passed, sizes = 0, []
+        passed, failed, unchecked, sizes = 0, 0, 0, []
         for k in range(SETS):
             rng = np.random.default_rng(1000 * n + k)
             truth = arms(n, rng)
@@ -63,10 +66,15 @@ def main() -> None:
                 pairing(truth, read(truth, rng)), angle(0, 1, 2), 15, 0.2, seed=k
             ).groups[1]
             passed += bent.passed
+            unchecked += not bent.checks
+            failed += bool(bent.checks) and not bent.passed
             if bent.smallest_limb_px is not None:
                 sizes.append(bent.smallest_limb_px)
-        low, middle, high = np.percentile(sizes, [5, 50, 95])
-        print(f"| {n:,} | {passed}/{SETS} | {low:.0f} / {middle:.0f} / {high:.0f} px |")
+        span = "-"
+        if sizes:
+            low, middle, high = np.percentile(sizes, [5, 50, 95])
+            span = f"{low:.0f} / {middle:.0f} / {high:.0f} px"
+        print(f"| {n:,} | {passed}/{SETS} | {failed} | {unchecked} | {span} |")
 
 
 if __name__ == "__main__":
