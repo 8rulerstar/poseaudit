@@ -459,8 +459,8 @@ class _Parser(argparse.ArgumentParser):
         super().error(message)
 
 
-def _data_args(run) -> None:
-    """The data options `audit` and `budget` share."""
+def _data_args(run, compare: bool = True) -> None:
+    """The data options `audit` and `budget` share; `budget` reads one model."""
     data = run.add_argument_group("data")
     data.add_argument(
         "--gt", required=True, metavar="PATH", help="YOLO label folder or COCO json"
@@ -470,8 +470,8 @@ def _data_args(run) -> None:
         required=True,
         action="append",
         metavar="PATH",
-        help="YOLO folder or COCO results json; to compare models, repeat it as "
-        "--pred NAME=PATH",
+        help="YOLO folder or COCO results json"
+        + ("; to compare models, repeat it as --pred NAME=PATH" if compare else ""),
     )
     data.add_argument(
         "--format", choices=["yolo", "coco"], help="format of both --gt and --pred"
@@ -702,7 +702,7 @@ def _parser() -> argparse.ArgumentParser:
 BUDGET = """\
 How large must a limb be in the image for its angle to be usable? Fits each
 keypoint's error as a fixed part plus a part that grows with the limb, checks
-the fit on a held-out half of the readings, and gives the smallest limb whose
+the fit on readings it was not fitted to, and gives the smallest limb whose
 angle is off by --big-error or more in at most --target of readings. Straight
 and bent limbs are fitted apart.
 """
@@ -726,7 +726,7 @@ def _budget_parser(sub) -> None:
         epilog=BUDGET_EXAMPLES,
         formatter_class=_Help,
     )
-    _data_args(run)
+    _data_args(run, compare=False)
     what = run.add_argument_group("measure and goal")
     what.add_argument(
         "--angle",
@@ -956,7 +956,9 @@ def main(argv: list[str] | None = None) -> None:
         print(_console(result.summary(), sys.stdout))
         if args.json:
             try:
-                write_text(args.json, json.dumps(result.to_dict(), indent=2))
+                write_text(
+                    args.json, json.dumps(result.to_dict(), indent=2, allow_nan=False)
+                )
             except OSError as error:
                 sys.exit(f"poseaudit: could not write: {error}")
         return
