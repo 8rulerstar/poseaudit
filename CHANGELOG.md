@@ -8,9 +8,16 @@
   on the images, or the clusters, drawn again with replacement N times, and
   says for each group how often the check passed and how far the sizes
   spread. One size from one data set can hide how much it would move.
-- `budget`, `BudgetResult` and `BudgetGroup` are importable from `poseaudit`
-  and documented in docs/python.md. `poseaudit.budget.Group`, the class's
+- `BudgetResult` and `BudgetGroup` are importable from `poseaudit`, and
+  `budget` is documented in docs/python.md (import it from
+  `poseaudit.budget`, as in 0.4.0). `poseaudit.budget.Group`, the class's
   name in 0.4.0, still works.
+
+### Fixed
+
+- A budget whose readings all came from one image or one `--cluster` group
+  passed its check by splitting the readings of that one group, a fit
+  checked on itself; it now says there is no check and gives no size.
 
 ## 0.4.0
 

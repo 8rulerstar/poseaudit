@@ -190,15 +190,24 @@ it, a clip copied ten times reads as ten times the people.
 How much data a group needs
 ([validation/budget_power.out.md](../validation/budget_power.out.md)): with
 errors the fit describes exactly, the check passed 36 of 40 data sets of 100
-readings and all 40 of 300 and of 1,000, and the sizes given ranged from 13
-to 98 px at 100 readings, 35 to 68 at 300 and 44 to 59 at 1,000, around 48.
-The summary says when a group has fewer than 1,000 readings (or clusters).
-The verdict rarely turns on the seed, but it can turn on the data, and
-`--redraw 20` says how much: it runs the budget again on the images (or
-clusters) drawn again with replacement and prints, for each group, how often
-the check passed and the range of the sizes given. On the COCO arms, the
-straight left elbows of `yolo11x-pose` (about 1,100 arms) passed in 11 of 20
-draws, with sizes from 18 to 22 px.
+readings and all 40 of 300 and of 1,000, and the sizes given ranged (5th to
+95th percentile over the 40) from 13 to 98 px at 100 readings, 35 to 68 at
+300 and 44 to 59 at 1,000, around 48. The summary says when a group has
+fewer than 1,000 readings (or clusters). With readings from only one image
+or cluster there is no check and no size.
+
+The verdict rarely turns on the seed, but it can turn on the data. `--redraw
+20` runs the budget again on the images (or clusters) drawn again with
+replacement, keeping the copies of one image together when it splits them,
+and prints for each group how often the check passed and the smallest and
+largest of the sizes the draws gave. That span is not a confidence interval:
+it comes only from the draws whose check passed, it widens with more draws,
+and the size from the data as given can lie outside it. Nor is the count of
+checks passed a chance of passing on new data. Read it as a warning: when
+many draws fail or the sizes spread wide, the data are too few to trust one
+size, and the largest size is the cautious choice. On the COCO arms, the
+straight left elbows of `yolo11x-pose` (about 1,100 arms) passed in 10 of 20
+draws, with sizes from 17 to 21 px among those 10.
 
 ## Paired values
 

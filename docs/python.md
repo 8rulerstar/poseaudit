@@ -222,16 +222,17 @@ worse. A plain mean over each set would call that a 2° improvement.
   `to_rows()` (each model's figures as flat rows), `to_markdown()` and
   `settings()` (those every model shares). It too shows its summary in
   Jupyter.
-- `budget(pairing, angle(a, b, c), big_error, target=0.2,
-  straight_from=150, cluster=None, redraw=0)` returns a `BudgetResult`: the
+- `from poseaudit.budget import budget`, then `budget(pairing, angle(a, b,
+  c), big_error, target=0.2, straight_from=150, cluster=None, redraw=0)`
+  returns a `BudgetResult` (`pa.BudgetResult`): the
   smallest limb whose angle is off by `big_error` or more in at most
   `target` of readings ([cli.md](cli.md#how-large-must-a-limb-be)). Its
-  `groups` are two `BudgetGroup`s, straight and bent, each with `n`,
+  `groups` are two `BudgetGroup`s (`pa.BudgetGroup`), straight and bent, each with `n`,
   `fixed_px` and `share` (the fitted point error), `checks` and `passed`,
   `floor_rate`, `smallest_limb_px` (None when there is none, with `note`
   saying why), the flags `few`, `below_search`, `outside_data` and
   `near_floor`, and with `redraw` the checks passed and sizes given on the
-  data drawn again (`redraw_passed`, `redraw_sizes`). `cluster` is a
+  data drawn again (`redraw_passed`, `redraw_unfitted`, `redraw_sizes`). `cluster` is a
   function from image name to subject or clip. `summary()` and `to_dict()`
   write it out.
 - Types: a `Dataset` is `{image name: [Instance, ...]}`. `Pairing` holds the

@@ -1,4 +1,3 @@
-import importlib
 import json
 from pathlib import Path
 
@@ -298,7 +297,7 @@ def test_budget_help_does_not_offer_comparing_models(capsys):
 def test_frames_of_one_subject_stay_together_and_are_counted_once(monkeypatch):
     """A clip copied ten times used to lose the few-readings warning and
     narrow the check as if it were ten times the people."""
-    module = importlib.import_module("poseaudit.budget")
+    import poseaudit.budget as module
 
     rng = np.random.default_rng(17)
     truth = limbs(120, rng)
@@ -340,7 +339,7 @@ def test_frames_of_one_subject_stay_together_and_are_counted_once(monkeypatch):
 
 
 def test_a_fit_never_predicts_what_it_was_fitted_on(monkeypatch):
-    module = importlib.import_module("poseaudit.budget")
+    import poseaudit.budget as module
 
     rng = np.random.default_rng(18)
     truth = limbs(300, rng)
@@ -373,7 +372,7 @@ def test_the_tolerance_is_two_standard_errors_and_at_least_six_points():
 
 def test_a_target_out_of_reach_gives_no_size(monkeypatch):
     """The search stops at its largest size and says so, rather than give it."""
-    module = importlib.import_module("poseaudit.budget")
+    import poseaudit.budget as module
 
     monkeypatch.setattr(module, "_LIMBS", np.arange(5.0, 11.0))
     rng = np.random.default_rng(19)
@@ -431,8 +430,94 @@ def test_redraw_must_not_be_negative():
         budget(pairing(truth, truth), angle(0, 1, 2), 10, redraw=-1)
 
 
-def test_budget_is_importable_from_the_package():
-    import poseaudit
+def test_the_classes_are_importable_and_the_module_stays_a_module():
+    """0.4.0 code that imports poseaudit.budget and reads its names works."""
+    import types
 
-    assert poseaudit.budget is budget
-    assert "BudgetResult" in poseaudit.__all__
+    import poseaudit
+    import poseaudit.budget
+
+    assert isinstance(poseaudit.budget, types.ModuleType)
+    assert poseaudit.budget.budget is budget
+    assert poseaudit.BudgetResult is poseaudit.budget.BudgetResult
+    assert poseaudit.budget.Group is poseaudit.BudgetGroup
+
+
+def test_redraw_never_fits_on_a_copy_of_what_it_predicts(monkeypatch):
+    """An image drawn twice: its copies are split as one."""
+    import poseaudit.budget as module
+
+    rng = np.random.default_rng(23)
+    truth = limbs(200, rng)
+    fitted, real_fit, real_rate = [], module.fit_spread, module.large_rate
+
+    def recording_fit(t, p):
+        fitted.append({tuple(x.ravel()) for x in t})
+        return real_fit(t, p)
+
+    def checking_rate(t, *args, **kwargs):
+        assert not fitted[-1] & {tuple(x.ravel()) for x in t}
+        return real_rate(t, *args, **kwargs)
+
+    monkeypatch.setattr(module, "fit_spread", recording_fit)
+    monkeypatch.setattr(module, "large_rate", checking_rate)
+    budget(pairing(truth, noisy(truth, 1.0, 0.05, rng)), angle(0, 1, 2), 15, redraw=3)
+
+
+def test_one_cluster_has_no_check_and_no_size():
+    rng = np.random.default_rng(24)
+    truth = limbs(200, rng)
+    result = budget(
+        pairing(truth, noisy(truth, 1.0, 0.02, rng)),
+        angle(0, 1, 2),
+        15,
+        cluster=lambda name: "everyone",
+        redraw=2,
+    )
+    bent = result.groups[1]
+    assert not bent.passed and bent.smallest_limb_px is None
+    assert "from one" in bent.note
+    assert bent.redraw_passed == 0
+
+
+def test_redraw_counts_draws_that_pass_fail_or_cannot_fit():
+    rng = np.random.default_rng(25)
+    truth = limbs(400, rng)
+    good = budget(
+        pairing(truth, noisy(truth, 1.5, 0.03, rng)), angle(0, 1, 2), 15, redraw=5
+    ).groups[1]
+    assert good.passed and good.redraw_passed >= 3  # a right fit mostly passes
+    assert len(good.redraw_sizes) <= good.redraw_passed
+    assert len(set(good.redraw_sizes)) > 1  # the draws differ
+    predicted = noisy(truth, 1.0, 0.01, rng)
+    predicted[::2, 2] += 60  # errors the fit cannot describe
+    bad = budget(pairing(truth, predicted), angle(0, 1, 2), 10, redraw=4).groups[1]
+    assert bad.redraw_passed == 0 and bad.redraw_sizes == []
+    few = budget(
+        pairing(truth[:35], noisy(truth[:35], 1.0, 0.02, rng)),
+        angle(0, 1, 2),
+        15,
+        redraw=6,
+    )
+    assert few.groups[1].redraw_unfitted is not None
+    text = few.summary()
+    assert "data drawn again 6 times" in text
+    keys = few.to_dict()
+    assert keys["redraws"] == 6 and "clustered" in keys
+    assert {"redraw_passed", "redraw_unfitted", "redraw_sizes"} <= set(
+        keys["groups"][1]
+    )
+
+
+def test_cli_passes_redraw(tmp_path):
+    out = tmp_path / "budget.json"
+    main([
+        "budget", "--format", "coco",
+        "--gt", str(DEMO / "gt_200.json"),
+        "--pred", str(DEMO / "pred_yolo11n.json"),
+        "--angle", "5,7,9", "--big-error", "15", "--redraw", "2",
+        "--json", str(out),
+    ])  # fmt: skip
+    figures = json.loads(out.read_text(encoding="utf-8"))
+    assert figures["redraws"] == 2
+    assert all(g["redraw_passed"] is not None for g in figures["groups"])

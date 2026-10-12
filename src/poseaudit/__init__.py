@@ -2,7 +2,7 @@
 
 from poseaudit._version import __version__
 from poseaudit.audit import AuditResult, Band, GroupSummary, NotRead, Reading, audit
-from poseaudit.budget import BudgetGroup, BudgetResult, budget
+from poseaudit.budget import BudgetGroup, BudgetResult
 from poseaudit.compare import Comparison, Difference, compare
 from poseaudit.io import (
     Motion,
@@ -42,7 +42,6 @@ __all__ = [
     "audit",
     "audit_paired",
     "audit_values",
-    "budget",
     "compare",
     "from_supervision",
     "length",
