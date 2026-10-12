@@ -170,8 +170,9 @@ to the floor, where a small change in the error moves it a lot.
 On COCO val2017 (2,346 images, four YOLO11 pose models;
 [validation/error_budget.out.md](../validation/error_budget.out.md)), with a
 large error of 15° and straight from 150°, the check passed all 16 elbow
-groups and 3 of 16 knee groups; on nine of ten seeds the same, on the
-other 15 elbow groups. For knees the fit
+groups, 11 of which gave a size (in the other 5 even very large limbs miss
+20%), and 3 of 16 knee groups; on nine of ten seeds the same, on the other
+15 elbow groups. For knees the fit
 predicts 1.6 to 1.9 times the large errors read on straight legs. The verdicts depend
 on the settings: at 10° 10 elbow groups passed, at 20° 8 knee groups did.
 At 15° and a 20% target, `yolo11x-pose` needs 20 px on straight arms and 26
@@ -188,15 +189,15 @@ readings of a cluster stay together and the clusters are counted. Without
 it, a clip copied ten times reads as ten times the people.
 
 How much data a group needs
-([validation/budget_power.out.md](../validation/budget_power.out.md)): with
-errors the fit describes exactly, the check ran and passed in 17 of 40 data
-sets of 100 readings, the others being too few to check, and in all 40 of
-300 and of 1,000; the sizes given ranged (5th to 95th percentile) from 16 to
-92 px at 100 readings, 35 to 68 at 300 and 44 to 59 at 1,000. A group gets
-no check and no size when its readings come from one image or cluster, or
-when the check would pass anything within more than 12 percentage points, as
-it does on a hundred readings or a handful of clusters. The summary says
-when a group has fewer than 1,000 readings (or clusters).
+([validation/budget_power.out.md](../validation/budget_power.out.md)): the
+check needs 70 readings (or clusters) in each half by size, about 140 in a
+group, to tell a fit within 12 percentage points whatever the rate; a group
+with fewer, or with readings from one image or cluster, gets no check and no
+size. With errors the fit describes exactly, groups of 100 readings were all
+too few to check, and groups of 300 and of 1,000 passed in all 40 data sets,
+the sizes given running from 35 to 68 px (5th to 95th percentile) at 300 and
+44 to 59 at 1,000. The summary says when a group has fewer than 1,000
+readings (or clusters), and what to try when it gives no size.
 
 The verdict rarely turns on the seed, but it can turn on the data. `--redraw
 20` runs the budget again on the images (or clusters) drawn again with

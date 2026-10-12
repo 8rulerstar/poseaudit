@@ -23,16 +23,15 @@ of the errors is right: a fit off by a few points passes. A group that fails
 gets no size.
 
 With COCO val2017, four YOLO11 pose models, a large error of 15 degrees and
-straight from 150 degrees, the check passed all 16 elbow groups and 3 of 16
-knee groups (validation/error_budget.out.md); at other settings the groups
-that pass change. In simulation (validation/budget_power.py), with errors
-the fit describes exactly, the check ran and passed in 17 of 40 data sets of
-100 readings (the others were too few to check) and in all 40 of 300 and of
-1,000; the sizes given ranged from 16 to 92 px at 100 readings, 35 to 68 at
-300 and 44 to 59 at 1,000. A group whose check would pass anything within
-more than 12 percentage points, too few readings or clusters, gets no check
-and no size. The verdict rarely turns on the seed; it can turn on the data
-drawn.
+straight from 150 degrees, the check passed all 16 elbow groups (11 of them
+gave a size) and 3 of 16 knee groups, over the four models
+(validation/error_budget.out.md); at other settings the groups that pass
+change. In simulation (validation/budget_power.py), with errors the fit
+describes exactly, a group of 100 readings is too few to check (70 are
+needed in each half by size), and groups of 300 and of 1,000 passed in all
+40 data sets; the sizes given ran from 35 to 68 px (5th to 95th percentile)
+at 300 readings and 44 to 59 at 1,000. The verdict rarely turns on the seed;
+it can turn on the data drawn.
 
 The figures are agreement with the labels: the labels' own spread is in them.
 """
@@ -52,6 +51,9 @@ _UNSHARED = float(np.sqrt(3 / 2))
 _MIN_GROUP = 30  # readings a group needs before it is fitted
 _ENOUGH = 1000  # readings a group needs before its check can be trusted
 _WIDEST = 0.12  # a check wider than this, twice its floor, tells nothing
+# readings (or clusters) that make the check no wider than _WIDEST whatever
+# the rate: two standard errors of a rate of one half
+_CHECKABLE = int(np.ceil((2 * 0.5 / _WIDEST) ** 2))
 _MIN_PART = 20  # held-out readings each of the shorter and longer limbs needs
 _DRAWS = 400  # simulated readings per limb in the check
 _SPLITS = 5  # random two-way splits the check averages over
@@ -127,12 +129,18 @@ class BudgetResult:
                         "the limb; no check, so no size"
                     )
                 lines.append(f"  {g.note}")
+                lines.append(
+                    "  next: more readings, or more clusters, from footage like yours"
+                )
                 if g.redraw_passed is not None:
-                    lines.append(
+                    again = (
                         f"  data drawn again {self.redraws} "
                         f"time{'' if self.redraws == 1 else 's'}: the check passed "
                         f"{g.redraw_passed}"
                     )
+                    if g.redraw_unfitted:
+                        again += f" ({g.redraw_unfitted} had too few readings to fit)"
+                    lines.append(again)
                 lines.append("")
                 continue
             if g.few:
@@ -174,6 +182,16 @@ class BudgetResult:
                     )
             else:
                 lines.append(f"  smallest limb: none. {g.note}")
+                if not g.passed:
+                    lines.append(
+                        "  next: the fit does not describe this model's errors "
+                        "here; audit --size-bands shows the rates read by size"
+                    )
+                elif g.floor_rate > self.target:
+                    lines.append(
+                        "  next: a looser --target or --big-error, or a model "
+                        "with smaller point errors"
+                    )
             if g.redraw_passed is not None:
                 again = (
                     f"  data drawn again {self.redraws} "
@@ -205,7 +223,8 @@ class BudgetResult:
             + "Agreement with the labels, for this model on images like these: the "
             "labels' own spread is in these figures, and the check passes a fit "
             "within its tolerance (6 percentage points or more), so a size can "
-            "miss the target by that much."
+            "miss the target by that much, and by more with fewer readings or "
+            "errors the fit does not quite describe."
         )
         return "\n".join(lines)
 
@@ -463,10 +482,12 @@ def _group(
         return group
     group.few = (len(units) if named else len(truth)) < _ENOUGH
 
-    def tolerance(inside: np.ndarray) -> float:
+    def count(inside: np.ndarray) -> int:
         # named clusters count once each: their readings are not independent
-        n = len(np.unique(keys[inside])) if named else int(inside.sum())
-        return _tolerance(large[inside], n)
+        return len(np.unique(keys[inside])) if named else int(inside.sum())
+
+    def tolerance(inside: np.ndarray) -> float:
+        return _tolerance(large[inside], count(inside))
 
     group.typical_angle = float(np.median(measure.read_many(truth)))
     off = np.abs(measure.read_many(predicted) - measure.read_many(truth))
@@ -480,13 +501,15 @@ def _group(
     middle = np.median(size)
     halves_by_size = size < middle, size >= middle
     by_size = min(h.sum() for h in halves_by_size) >= _MIN_PART
-    # the check's width on the whole group and, where it is checked by size,
-    # on each half: a half too wide to check makes the whole uncheckable
-    width = max(
-        [tolerance(np.ones(len(truth), bool))]
-        + ([tolerance(h) for h in halves_by_size] if by_size else [])
+    # enough readings (or clusters) to check at all: in the group and, where
+    # it is checked by size, in each half. Judged on the count alone, at the
+    # widest a rate can make the check (a rate of one half), so a group with
+    # no large error read is not let through on a narrow check it got by luck
+    fewest = min(
+        [count(np.ones(len(truth), bool))]
+        + ([count(h) for h in halves_by_size] if by_size else [])
     )
-    if len(parts_of) < 2 or width > _WIDEST:
+    if len(parts_of) < 2 or fewest < _CHECKABLE:
         # with one image or cluster no fit can be made without it, and with
         # a handful of clusters the check's width (two standard errors over
         # so few) passes almost any fit: no check, so no size
@@ -496,9 +519,10 @@ def _group(
             "the check needs readings from two images or clusters at least, "
             "and these come from one"
             if len(parts_of) < 2
-            else f"too few {'clusters' if named else 'readings'} to check: the "
-            f"check would pass a fit within {width * 100:.1f} percentage points "
-            f"of the rate read, more than {_WIDEST * 100:.0f}"
+            else f"too few {'clusters' if named else 'readings'} to check: "
+            f"{fewest} in the {'smaller half by size' if by_size else 'group'}, "
+            f"and {_CHECKABLE} are needed for the check to tell a fit within "
+            f"{_WIDEST * 100:.0f} percentage points"
         )
         return group
     for _ in range(_SPLITS):

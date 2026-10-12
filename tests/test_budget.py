@@ -300,7 +300,7 @@ def test_frames_of_one_subject_stay_together_and_are_counted_once(monkeypatch):
     import poseaudit.budget as module
 
     rng = np.random.default_rng(17)
-    truth = limbs(120, rng)
+    truth = limbs(200, rng)
     predicted = noisy(truth, 3.0, 0.12, rng)
     box, seen = np.array([-1e4, -1e4, 1e4, 1e4]), np.ones(3, bool)
     frames = Pairing(
@@ -328,14 +328,14 @@ def test_frames_of_one_subject_stay_together_and_are_counted_once(monkeypatch):
     monkeypatch.setattr(module, "large_rate", checking_rate)
     result = budget(frames, angle(0, 1, 2), 15, cluster=lambda name: name.split("_")[0])
     bent = result.groups[1]
-    assert bent.n == 1200 and bent.clusters == 120
+    assert bent.n == 2000 and bent.clusters == 200
     assert bent.few
-    rate = bent.read_rate  # the check's width is that of 120 subjects, not 1,200
+    rate = bent.read_rate  # the check's width is that of 200 subjects, not 2,000
     assert bent.tolerance == pytest.approx(
-        max(0.06, 2 * np.sqrt(rate * (1 - rate) / 120))
+        max(0.06, 2 * np.sqrt(rate * (1 - rate) / 200))
     )
     assert bent.tolerance > 0.06
-    assert "in 120 clusters" in result.summary()
+    assert "in 200 clusters" in result.summary()
 
 
 def test_a_fit_never_predicts_what_it_was_fitted_on(monkeypatch):
@@ -570,3 +570,52 @@ def test_a_cluster_group_that_matches_nothing_is_named(command, capsys):
         argv += ["--jitter-repeats", "0", "--resamples", "50"]
     with pytest.raises(SystemExit, match="first group matched nothing"):
         main(argv)
+
+
+def test_the_count_not_the_rate_decides_whether_a_group_is_checked():
+    """Sixty readings with no large error read used to get a narrow check
+    by luck, and a size; a hundred readings are too few either way."""
+    rng = np.random.default_rng(28)
+    for n, noise in [(60, 0.0), (100, 0.05), (130, 0.05)]:
+        truth = limbs(n, rng)
+        result = budget(
+            pairing(truth, noisy(truth, noise, noise, rng)), angle(0, 1, 2), 15
+        )
+        bent = result.groups[1]
+        assert not bent.checks and bent.smallest_limb_px is None, n
+        assert "70 are needed" in bent.note
+        assert "next: more readings" in result.summary()
+    truth = limbs(150, rng)
+    bent = budget(
+        pairing(truth, noisy(truth, 1.0, 0.03, rng)), angle(0, 1, 2), 15
+    ).groups[1]
+    assert bent.checks  # 75 a half: checked
+
+
+def test_the_summary_says_what_to_try_when_there_is_no_size():
+    rng = np.random.default_rng(29)
+    truth = limbs(400, rng)
+    floor = budget(pairing(truth, noisy(truth, 1.0, 0.2, rng)), angle(0, 1, 2), 10)
+    assert "next: a looser --target or --big-error" in floor.summary()
+    predicted = noisy(truth, 1.0, 0.01, rng)
+    predicted[::2, 2] += 60
+    failed = budget(pairing(truth, predicted), angle(0, 1, 2), 10)
+    assert "audit --size-bands" in failed.summary()
+
+
+def test_one_image_with_many_readings_has_no_check():
+    """Without --cluster, 400 people in one image are 400 readings, enough by
+    count, but no fit can be made without that image."""
+    rng = np.random.default_rng(30)
+    truth = limbs(400, rng)
+    predicted = noisy(truth, 1.0, 0.02, rng)
+    box, seen = np.array([-1e4, -1e4, 1e4, 1e4]), np.ones(3, bool)
+    one = Pairing(
+        pairs=[
+            Pair("crowd.jpg", Instance(box, t, seen), Instance(box, p, seen))
+            for t, p in zip(truth, predicted, strict=True)
+        ]
+    )
+    bent = budget(one, angle(0, 1, 2), 15).groups[1]
+    assert not bent.checks and bent.smallest_limb_px is None
+    assert "these come from one" in bent.note

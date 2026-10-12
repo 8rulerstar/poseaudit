@@ -89,9 +89,12 @@ Resampling is seeded, so reruns agree; one image or `--cluster` group gives `nul
 gives the smallest limb, in pixels, whose angle is off by 15° or more in at most 20% of
 readings, for that model on images like those, after checking its fit on readings it did
 not see (to within at least 6 percentage points, so a size can miss the target by that
-much). On COCO val2017 at these settings the check passed all 16 elbow groups and 3 of 16
-knee groups, though one of the elbow groups passed in only 10 of 20 redraws of the data
-(`--redraw`). Frames of one video need `--cluster` ([budget](https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#how-large-must-a-limb-be)).
+much). It needs about 140 readings of the joint, or 140 subjects or clips with `--cluster`,
+in each of its two groups (straight and bent limbs): on the 200-image demo it gives no size
+and says why. On COCO val2017, over four YOLO11 models at these settings, the check passed
+all 16 elbow groups, 11 of which gave a size (the others never get below 20%), and 3 of 16
+knee groups; one elbow group passed in only 10 of 20 redraws of the data (`--redraw`)
+([budget](https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#how-large-must-a-limb-be)).
 
 ## Caveats
 

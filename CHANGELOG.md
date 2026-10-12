@@ -14,19 +14,26 @@
   `poseaudit.budget`, as in 0.4.0). `poseaudit.budget.Group`, the class's
   name in 0.4.0, still works.
 
+### Changed
+
+- A group needs 70 readings (or `--cluster` groups) in each half by size,
+  about 140 in all, to be checked and sized: fewer made a check so wide (up
+  to 37 percentage points with five clusters) that it passed almost any fit.
+  The count, not the rate read, decides, so a small group with no large
+  error read is not let through. On the 200-image demo no group is sized
+  now; sizes 0.4.0 gave for groups this small should be checked again.
+- The summary says what to try when a group gets no size.
+
 ### Fixed
 
 - A budget whose readings all came from one image or one `--cluster` group
   passed its check by splitting the readings of that one group, a fit
   checked on itself; it now says there is no check and gives no size. A
   size 0.4.0 gave for such a group should be dropped.
-- A group whose check would pass a fit within more than 12 percentage
-  points of the rate read (a hundred or so readings, or a handful of
-  clusters) is no longer checked or sized: such a check passed almost any
-  fit. On the 200-image demo the straight elbows are now too few to check.
-- `--cluster` with an optional group that matches nothing in an image name
-  stopped with a type error that blamed the file format (in `audit` too); it
-  now names the image and the group.
+- `--cluster` with an optional group that matches nothing in an image name:
+  `budget` stopped with a type error that blamed the file format, and
+  `audit` went on with every such image in one cluster named `None`. Both
+  now stop and name the image.
 
 ## 0.4.0
 
