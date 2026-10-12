@@ -133,6 +133,42 @@ The `--pred NAME=PATH` form compares prediction files. To compare one file
 under two settings (a score filter, a confidence threshold), use Python:
 [python.md](python.md#compare-models).
 
+## How large must a limb be
+
+`poseaudit budget` answers a question an audit cannot carry to new footage:
+how many pixels a limb needs in the image before its angle is usable.
+
+```bash
+poseaudit budget --format coco --gt labels.json --pred results.json --angle 5,7,9 --big-error 15 --target 0.2
+```
+
+It fits each point's error as a fixed part plus a part that grows with the
+limb, leaving out the part all three points share (moving the whole limb does
+not change its angle), and simulates the angle's error from that. Straight
+limbs (labelled at 150° or more; `--straight-from`) and bent ones are fitted
+apart: their errors differ. For each group it prints the fit, its check, the
+floor (the large-error rate however large the limb) and the smallest limb, in
+pixels per segment at the group's typical angle, that meets `--target`.
+
+The fit is checked before it is used: fitted on half the readings, it must
+predict the large-error rate of the other half, of its shorter limbs and of
+its longer ones, within two standard errors (never under 6 points). A group
+that fails gets no size; nor does one whose floor is above the target.
+
+On COCO val2017 (2,346 images, four YOLO11 pose models;
+[validation/error_budget.out.md](../validation/error_budget.out.md)) the fit
+held for 14 of 16 elbow groups and 3 of 16 knee groups. For knees it predicts
+about twice the large errors on straight legs, and too few on bent legs read
+large, so there the check refuses it. For a 20% target at 15°,
+`yolo11x-pose` needs about 13 px a segment on straight arms and 24 to 27 on
+bent ones; on bent arms `yolo11n-pose` has a floor of 22 to 24% and no size
+reaches the target.
+
+Give it about a thousand readings a group. On the 200-image demo (a hundred
+or two a group) the check fails fits that hold on the full set; the summary
+says so when a group has fewer. The figures are agreement with the labels,
+their own spread included.
+
 ## Paired values
 
 Joint angles that a pipeline such as Pose2Sim, Sports2D or OpenSim's inverse
