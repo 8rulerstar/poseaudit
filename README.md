@@ -61,6 +61,22 @@ higher). `--big-error` is required: the error that counts as large, in the measu
 Add `--report report.md` for a report that explains every line, `--full` for every statistic
 and `--plot panels.png` for [this figure](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/panels.png) (with `[plot]`). If `poseaudit` is not found, use `python -m poseaudit`.
 
+The same audit from Python, in the same folder:
+
+```python
+import poseaudit as pa
+
+truth = pa.load_coco("gt_200.json")
+predicted = pa.load_coco_results("pred_yolo11n.json", "gt_200.json")
+result = pa.audit(
+    pa.pair(truth, predicted), pa.angle(5, 7, 9), big_error=15, size_bands=[30, 60]
+)
+print(result.summary())
+```
+
+Your own arrays, YOLO labels and `result.to_markdown()` / `to_csv()` / `plot()` are in
+[Python](https://github.com/8rulerstar/poseaudit/blob/main/docs/python.md).
+
 ## For a validation paper
 
 ```bash

@@ -965,7 +965,7 @@ def main(argv: list[str] | None = None) -> None:
             warnings.showwarning = note
             result = _run(args)
     except (UsageError, ValueError, OSError, ImportError) as error:
-        sys.exit(f"poseaudit: {error}")
+        sys.exit(f"poseaudit: {_missing(error, args) or error}")
     except (KeyError, TypeError, AttributeError, IndexError) as error:
         sys.exit(f"poseaudit: a file is not in the format given: {error!r}")
     except RecursionError:
@@ -986,6 +986,7 @@ def main(argv: list[str] | None = None) -> None:
                 )
             except OSError as error:
                 sys.exit(f"poseaudit: could not write: {error}")
+            _wrote([args.json])
         return
     if isinstance(result, Comparison):
         _finish_compare(result, args, loader_notes)
@@ -1008,6 +1009,8 @@ def main(argv: list[str] | None = None) -> None:
             _write_many(results, args)
     except OSError as error:
         sys.exit(f"poseaudit: could not write: {error}")
+    plotted = args.plot if len(results) == 1 and results[0].n else None
+    _wrote([args.json, args.csv, args.report, plotted])
     if all(r.n == 0 for r in results):
         # the JSON, CSV and report are written all the same (they say why, and
         # replace any from an earlier run); a plot has nothing to draw
@@ -1185,6 +1188,28 @@ def several(results) -> dict:
         "settings": results[0].settings,
         "measures": [r.to_dict() for r in results],
     }
+
+
+def _wrote(paths) -> None:
+    """Say on stderr which files were written: they were made silently, and a
+    first run left people looking for them. stdout keeps only the summary."""
+    written = [str(p) for p in paths if p]
+    if written:
+        print(f"poseaudit: wrote {', '.join(written)}", file=sys.stderr)
+
+
+def _missing(error, args) -> str | None:
+    """A missing input file named with the option that gave it, instead of
+    the bare "[Errno 2] No such file or directory: 'x'"."""
+    if not isinstance(error, FileNotFoundError) or not error.filename:
+        return None
+    name = str(error.filename)
+    for option, value in vars(args).items():
+        for given in value if isinstance(value, list) else [value]:
+            given = "" if given is None else str(given)
+            if given == name or given.endswith("=" + name):
+                return f"--{option.replace('_', '-')}: {name} not found"
+    return f"{name} not found"
 
 
 def _write_many(results, args) -> None:

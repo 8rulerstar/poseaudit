@@ -2,7 +2,19 @@
 
 ## Unreleased
 
+### Changed
+
+- A missing input file is named with the option that gave it
+  (`--gt: gt_2000.json not found`) instead of the bare `[Errno 2] No such
+  file or directory`.
+- The command line says on stderr which files it wrote (`poseaudit: wrote
+  figures.json, report.md`); `--json`, `--csv`, `--report` and `--plot` used
+  to write them silently. stdout still holds only the summary.
+
 ### Docs
+
+- The README shows the Quick start audit in Python too, and a test checks
+  that it prints exactly what the command prints.
 
 - The README's arm-size figures now come with the label-noise floor for each
   band. `validation/label_noise.py` prints, for the same `--size-bands 30,60`
