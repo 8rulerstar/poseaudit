@@ -29,8 +29,10 @@ The mean |error| is one line of numpy. The work is around it (brackets are 95% i
 - **Honest intervals.** Readings from one image, or from one subject with `--cluster`,
   are resampled together.
 - **Where it goes wrong.** 58% of elbows disagree with COCO's labels by 15° or more when
-  the arm segments average under 30 px, against 26% above 60 px. Across all arms 43%
-  disagree, and the labels' own spread alone would put 25.9 to 39.9% there ([statistics](https://github.com/8rulerstar/poseaudit/blob/main/docs/statistics.md#reading-the-demo)).
+  the arm segments average under 30 px, against 26% above 60 px. Part of that slope is the
+  labels': their own spread alone would put 30 to 44% of the small arms there and 17 to 31%
+  of the large ones, so only the small arms clearly go past it. Across all arms 43%
+  disagree, against 25.9 to 39.9% from the labels alone ([statistics](https://github.com/8rulerstar/poseaudit/blob/main/docs/statistics.md#reading-the-demo)).
 
 ![The score filter person by person: the mean drops only because the worst-read people were dropped](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/score-filter.gif)
 

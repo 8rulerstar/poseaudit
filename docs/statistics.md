@@ -20,7 +20,13 @@ depending on how those sigmas are read (a rough estimate that treats each
 label's points as independent; [`validation/label_noise.py`](https://github.com/8rulerstar/poseaudit/blob/main/validation/label_noise.py)).
 That spread alone puts 25.9 to 39.9% of the arms off by 15° or more, against
 the 43.2% observed ([`validation/label_noise.out.md`](https://github.com/8rulerstar/poseaudit/blob/main/validation/label_noise.out.md)).
-A good part of the 19.48° may be the labels'. With a reference better than
+By arm size (`--size-bands 30,60`) it puts 30 to 44% of the arms under 30 px
+there, against 58% observed, 27 to 41% between 30 and 60 px (37% observed)
+and 17 to 31% above 60 px (26% observed). The same label spread costs short
+segments more angle, and short segments include foreshortened arms, so the
+slope across bands is partly the labels'; only the smallest band clearly
+exceeds what they alone would give. A good part of the 19.48° may be the
+labels'. With a reference better than
 the model (motion capture, careful relabelling), the same figures describe
 the model.
 

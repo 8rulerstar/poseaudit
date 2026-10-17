@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Docs
+
+- The README's arm-size figures now come with the label-noise floor for each
+  band. `validation/label_noise.py` prints, for the same `--size-bands 30,60`
+  edges, how many arms COCO's own label spread alone would put off by 15° or
+  more: 30 to 44% under 30 px (58% observed), 27 to 41% between 30 and 60 px
+  (37%) and 17 to 31% above 60 px (26%). The slope across bands is partly the
+  labels'; only the smallest band clearly exceeds them.
+
 ## 0.5.0
 
 ### Added

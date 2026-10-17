@@ -15,7 +15,14 @@ distance between two labellers) or sigma*s/sqrt(2) (if they measure one label
 against a consensus); both are shown. Each label's points are treated as
 independent, which is a rough assumption.
 
-A second table asks whether label noise could explain the demo's gap below
+A second table splits the first by arm size, with the same pixel edges as
+the README's `--size-bands 30,60` (the mean of the two labelled segments).
+Short segments are partly foreshortened arms, whose labels are no less
+spread in pixels, so the same label noise turns into larger angle changes
+there; the table shows how much of each band's disagreement that alone would
+account for.
+
+A third table asks whether label noise could explain the demo's gap below
 the jitter reference: honest models, read off the demo's arms with noise on
 the labels and on the predictions, go through `poseaudit.audit`.
 
@@ -36,6 +43,8 @@ from poseaudit.types import Instance
 
 DEMO = Path(__file__).parents[1] / "examples" / "coco_elbow"
 SIGMA = np.array([0.079, 0.072, 0.062])  # COCO: left shoulder, elbow, wrist
+SIZE_EDGES = (30.0, 60.0)  # the README's --size-bands 30,60
+SPREADS = (("sigma*s/2", 0.5), ("sigma*s/sqrt(2)", 2**-0.5))
 REPEATS = 300
 HONEST_RUNS = 30
 
@@ -90,6 +99,7 @@ def main() -> None:
         15,
         jitter_repeats=0,
         resamples=10,
+        size_bands=list(SIZE_EDGES),
     )
     data = json.loads(gt.read_text(encoding="utf-8"))
     names = {image["id"]: image["file_name"] for image in data["images"]}
@@ -110,15 +120,25 @@ def main() -> None:
         "| gain of a perfect model |"
     )
     print("|---|---|---|---|")
-    for label, factor in (("sigma*s/2", 0.5), ("sigma*s/sqrt(2)", 2**-0.5)):
+    # The size the README's bands sort by: the mean labelled segment length.
+    size = (
+        np.linalg.norm(points[:, 0] - points[:, 1], axis=1)
+        + np.linalg.norm(points[:, 2] - points[:, 1], axis=1)
+    ) / 2
+    band = np.digitize(size, SIZE_EDGES)
+    by_band = {}
+    for label, factor in SPREADS:
         spread = SIGMA[None, :, None] * scale[:, None, None] * factor
-        changes, large, slopes = [], [], []
+        changes, large, slopes, per_arm = [], [], [], np.zeros(len(true))
         for _ in range(REPEATS):
             noisy = elbow(points + rng.normal(0, 1, points.shape) * spread)
+            off = np.abs(noisy - true) >= 15
             changes.append(np.abs(noisy - true).mean())
-            large.append((np.abs(noisy - true) >= 15).mean())
+            large.append(off.mean())
+            per_arm += off
             d = noisy - noisy.mean()
             slopes.append(d @ (true - true.mean()) / (d @ d))
+        by_band[label] = [per_arm[band == b].mean() / REPEATS for b in range(3)]
         print(
             f"| {label} | {np.mean(changes):.1f}° | {np.mean(large):.1%} "
             f"| {np.mean(slopes):.3f} |"
@@ -127,6 +147,17 @@ def main() -> None:
         f"\nobserved: mean {result.mean_abs_error:.2f}°, "
         f"{result.big_error_rate:.1%} off by 15° or more, gain {result.gain:.3f}"
     )
+    print("\nby arm size (mean labelled segment), off by 15° or more\n")
+    print(
+        "| arm segments | arms | observed | labels alone, sigma*s/2 "
+        "| labels alone, sigma*s/sqrt(2) |"
+    )
+    print("|---|---|---|---|---|")
+    names = ("0-30 px", "30-60 px", "60+ px")
+    for b, observed in enumerate(result.size_bands):
+        assert observed.n == int((band == b).sum()), "bands must match the audit"
+        cells = "".join(f" | {by_band[label][b]:.0%}" for label, _ in SPREADS)
+        print(f"| {names[b]} | {observed.n} | {observed.big_error_rate:.0%}{cells} |")
     settings = [(0.0, 0.71), (0.5, 0.5), (0.71, 0.71), (0.5, 1.0)]
     jobs = [
         (points, scale, a, b, 100 * k + j)
