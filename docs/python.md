@@ -171,11 +171,13 @@ print(c.summary())
 score>=0.0:
 measure        n  bias                     limits              mean |error|             RMSE    >= 15°                  slope  ICC(A,1)
 angle 5,7,9  322  +2.27° [-1.21 to +6.15]  -50.90° to +79.99°  19.48° [17.05 to 22.13]  29.57°  43.2% [37.9% to 48.6%]  0.731  0.762
+  ! angle 5,7,9: 3 labelled instances had two or more predictions overlapping enough to pair, and keypoint similarity (OKS), not box overlap alone, chose which one: the prediction box overlap alone would have taken was left unpaired (e.g. '000000001353.jpg'). With duplicate detections of one person that scores the model on its best try, which flatters it: drop duplicates first (--min-score, min_score= in the loaders). Where the one left unpaired is another, unlabelled person, the keypoints rightly tell them apart.
   ! angle 5,7,9: 2.5% of errors fall below the normal limits (bias +/- 1.96 SD) and 4.3% above them, against 2.5% each for a normal error, more than chance explains: use the percentile limits.
 
 score>=0.7:
 measure        n  bias                     limits              mean |error|             RMSE    >= 15°                  slope  ICC(A,1)
 angle 5,7,9  254  +2.86° [-0.22 to +6.14]  -41.80° to +65.51°  17.32° [14.97 to 19.66]  26.00°  39.8% [33.9% to 45.9%]  0.787  0.816
+  ! angle 5,7,9: 1 labelled instance had two or more predictions overlapping enough to pair, and keypoint similarity (OKS), not box overlap alone, chose which one: the prediction box overlap alone would have taken was left unpaired (e.g. '000000023899.jpg'). With duplicate detections of one person that scores the model on its best try, which flatters it: drop duplicates first (--min-score, min_score= in the loaders). Where the one left unpaired is another, unlabelled person, the keypoints rightly tell them apart.
   ! angle 5,7,9: 126 of 380 labelled instances were not read: the figures describe the ones that were, which are usually easier.
 
 measure      a - b                    shared  n a  n b  mean |error| a - b       large-error rate a - b

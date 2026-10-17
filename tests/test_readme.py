@@ -103,10 +103,13 @@ def test_the_paper_recipe_quotes_the_demo(tmp_path, capsys, monkeypatch) -> None
     mlo, mhi = d["mean_abs_error_ci"]
     ilo, ihi = d["icc_ci"]
     rlo, rhi = d["big_error_rate_ci"]
+    (llo, lhi), (ulo, uhi) = d["empirical_lower_ci"], d["empirical_upper_ci"]
     sentence = (
         f"read on {d['n']} of {d['measurable']} labelled arms. It had a bias of "
         f"{d['bias']:+.1f}° (95% CI {blo:.1f} to {bhi:+.1f}) with limits of "
-        f"agreement of {low:.1f}° to {high:+.1f}° (2.5th to 97.5th percentiles), "
+        f"agreement (2.5th to 97.5th percentiles) of {low:.1f}° (95% CI "
+        f"{llo:.1f} to {lhi:.1f}) to {high:+.1f}° (95% CI {ulo:+.1f} to "
+        f"{uhi:+.1f}), "
         f"a mean absolute error of {d['mean_abs_error']:.1f}° (95% CI {mlo:.1f} "
         f"to {mhi:.1f}), ICC(A,1) {d['icc']:.2f} (95% CI {ilo:.2f} to "
         f"{ihi:.2f}), and {d['big_error_rate']:.0%} (95% CI {rlo * 100:.0f} to "

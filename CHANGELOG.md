@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Added
+
+- `--full` (`summary(full=True)`) prints the intervals of the percentile
+  limits of agreement beside those of the normal ones. The warning that sends
+  readers to the percentile limits left them without one; the JSON and the
+  report had them already.
+- Each size band's slope has an interval (`gain_ci` in `size_bands`), from
+  the same cluster bootstrap as the other figures, shown in the report.
+- A pairing warning counts the labels with two or more qualifying
+  predictions whose pair keypoint similarity (OKS), not box overlap alone,
+  chose, leaving the prediction box overlap alone would have taken unpaired.
+  With duplicate detections of one person the match then scores the model on
+  its best try, which flatters it. A prediction the keypoints gave to another
+  label instead (two people whose boxes nearly coincide) is not counted.
+  Pairing itself is unchanged; the demo has 3 such labels among 490 pairs.
+
 ### Changed
 
 - A missing input file is named with the option that gave it
@@ -11,17 +27,42 @@
   figures.json, report.md`); `--json`, `--csv`, `--report` and `--plot` used
   to write them silently. stdout still holds only the summary.
 
+### Fixed
+
+- The large-error rate of each size band kept Wilson's interval with
+  `--cluster` (or several readings to an image), as if every reading were
+  independent, so with errors shared within a clip it came out far too
+  narrow. It now resamples whole clusters, as the overall rate does, and is
+  never narrower than Wilson's. On the demo the bands widen by about a point:
+  58.2% [49.5% to 67.2%] under 30 px, from [49.7% to 66.2%]. A band whose
+  readings sit in so few clusters that it is missing from more than 2.5% of
+  the resamples has no interval rather than Wilson's, like any figure
+  undefined that often.
+- The decision rates (catch and precision) fell back to Wilson's interval,
+  as if every reading were independent, when the readings they count sit in
+  so few clusters that the rate is undefined in more than 2.5% of the
+  resamples. They now have no interval there either.
+
 ### Docs
 
 - The README shows the Quick start audit in Python too, and a test checks
   that it prints exactly what the command prints.
 
-- The README's arm-size figures now come with the label-noise floor for each
-  band. `validation/label_noise.py` prints, for the same `--size-bands 30,60`
-  edges, how many arms COCO's own label spread alone would put off by 15° or
-  more: 30 to 44% under 30 px (58% observed), 27 to 41% between 30 and 60 px
-  (37%) and 17 to 31% above 60 px (26%). The slope across bands is partly the
-  labels'; only the smallest band clearly exceeds them.
+- The README's arm-size figures now come with what COCO's label spread would
+  give in each band as independent, isotropic noise on each point: 30 to 44%
+  under 30 px (58% observed), 27 to 41% between 30 and 60 px (37%) and 17 to
+  31% above 60 px (26%). These are not a floor: the sigmas give the spread's
+  size, not its shape, and `validation/label_noise.py` now sets them beside
+  the val2017 runs, where `yolo11x-pose` disagrees with the labels on 9 to
+  10% of straight left elbows with segments of 35 px or more, against 22 to
+  25% from that noise alone on the demo's straight arms of the same lengths
+  (different arms, and a run that keeps every detection). The README and
+  docs/statistics.md no longer say that only the small arms clearly go past
+  the labels, or (as 0.5.0 did) that a good part of the 19.48° may be the
+  labels'.
+- docs/statistics.md's write-up gives the percentile limits of agreement with
+  their intervals, and its limitations, like docs/cli.md, say that matching
+  favours the closest of several duplicate detections.
 
 ## 0.5.0
 

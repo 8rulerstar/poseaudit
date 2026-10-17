@@ -177,16 +177,29 @@ def _summary(result: "AuditResult", full: bool = False) -> str:
         lines.append(
             f"  normal       {_range(lo, hi, f2, u)} (bias +/- 1.96 SD; JSON limits)"
         )
-    if full and np.isfinite(lo):
-        lines.append(
-            f"  limit CIs    lower {_ci(result.lower_limit_ci, f2)}, upper "
-            f"{_ci(result.upper_limit_ci, f2)} (cluster bootstrap)"
-        )
-        if np.isfinite(result.lower_limit_exact_ci[0]):
-            lines.append(
-                f"               lower {_ci(result.lower_limit_exact_ci, f2)}, upper "
+    if full:
+        # the percentile limits' own intervals too: the warning past the
+        # normal limits says to use those
+        cis = []
+        if np.isfinite(elo):
+            cis.append(
+                f"lower {_ci(result.empirical_lower_ci, f2)}, upper "
+                f"{_ci(result.empirical_upper_ci, f2)} (percentile, cluster bootstrap)"
+            )
+        if np.isfinite(lo):
+            cis.append(
+                f"lower {_ci(result.lower_limit_ci, f2)}, upper "
+                f"{_ci(result.upper_limit_ci, f2)} (normal, cluster bootstrap)"
+            )
+        if np.isfinite(lo) and np.isfinite(result.lower_limit_exact_ci[0]):
+            cis.append(
+                f"lower {_ci(result.lower_limit_exact_ci, f2)}, upper "
                 f"{_ci(result.upper_limit_exact_ci, f2)} (exact, Carkeet 2015)"
             )
+        lines += [
+            ("  limit CIs    " if k == 0 else " " * 15) + text
+            for k, text in enumerate(cis)
+        ]
     if result.repeated_limits is not None:  # only with named clusters
         rlo, rhi = result.repeated_limits
         who = "subjects" if result.settings.get("cluster") == "subject" else "clusters"
@@ -347,10 +360,11 @@ GUIDE = """\
   are given too.
 - **ICC(A,1), CCC, r**: agreement between the two readings, 1 at best.
 - Intervals are percentile bootstraps over whole {cluster}s ({resamples}
-  resamples, seed {seed}). The overall rate of large errors and the decision
-  rates resample whole {cluster}s too when some hold several readings (never
-  narrower than Wilson's); with one reading to each they use Wilson intervals.
-  Rates per size band stay Wilson.
+  resamples, seed {seed}). The rates of large errors, overall and per size
+  band, and the decision rates resample whole {cluster}s too when some hold
+  several readings (never narrower than Wilson's); with one reading to each
+  they use Wilson intervals. A figure undefined in more than 2.5% of
+  resamples (its readings in a few {cluster}s) has no interval.
 """
 
 
@@ -543,7 +557,11 @@ def _markdown(result: "AuditResult", worst: int = 10) -> str:
     if paired(result):  # no keypoints: nothing jitters, and nothing to rebuild
         start = guide.index("  - keypoint jitter bends it")
         guide = guide[:start] + guide[guide.index("  - noise in the truth") :]
-        guide = guide.replace("\n  Rates per size band stay Wilson.", "")
+        guide = guide.replace(
+            "The rates of large errors, overall and per size\n  band, and the "
+            "decision rates",
+            "The overall rate of large errors and the\n  decision rates",
+        )
     out.append(guide)
     lo, hi = result.limits
     elo, ehi = _percentile_limits(result)
@@ -634,7 +652,7 @@ def _markdown(result: "AuditResult", worst: int = 10) -> str:
             out.append(
                 f"| {span} | {sb.n} | {sb.mean_abs_error:.{d}f}{u} | "
                 f"{sb.big_error_rate:.1%} {_ci(sb.big_error_rate_ci, '.1%')} | "
-                f"{_f(sb.gain, '.3f')} |"
+                f"{_f(sb.gain, '.3f')} {_ci(sb.gain_ci, '.3f')} |"
             )
     out += [
         "",

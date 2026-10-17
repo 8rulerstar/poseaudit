@@ -13,22 +13,35 @@ val2017 images. The data is in
 run the command from that folder.
 
 These figures are disagreement between the model and **one human label**, not
-the model's error against the world. COCO's own annotators disagree: placing
-the three points with the spread COCO publishes for repeated labels (its OKS
-sigmas) moves the elbow angle by 11 to 16° on average on these same arms,
-depending on how those sigmas are read (a rough estimate that treats each
-label's points as independent; [`validation/label_noise.py`](https://github.com/8rulerstar/poseaudit/blob/main/validation/label_noise.py)).
-That spread alone puts 25.9 to 39.9% of the arms off by 15° or more, against
-the 43.2% observed ([`validation/label_noise.out.md`](https://github.com/8rulerstar/poseaudit/blob/main/validation/label_noise.out.md)).
-By arm size (`--size-bands 30,60`) it puts 30 to 44% of the arms under 30 px
-there, against 58% observed, 27 to 41% between 30 and 60 px (37% observed)
-and 17 to 31% above 60 px (26% observed). The same label spread costs short
-segments more angle, and short segments include foreshortened arms, so the
-slope across bands is partly the labels'; only the smallest band clearly
-exceeds what they alone would give. A good part of the 19.48° may be the
-labels'. With a reference better than
-the model (motion capture, careful relabelling), the same figures describe
-the model.
+the model's error against the world. COCO's own annotators disagree, but how
+much that moves an angle is not known: COCO publishes the size of the spread
+of repeated labels (its OKS sigmas), not its shape. Placed with that spread
+as independent, isotropic normal noise on each point, the three points move
+the elbow angle by 11 to 16° on average on these same arms, depending on how
+the sigmas are read ([`validation/label_noise.py`](https://github.com/8rulerstar/poseaudit/blob/main/validation/label_noise.py)).
+Noise of that kind alone would put 25.9 to 39.9% of the arms off by 15° or
+more, against the 43.2% observed ([`validation/label_noise.out.md`](https://github.com/8rulerstar/poseaudit/blob/main/validation/label_noise.out.md)),
+and by arm size (`--size-bands 30,60`) 30 to 44% of the arms under 30 px (58%
+observed), 27 to 41% between 30 and 60 px (37%) and 17 to 31% above 60 px
+(26%). These are not a floor the model must stay above. On val2017,
+`yolo11x-pose` disagrees with the labels on 9 to 10% of straight left elbows
+with segments of 35 px or more, where that noise alone gives 22 to 25% on the
+demo's straight arms of the same lengths (14% against 25% over all straight
+arms, whose mix of lengths differs); on bent arms it is at or below that
+noise in every bin of limb length too (both in `label_noise.out.md`, which
+takes the model's rates from
+[`validation/error_budget.out.md`](https://github.com/8rulerstar/poseaudit/blob/main/validation/error_budget.out.md)).
+These set different arms side by side: the model's are every left elbow it
+read on val2017, the noise's the demo's 322. The val2017 run also keeps every
+detection, so where a model emits duplicates, matching may pair a label with
+the closest of them and lower the model's rate ([limitations](#limitations));
+how much is not measured. Even so the gap is wide. Most likely COCO's label
+noise is not shaped like this (the points of one label may move together, or
+most labels may be tight and a few far off), or models trained on COCO learn
+its annotators' habits, so that their errors follow the labels'; there may be
+other causes. Either way the sigmas do not tell how much of the 19.48° is the
+labels'. With a reference better than the model (motion capture, careful
+relabelling), the same figures describe the model.
 
 ### What a few lines of NumPy would miss
 
@@ -72,9 +85,9 @@ more often occluded, blurred and loosely labelled.
 
 | arm segment | n | mean abs error | 15° or more apart | slope (no jitter reference per band) |
 |---|---|---|---|---|
-| 0 to 30 px | 134 | 25.55° | 58.2% [49.7% to 66.2%] | 0.526 |
-| 30 to 60 px | 112 | 16.57° | 36.6% [28.3% to 45.8%] | 0.791 |
-| 60+ px | 76 | 13.06° | 26.3% [17.7% to 37.2%] | 0.909 |
+| 0 to 30 px | 134 | 25.55° | 58.2% [49.5% to 67.2%] | 0.526 [0.368 to 0.695] |
+| 30 to 60 px | 112 | 16.57° | 36.6% [28.1% to 46.1%] | 0.791 [0.660 to 0.891] |
+| 60+ px | 76 | 13.06° | 26.3% [16.7% to 37.2%] | 0.909 [0.810 to 0.988] |
 
 ## Writing it up
 
@@ -82,8 +95,9 @@ For a validation paper, run with `--full --json figures.json --report report.md`
 and report how many were read, the bias with its limits of agreement, the mean
 absolute error, ICC and the large-error rate, each with its interval. For the
 demo: "Against COCO's labels, the elbow angle was read on 322 of 380 labelled
-arms. It had a bias of +2.3° (95% CI -1.2 to +6.2) with limits of agreement of
--50.9° to +80.0° (2.5th to 97.5th percentiles), a mean absolute error of 19.5°
+arms. It had a bias of +2.3° (95% CI -1.2 to +6.2) with limits of agreement
+(2.5th to 97.5th percentiles) of -50.9° (95% CI -72.4 to -41.4) to +80.0° (95%
+CI +51.4 to +107.3), a mean absolute error of 19.5°
 (95% CI 17.1 to 22.1), ICC(A,1) 0.76 (95% CI 0.68 to 0.83), and 43% (95% CI 38
 to 49%) of readings off by 15° or more. Intervals are percentile bootstraps
 over images (Davison and Hinkley 1997); limits of agreement follow Bland and
@@ -230,7 +244,8 @@ samples: with 30 to 60 normal errors it passed 4% in 19 to 39% of
 samples, while the test flagged at most about 1.3% at any size from 30 to
 1000 (simulated, 4000 samples each). It mostly catches skew; a symmetric heavy tail widens
 the SD too, so the normal limits can still hold 95% of errors while being
-far from the percentile ones, which is why both are printed. With 40
+far from the percentile ones, which is why both are printed (`--full` adds
+the intervals of both). With 40
 readings or fewer the percentile limits are little more than the extremes;
 read the normal limits with their exact intervals there.
 
@@ -259,7 +274,7 @@ Deming), ICC(A,1) and CCC, all standard methods.
 | by subject, by trial | n, mean error (bias), SD (n - 1), mean \|error\| and RMSE of each subject's (or trial's) errors |
 | ICC(A,1) | two-way, absolute agreement, single rating (McGraw and Wong 1996); matches pingouin; its interval is the bootstrap, not the F interval |
 | CCC | Lin's concordance correlation (Lin 1989) |
-| intervals | percentile bootstrap over clusters (Davison and Hinkley 1997); a rate's interval spans both that and Wilson's score interval (Wilson 1927), and Wilson's alone when every cluster holds one reading and for rates per size band; a figure undefined in more than 2.5% of resamples (a slope or ICC when a draw repeats one of two images) has no interval |
+| intervals | percentile bootstrap over clusters (Davison and Hinkley 1997); a rate's interval spans both that and Wilson's score interval (Wilson 1927), and Wilson's alone when every cluster holds one reading; a figure undefined in more than 2.5% of resamples (a slope or ICC when a draw repeats one of two images, a rate whose readings sit in a few clusters, such as a small size band) has no interval |
 
 ### Checked against published values
 
@@ -343,7 +358,16 @@ a reading either side of the +90 to -90 wrap is not 180° away; the CSV's
   shift shared by similar angles, depend only on the true value and the
   object's own frames. The p and the interval can disagree near the edge.
 - Matching is greedy and ignores scores (filter them first with `--min-score`);
-  in dense crowds an optimal assignment may pair differently.
+  in dense crowds an optimal assignment may pair differently. Its rank mixes
+  box IoU with OKS, so among several predictions that overlap one label the
+  one whose keypoints sit closest to it tends to win: duplicate detections of
+  one person (a low score cut, test-time augmentation) score the model on its
+  best of several tries, which flatters the figures, more so the more
+  duplicates it emits. A warning counts the labels whose pair would change if
+  box overlap alone decided and whose pair by box overlap alone was then left
+  over; on the demo, 3 of 490 pairs. A prediction the keypoints gave to
+  another label instead (two people whose boxes nearly coincide) is not
+  counted.
 - One level of clusters (the subject); trials are summarised, not resampled
   within subjects. Frames are compared value by value, with no account of a
   time lag between the two systems beyond a fixed `--time-offset`.

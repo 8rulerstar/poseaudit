@@ -29,7 +29,8 @@ still matches each line to the legend.
 ## Every statistic: --full
 
 `--full` adds every agreement statistic, the bootstrap intervals of the
-normal limits (and exact ones when every reading is its own cluster), and,
+percentile and normal limits (and exact ones for the normal limits when every
+reading is its own cluster), and,
 set apart under `experimental`, the jitter reference. They are explained in
 [statistics.md](statistics.md).
 
@@ -42,7 +43,8 @@ angle (5, 7, 9): read 322 of 380 labelled instances
   bias         +2.27° [-1.21 to +6.15], median +0.52°
   limits       -50.90° to +79.99° (percentile, 2.5th to 97.5th; JSON percentile_limits)
   normal       -55.60° to +60.14° (bias +/- 1.96 SD; JSON limits)
-  limit CIs    lower [-63.68 to -47.32], upper [+50.60 to +70.54] (cluster bootstrap)
+  limit CIs    lower [-72.35 to -41.42], upper [+51.37 to +107.26] (percentile, cluster bootstrap)
+               lower [-63.68 to -47.32], upper [+50.60 to +70.54] (normal, cluster bootstrap)
   |error|      mean 19.48° [17.05 to 22.13], median 12.59°, 95th pct 68.99°
   RMSE         29.57° [25.30 to 33.94]
   >= 15°       43.2% [37.9% to 48.6%]
@@ -55,6 +57,7 @@ angle (5, 7, 9): read 322 of 380 labelled instances
   vs jitter    0.871 from keypoint jitter alone; gap -0.140 [-0.199 to -0.076], p(slope <= jitter) <= 0.002*
                * swaps and gross failures lower the slope too, and noisy
                  labels make p small for an honest model: read the gap
+  ! 3 labelled instances had two or more predictions overlapping enough to pair, and keypoint similarity (OKS), not box overlap alone, chose which one: the prediction box overlap alone would have taken was left unpaired (e.g. '000000001353.jpg'). With duplicate detections of one person that scores the model on its best try, which flatters it: drop duplicates first (--min-score, min_score= in the loaders). Where the one left unpaired is another, unlabelled person, the keypoints rightly tell them apart.
   ! 2.5% of errors fall below the normal limits (bias +/- 1.96 SD) and 4.3% above them, against 2.5% each for a normal error, more than chance explains: use the percentile limits.
 ```
 
@@ -78,6 +81,7 @@ angle 12,14,16  242  +4.63° [+1.00 to +8.26]  -37.07° to +69.46°  14.62° [11
   ! angle 5,7,9: 2.5% of errors fall below the normal limits (bias +/- 1.96 SD) and 4.3% above them, against 2.5% each for a normal error, more than chance explains: use the percentile limits.
   ! angle 6,8,10: 2.3% of errors fall below the normal limits (bias +/- 1.96 SD) and 4.2% above them, against 2.5% each for a normal error, more than chance explains: use the percentile limits.
   ! angle 12,14,16: 1.7% of errors fall below the normal limits (bias +/- 1.96 SD) and 5.0% above them, against 2.5% each for a normal error, more than chance explains: use the percentile limits.
+  ! every measure: 3 labelled instances had two or more predictions overlapping enough to pair, and keypoint similarity (OKS), not box overlap alone, chose which one: the prediction box overlap alone would have taken was left unpaired (e.g. '000000001353.jpg'). With duplicate detections of one person that scores the model on its best try, which flatters it: drop duplicates first (--min-score, min_score= in the loaders). Where the one left unpaired is another, unlabelled person, the keypoints rightly tell them apart.
 ```
 
 Measures in different units each take their own large error: by kind
@@ -519,7 +523,14 @@ unmatched truths beside unmatched predictions with this in mind: a lower
   Detection scores are ignored
   in matching: drop low-scoring detections first (`--min-score`, or
   `min_score=` in the loaders), or a stray box that overlaps better can take
-  the pair.
+  the pair. Among several predictions that overlap one label, the one whose
+  keypoints sit closest to it tends to win, so duplicate detections of one
+  person (a low score cut, test-time augmentation) score the model on its best
+  try, which flatters the figures. A warning counts the labels whose pair
+  would change if box overlap alone decided and whose pair by box overlap
+  alone was then left over, the case of duplicates (on the demo, 3 of 490
+  pairs); a prediction the keypoints gave to another label instead is a
+  person told apart, and is not counted.
 - A prediction too far off to reach the matching threshold counts as missed,
   not as an error. When many such misses overlap a prediction that was left
   over, a warning names the threshold to lower.
@@ -528,11 +539,15 @@ unmatched truths beside unmatched predictions with this in mind: a lower
   out of the denominator), no matching prediction, a predicted point missing,
   or geometry that cannot be measured.
 - Intervals are percentile bootstraps over whole clusters (by default images),
-  2,000 resamples with a fixed seed. The overall rate of large errors and the
-  decision rates resample whole clusters too when some hold several readings
-  (never narrower than Wilson's); with one reading to each they use Wilson
-  intervals, which treat readings as independent. Rates per size band stay
-  Wilson. With a single cluster there is nothing to resample, and every
+  2,000 resamples with a fixed seed. The rates of large errors, overall and
+  per size band, and the decision rates resample whole clusters too when some
+  hold several readings (never narrower than Wilson's); with one reading to
+  each they use Wilson intervals, which treat readings as independent. A
+  figure undefined in more than 2.5% of resamples has no interval: a slope or
+  ICC when a draw repeats one of two images, and a rate whose readings sit in
+  a few clusters (a size band, or the flagged readings of a decision rate),
+  rather than Wilson's as if they were independent. With a
+  single cluster there is nothing to resample, and every
   interval, Wilson's included, is left out (`null` in the JSON) rather than
   shown as a point or as if the readings were independent.
 
