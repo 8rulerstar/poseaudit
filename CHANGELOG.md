@@ -17,6 +17,11 @@
   taken, with a warning when they disagree by more than two frames or one
   sits on the edge of the search; the JSON lists each pair's under
   `settings.time_offset_auto`. `estimate_offset` returns it as an `Offset`.
+- `--matching optimal` (`matching="optimal"` in `pair`, `audit` and
+  `compare`) pairs people with labels by the assignment of largest total
+  overlap (Hungarian method, in NumPy) instead of the most similar pair
+  first. The summary and `settings.matching_changed` say how many truths it
+  paired differently. Greedy stays the default, and its output is unchanged.
 
 ## 0.5.0
 
