@@ -13,13 +13,16 @@
 - `--time-offset auto` (`time_offset="auto"` in `pair_mot`) finds the offset
   between a predicted and a reference .mot file: the lag, within
   `--max-lag` seconds (0.5 by default), where the curves correlate best,
-  refined between frames. With `--mot-pairs` the median over the pairs is
-  taken, with a warning when they disagree by more than two frames or one
-  sits on the edge of the search; the JSON lists each pair's under
+  refined between frames. With `--mot-pairs` each pair is lined up by its
+  own offset, with warnings naming the pairs on the edge of the search or
+  with a rival lag; the JSON lists each pair's, and the one applied, under
   `settings.time_offset_auto`. `estimate_offset` returns it as an `Offset`.
   A repeating motion lines up again a cycle away, so a second lag that
   correlates within 0.05 of the best is named (`rival`) with a warning that
   the offset may be a whole cycle off; keep `--max-lag` under half a cycle.
+  Tied lags go to the one nearest 0, so the offset is right only when the
+  true one is under half a cycle; beyond that, line up by a sync event and
+  give `--time-offset S`.
   A `--max-lag` that is not a finite number of seconds, or too wide for any
   recording, is refused, and a pair that fails is named.
   When two lags correlate alike a cycle apart, the one nearer 0 is taken

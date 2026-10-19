@@ -619,3 +619,11 @@ def test_one_image_with_many_readings_has_no_check():
     bent = budget(one, angle(0, 1, 2), 15).groups[1]
     assert not bent.checks and bent.smallest_limb_px is None
     assert "these come from one" in bent.note
+
+
+def test_the_matching_used_is_recorded():
+    rng = np.random.default_rng(4)
+    truth = limbs(200, rng)
+    paired = pairing(truth, noisy(truth, 1.0, 0.01, rng))
+    paired.matching = "optimal"
+    assert budget(paired, angle(0, 1, 2), 10, 0.2).to_dict()["matching"] == "optimal"

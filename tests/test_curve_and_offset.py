@@ -2,12 +2,13 @@
 offset found between two .mot files."""
 
 import json
+import warnings
 
 import numpy as np
 import pytest
 
 import poseaudit as pa
-from poseaudit.cli import main
+from poseaudit.cli import _pair_each, main
 from poseaudit.io.mot import MAX_LAG_STEPS, Motion, estimate_offset, pair_mot
 
 FAST = {"resamples": 200}
@@ -199,9 +200,10 @@ def test_cli_auto_offset_over_pairs(tmp_path, capsys):
         ]
     )
     settings = json.loads(out.read_text())["settings"]
-    assert settings["time_offset"] == pytest.approx(0.1, abs=0.004)
-    assert len(settings["time_offset_auto"]["per_pair"]) == 3
-    assert "median of 3 pairs" in capsys.readouterr().err
+    assert settings["time_offset"] == "auto"
+    applied = [p["applied"] for p in settings["time_offset_auto"]["per_pair"]]
+    assert applied == pytest.approx([0.1] * 3, abs=0.004)
+    assert "applied to each" in capsys.readouterr().err
 
 
 def test_cli_auto_offset_refuses_a_table(tmp_path):
@@ -323,14 +325,22 @@ def _auto(pairs, *extra):
     )
 
 
-def test_cli_warns_when_pairs_disagree(tmp_path, capsys):
-    _auto(_pairs_csv(tmp_path, [0.1, 0.1, 0.3]))
-    assert "spread over" in capsys.readouterr().err
+def test_cli_applies_each_pair_its_own_offset(tmp_path):
+    """Recordings started apart by different times: one median for all would
+    misalign the odd one out by 0.2 s and read its error as the model's."""
+    out = tmp_path / "out.json"
+    _auto(_pairs_csv(tmp_path, [0.1, 0.1, 0.3]), "--json", str(out))
+    result = json.loads(out.read_text())
+    applied = [p["applied"] for p in result["settings"]["time_offset_auto"]["per_pair"]]
+    assert applied == pytest.approx([0.1, 0.1, 0.3], abs=0.004)
+    assert result["mean_abs_error"] < 0.5
 
 
 def test_cli_warns_when_a_pair_sits_on_the_edge(tmp_path, capsys):
     _auto(_pairs_csv(tmp_path, [0.1, 0.1, 0.45]), "--max-lag", "0.3")
-    assert "on the edge" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "on the edge" in err
+    assert "s2 t" in err and "s0 t" not in err
 
 
 def test_cli_names_the_pair_that_failed(tmp_path):
@@ -375,3 +385,52 @@ def test_pair_mot_takes_auto_in_any_case():
     t = np.arange(0, 5, 0.01)
     with pytest.warns(UserWarning, match="time offset found"):
         pair_mot(Motion(t, _sines(t, 0.1)), Motion(t, _sines(t)), time_offset="AUTO")
+
+
+def test_a_near_tie_a_cycle_apart_still_takes_the_lag_nearer_zero():
+    """Light noise lifts the peak a cycle away a hair above the true one
+    (with this seed): within TIE it still counts as tied."""
+    t = np.arange(0, 8, 0.01)
+    noise = np.random.default_rng(8).normal(0, 0.02, len(t))
+    pred = Motion(t, {"k": np.sin(2 * np.pi * (t - 0.1)) + noise})
+    found = estimate_offset(pred, Motion(t, {"k": np.sin(2 * np.pi * t)}), max_lag=1.2)
+    assert found.offset == pytest.approx(-0.1, abs=0.004)
+
+
+def test_a_trough_near_the_wrap_gets_no_peak():
+    pred, ref, subject, trial, frame = _series()
+    ref = [v - 180 for v in ref]  # -170 to -110: only the trough nears the wrap
+    pred = [v - 180 for v in pred]
+    result = _audit(pred, ref, subject, trial, frame)
+    assert result.curve == []
+
+
+def test_a_trial_of_exactly_min_frames_is_kept():
+    result = _audit(*_series(subjects=2, trials=1, frames=3))
+    assert len(result.curve_trials) == 2
+
+
+def test_frames_left_out_differ_by_pair_and_are_summed(tmp_path, capsys):
+    """Pairs that leave out different counts: the warning gives their sum."""
+    rows = ["subject,trial,pred,ref"]
+    for s, end in enumerate([4.0, 4.1, 4.2]):
+        t_ref = np.arange(0, 4, 0.01)
+        t_pred = np.arange(0, end, 0.05)
+        _write_mot(tmp_path / f"r{s}.mot", t_ref, _sines(t_ref))
+        _write_mot(tmp_path / f"p{s}.mot", t_pred, _sines(t_pred))
+        rows.append(f"s{s},t,p{s}.mot,r{s}.mot")
+    (tmp_path / "pairs.csv").write_text("\n".join(rows) + "\n")
+    main(
+        ["paired", "--mot-pairs", str(tmp_path / "pairs.csv"), "--measure", "knee"]
+        + ["--big-error", "5", "--resamples", "200"]
+    )
+    assert "6 of the predicted frames" in capsys.readouterr().err
+
+
+def test_other_warnings_of_a_pair_still_show(tmp_path):
+    def pair_mot(**_):
+        warnings.warn("something else", stacklevel=1)
+        return {}
+
+    with pytest.warns(UserWarning, match="something else"):
+        _pair_each([{}], pair_mot)

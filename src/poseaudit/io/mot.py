@@ -133,6 +133,13 @@ MIN_OVERLAP = 0.5
 RIVAL_GAP = 0.05
 # correlations this close to the best count as tied for it
 TIE = 1e-3
+# what to do when the lag found may be a cycle off
+SYNC_HINT = (
+    "Ties go to the lag nearer 0, so a true offset over half a cycle comes out "
+    "a cycle short: line the recordings up by a sync event (the first heel "
+    "strike, a trigger) and give that offset in seconds, or search under half "
+    "a cycle with --max-lag"
+)
 # lags tried either way at most: a search wider than any recording is a typo
 MAX_LAG_STEPS = 100_000
 
@@ -376,7 +383,7 @@ def offset_text(found: Offset, max_lag: float) -> str:
         text += (
             f"; a lag of {found.rival:+.3f} s correlates almost as well, as a "
             "repeating motion (a gait cycle) does a cycle away, so the lag found "
-            "may be a whole cycle off: narrow the search below half a cycle"
+            "may be a whole cycle off. " + SYNC_HINT
         )
     return text
 

@@ -17,7 +17,12 @@ from poseaudit._files import write_text
 from poseaudit._version import __version__
 from poseaudit.audit import BIG_ERROR_KEYS, audit
 from poseaudit.io import load_coco, load_coco_results, load_yolo
-from poseaudit.io.mot import MAX_LAG, estimate_offset, load_mot, offset_text
+from poseaudit.io.mot import (
+    MAX_LAG,
+    SYNC_HINT,
+    estimate_offset,
+    offset_text,
+)
 from poseaudit.measures import Measure, angle, length, ratio, tilt
 from poseaudit.pairing import pair
 from poseaudit.report import csv_rows_many, table
@@ -1369,9 +1374,8 @@ def _run_paired(args):
             if args.pred_mot
             else _mot_pairs(Path(args.mot_pairs))
         )
-        args.time_offset, offset_settings = _auto_offset(
-            pairs, columns, args.max_lag, match
-        )
+        offsets, offset_settings = _auto_offset(pairs, columns, args.max_lag, match)
+        args.time_offset = offsets[0] if args.pred_mot else "auto"
     if args.table:
         table = read_table(args.table, roles)
     elif args.pred_mot:
@@ -1400,10 +1404,16 @@ def _run_paired(args):
                         # twice (the same file listed twice still is).
                         trial=trial or pred.name,
                         columns=columns,
-                        time_offset=args.time_offset,
+                        time_offset=(
+                            offsets[i]
+                            if args.time_offset == "auto"
+                            else args.time_offset
+                        ),
                         match=match,
                     )
-                    for subject, trial, pred, ref in _mot_pairs(Path(args.mot_pairs))
+                    for i, (subject, trial, pred, ref) in enumerate(
+                        _mot_pairs(Path(args.mot_pairs))
+                    )
                 ],
                 pair_mot,
             )
@@ -1496,54 +1506,46 @@ def _pair_offset(subject, trial, pred, ref, columns, max_lag, match):
         raise ValueError(f"--time-offset auto, {who}: {error}") from None
 
 
-def _auto_offset(pairs, columns, max_lag: float, match) -> tuple[float, dict]:
-    """One offset for every pair: the median of each pair's best lag, with a
-    warning when they disagree by more than a frame or one sits on the edge
-    of the search."""
+def _auto_offset(pairs, columns, max_lag: float, match) -> tuple[list[float], dict]:
+    """Each pair's own best lag: recordings started apart by different times
+    (one per subject, say) each get their own. Warns naming the pairs whose
+    lag may be a cycle off or sits on the edge of the search."""
     found = [
         _pair_offset(subject, trial, pred, ref, columns, max_lag, match)
         for subject, trial, pred, ref in pairs
     ]
-    offsets = np.array([f.offset for f in found])
-    offset = float(np.median(offsets))
-    frame = min(
-        float(np.median(np.diff(load_mot(pred).time))) for _, _, pred, _ in pairs
-    )
+    offsets = [f.offset for f in found]
     if len(found) == 1:
         warnings.warn(offset_text(found[0], max_lag), stacklevel=2)
     else:
         warnings.warn(
-            f"time offset found: {offset:+.3f} s, the median of {len(found)} pairs "
-            f"({offsets.min():+.3f} to {offsets.max():+.3f} s)",
+            f"time offsets found for each of {len(found)} pairs and applied to "
+            f"each: {min(offsets):+.3f} to {max(offsets):+.3f} s",
             stacklevel=2,
         )
-        if offsets.max() - offsets.min() > 2 * frame:
-            warnings.warn(
-                f"the pairs' best offsets spread over "
-                f"{offsets.max() - offsets.min():.3f} s, "
-                f"more than two frames ({2 * frame:.3f} s): the clocks may not be "
-                "started apart by one fixed time; check the pairs, or give each "
-                "its own offset in separate runs",
-                stacklevel=2,
-            )
-        rivals = sum(f.rival is not None for f in found)
+        names = [
+            " ".join(str(x) for x in (s, t) if x) or Path(pred).name
+            for s, t, pred, _ in pairs
+        ]
+        rivals = [n for n, f in zip(names, found, strict=True) if f.rival is not None]
         if rivals:
             warnings.warn(
-                f"{rivals} of {len(found)} pairs have a second lag that correlates "
-                "almost as well, as a repeating motion (a gait cycle) does a cycle "
-                "away: the offset may be a whole cycle off. Give --max-lag under "
-                "half a cycle",
+                f"{len(rivals)} of {len(found)} pairs have a second lag that "
+                "correlates almost as well, as a repeating motion (a gait cycle) "
+                f"does a cycle away, and may be a whole cycle off: {_and(rivals)}. "
+                + SYNC_HINT,
                 stacklevel=2,
             )
-        edge = sum(f.at_edge for f in found)
+        edge = [n for n, f in zip(names, found, strict=True) if f.at_edge]
         if edge:
             warnings.warn(
-                f"{edge} of {len(found)} pairs found their best offset on the edge "
-                f"of the +/-{max_lag:g} s searched: widen it with --max-lag, but "
-                "keep it under half a cycle of a repeating motion",
+                f"{len(edge)} of {len(found)} pairs found their best offset on the "
+                f"edge of the +/-{max_lag:g} s searched: {_and(edge)}. Widen it "
+                "with --max-lag, but keep it under half a cycle of a repeating "
+                "motion",
                 stacklevel=2,
             )
-    return offset, {
+    return offsets, {
         "time_offset_auto": {
             "max_lag": max_lag,
             "per_pair": [
@@ -1551,6 +1553,7 @@ def _auto_offset(pairs, columns, max_lag: float, match) -> tuple[float, dict]:
                     "subject": s,
                     "trial": t,
                     "offset": f.offset,
+                    "applied": f.offset,
                     "r": f.r,
                     "at_edge": f.at_edge,
                     "rival": f.rival,

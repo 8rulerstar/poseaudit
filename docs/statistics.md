@@ -341,7 +341,12 @@ a reading either side of the +90 to -90 wrap is not 180° away; the CSV's
   for the study. The time offset is the lag of best correlation within
   `--max-lag`: a repeating motion correlates again a cycle away, so with a
   search wider than half a cycle it may land a cycle off (a warning names
-  the rival lag). For a
+  the rival lag). Lags within 0.001 of the best correlation count as tied
+  and the one nearest 0 is taken, so a true offset over half a cycle comes
+  out a cycle short; with noise the two peaks may differ by more than that
+  and either can win. The curve's bias averages trials, not subjects, and
+  its interval resamples subjects: with 10 subjects or fewer it held the
+  true bias in about 83 to 90% of simulated runs, not 95. For a
   time series (a frame or time column, or .mot files) ICC, CCC and r pool
   every frame, so a wide range of motion pushes them towards 1 however far
   each frame is off: they are marked `*` in the text, tables and Markdown,
@@ -366,7 +371,7 @@ a reading either side of the +90 to -90 wrap is not 180° away; the CSV's
   shift shared by similar angles, depend only on the true value and the
   object's own frames. The p and the interval can disagree near the edge.
 - Matching ignores scores (filter them first with `--min-score`). It is greedy
-  by default; `--matching optimal` maximises the summed similarity per image
+  by default; `--matching optimal` maximises the summed rank per image
   and reports how many truths it paired differently. Neither weighs which
   pairing gives the smaller error: both rank by overlap, not by the measure.
   Neither is COCO's evaluation either, which takes detections in score order

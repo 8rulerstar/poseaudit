@@ -270,14 +270,22 @@ with a warning that counts them. `--time-offset S` moves the prediction onto
 the reference's clock; `--time-offset auto` finds the offset, trying lags up
 to `--max-lag` seconds either way (0.5 by default) at half a predicted frame
 and taking the one where the curves correlate best (each column
-standardised, refined between frames). With `--mot-pairs` it takes the median
-over the pairs and warns when they spread over more than two frames or one
-sits on the edge of the search; the JSON lists each pair's under
-`settings.time_offset_auto`. A repeating motion lines up again a whole cycle
-away (a gait cycle of 1.1 s correlates as well at -0.6 s as at +0.5 s), so
-keep `--max-lag` under half a cycle: when a second lag correlates within
-0.05 of the best, a warning says the offset may be a cycle off and the JSON
-gives that lag as `rival`. Columns named otherwise, as a Sports2D angle file
+standardised, refined between frames). With `--mot-pairs` each pair gets
+its own offset (recordings are often started apart by different times),
+with warnings naming the pairs whose offset sits on the edge of the search
+or may be a cycle off; the JSON lists each pair's, as `applied`, under
+`settings.time_offset_auto`, and `settings.time_offset` reads `"auto"`. A
+repeating motion lines up again a whole cycle away (a gait cycle of 1.1 s
+correlates as well at -0.6 s as at +0.5 s). Lags that correlate within
+0.001 of the best count as tied and the one nearest 0 is taken, so **the
+offset found is right only when the true one is under half a cycle**; a
+larger one comes out a cycle short. When a second lag correlates within
+0.05 of the best, a warning says so and the JSON gives it as `rival`. Keep
+`--max-lag` under half a cycle; the default 0.5 s is already more than half
+a running stride (about 0.7 s). If the true offset may be larger, line the
+recordings up by a sync event (the first heel strike, a trigger) and give
+it as `--time-offset S`. Short or noisy recordings make the offset found
+less steady. Columns named otherwise, as a Sports2D angle file
 (`right knee`) against inverse kinematics (`knee_angle_r`), are paired with
 `--match "right knee=knee_angle_r"`; the measure takes the reference's name.
 A sign or zero convention that differs shows as a slope near -1 or a large
@@ -561,7 +569,7 @@ unmatched truths beside unmatched predictions with this in mind: a lower
 - `--matching optimal` uses the same qualifying pairs and ranks but picks the
   set whose ranks sum highest in each image (the Hungarian method), so a
   person is not left unpaired only because a neighbour took their prediction
-  first when pairing both scores higher in all. It maximises the summed rank,
+  first, even where a different assignment would give both of them pairs. It maximises the summed rank,
   not the number of pairs: one strong pair can still outweigh two weak ones
   and leave a person unpaired. Pairs below `--min-iou` or `--min-similarity` are never
   taken. The summary then adds a `matching` line and the JSON `settings` gain

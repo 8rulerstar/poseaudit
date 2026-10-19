@@ -26,9 +26,11 @@ so the range of motion inflates them; the text and Markdown mark them with
 `limits`, `mean_abs_error`, `mean_abs_error_ci`), and `curve_trials`, one
 per trial (`subject, trial, frames, pred_peak, ref_peak, pred_trough,
 ref_trough, pred_range, ref_range`); both are empty lists otherwise. With
-`--time-offset auto`, `settings.time_offset` is the offset taken and
+`--time-offset auto`, `settings.time_offset` is the offset taken (`"auto"`
+with `--mot-pairs`, each pair taking its own) and
 `settings.time_offset_auto` holds `max_lag` and `per_pair` (each pair's
-`subject, trial, offset, r, at_edge, rival`). With `--matching optimal` the
+`subject, trial, offset, applied, r, at_edge, rival`; `applied` is the
+offset that pair was lined up by). With `--matching optimal` the
 settings gain `matching` and `matching_changed`; their absence means greedy.
 The `budget` JSON records `matching` either way. `experimental` lists the
 keys whose method is still being validated (the jitter reference): read
