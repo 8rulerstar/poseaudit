@@ -219,11 +219,29 @@ def _summary(result: "AuditResult", full: bool = False) -> str:
         f"  ICC(A,1)     {_f(result.icc, '.3f')}{_pooled(result)} "
         f"{_ci(result.icc_ci, '.3f')}",
     ]
+    lines += _curve_lines(result, f2, u, d)
     if full:
         lines += _full(result)
     lines += [_decision(th, u, d) for th in result.thresholds]
     lines += [f"  ! {w}" for w in rest]
     return "\n".join(lines)
+
+
+def _curve_lines(result: "AuditResult", f2: str, u: str, d: int) -> list[str]:
+    """The peak, trough and range of motion of each trial, predicted against
+    reference, for a time series."""
+    if not result.curve:
+        return []
+    trials = result.curve[0].n
+    out = []
+    for c in result.curve:
+        lo, hi = c.limits
+        out.append(
+            f"  {c.feature:<12} bias {_f(c.bias, f2)}{u} {_ci(c.bias_ci, f2)}, limits "
+            f"{_range(lo, hi, f2, u)}, mean |error| {c.mean_abs_error:.{d}f}{u}"
+        )
+    out[0] += f" ({trials} trial{'s' if trials != 1 else ''})"
+    return out
 
 
 def _pooled(result: "AuditResult") -> str:
@@ -621,6 +639,7 @@ def _markdown(result: "AuditResult", worst: int = 10) -> str:
             "above them (2.5% each for a normal error).",
         ]
     out += _group_tables(result, u, d)
+    out += _curve_tables(result, u, d)
     if result.size_bands:
         out += [
             "",
@@ -701,6 +720,52 @@ def _markdown(result: "AuditResult", worst: int = 10) -> str:
         )
     out += ["", *_settings(result)]
     return "\n".join(out) + "\n"
+
+
+def _curve_tables(result: "AuditResult", u: str, d: int) -> list[str]:
+    """The peak, trough and range of motion across trials, then trial by
+    trial."""
+    if not result.curve_trials:
+        return []
+    out: list[str] = []
+    if result.curve:
+        out += [
+            "",
+            "## Peak, trough and range of motion per trial",
+            "",
+            "| feature | trials | bias | 95% CI | limits | mean abs error |",
+            "|---|---:|---:|---|---|---:|",
+        ]
+        for c in result.curve:
+            lo, hi = c.limits
+            out.append(
+                f"| {c.feature} | {c.n} | {_f(c.bias, f'+.{d}f')}{u} | "
+                f"{_ci(c.bias_ci, f'+.{d}f')} | {_range(lo, hi, f'+.{d}f', u)} | "
+                f"{c.mean_abs_error:.{d}f}{u} |"
+            )
+    out += [
+        "",
+        "## Curve of each trial",
+        "",
+        "| subject | trial | frames | peak ref | peak pred | trough ref | "
+        "trough pred | range ref | range pred |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for x in result.curve_trials:
+        cells = [
+            x.ref_peak,
+            x.pred_peak,
+            x.ref_trough,
+            x.pred_trough,
+            x.ref_range,
+            x.pred_range,
+        ]
+        out.append(
+            f"| {_cell(x.subject)} | {_cell(x.trial)} | {x.frames} | "
+            + " | ".join(f"{v:.{d}f}{u}" for v in cells)
+            + " |"
+        )
+    return out
 
 
 def _group_tables(result: "AuditResult", u: str, d: int) -> list[str]:

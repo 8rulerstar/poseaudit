@@ -30,6 +30,7 @@ from poseaudit.audit import (
     groups,
     score,
 )
+from poseaudit.curve import curve_summary
 from poseaudit.measures import Quantity
 from poseaudit.thresholds import Side
 
@@ -193,13 +194,18 @@ def audit_values(
     if frames is not None and _series(readings, named):
         result.settings["frames_pooled"] = True
         result.warnings.append(FRAMES_POOLED)
+        result.curve, result.curve_trials, curve_warnings = curve_summary(
+            readings, named, measure.period, resamples, seed
+        )
+        result.warnings += curve_warnings
     return result
 
 
 FRAMES_POOLED = (
     "ICC, CCC and r (marked *) pool the frames of each recording, so the range "
     "of motion alone pushes them towards 1: they do not show agreement frame by "
-    "frame. Judge that by the bias, the limits and the mean |error|."
+    "frame. Judge that by the bias, the limits and the mean |error|, and the "
+    "curve of each trial by its peak, trough and range."
 )
 
 

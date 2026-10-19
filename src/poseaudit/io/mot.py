@@ -121,14 +121,117 @@ def _unstated(path: Path, columns: dict[str, np.ndarray]) -> None:
     warnings.warn(text, stacklevel=3)
 
 
+# the default search for `time_offset="auto"`, in seconds either way
+MAX_LAG = 0.5
+# lags tried per prediction frame interval: finer than one frame, then refined
+LAG_STEPS_PER_FRAME = 2
+# a lag must leave at least this share of the prediction's frames on the
+# reference's span to be scored
+MIN_OVERLAP = 0.5
+
+
+@dataclass(frozen=True)
+class Offset:
+    """The time offset that best lines a prediction up with its reference:
+    `offset` seconds added to the prediction's times, the correlation `r` of
+    the two there (pooled over the columns, each standardised), and whether
+    the best lag lies on the edge of the search (`at_edge`), where the true
+    one may lie beyond it."""
+
+    offset: float
+    r: float
+    at_edge: bool
+
+
+def estimate_offset(
+    pred: "str | Path | Motion",
+    ref: "str | Path | Motion",
+    columns: Sequence[str] | None = None,
+    max_lag: float = MAX_LAG,
+    match: Mapping[str, str] | None = None,
+) -> Offset:
+    """The time offset, within +/-`max_lag` seconds, at which the predicted
+    curves correlate best with the reference's: the lag where two systems
+    recorded the same motion on clocks started apart. Lags are tried at half
+    the prediction's frame interval and the best refined by a parabola
+    through it and its neighbours. Each column is standardised, so the
+    columns weigh alike and one in radians lines up with one in degrees;
+    angles are unwrapped first. A lag that keeps fewer than half the
+    predicted frames on the reference's span is not tried."""
+    if not max_lag > 0:
+        raise ValueError(f"max_lag must be above 0 seconds, got {max_lag}")
+    p = pred if isinstance(pred, Motion) else load_mot(pred)
+    r = ref if isinstance(ref, Motion) else load_mot(ref)
+    if match:
+        p = _matched(p, r, match)
+    chosen = (
+        list(columns)
+        if columns is not None
+        else [c for c in r.columns if c in p.columns]
+    )
+    chosen = [c for c in chosen if c in p.columns and c in r.columns]
+    if not chosen or len(p.time) < 3:
+        raise ValueError("estimating a time offset needs a shared column and 3 frames")
+    step = float(np.median(np.diff(p.time))) / LAG_STEPS_PER_FRAME
+    if not step > 0:
+        raise ValueError("the prediction's times must increase")
+    count = int(math.floor(max_lag / step + 1e-9))
+    lags = np.arange(-count, count + 1) * step
+    scores = np.array([_lag_score(p, r, chosen, float(lag)) for lag in lags])
+    if not np.isfinite(scores).any():
+        raise ValueError(
+            f"no lag within +/-{max_lag:g} s leaves half the predicted frames on "
+            "the reference's span with values to compare"
+        )
+    best = int(np.nanargmax(scores))
+    offset = float(lags[best])
+    if 0 < best < len(lags) - 1 and np.isfinite(scores[best - 1 : best + 2]).all():
+        a, b, c = scores[best - 1 : best + 2]
+        bend = a - 2 * b + c
+        if bend < 0:  # a peak: the vertex of the parabola through the three
+            offset += step * 0.5 * (a - c) / bend
+    at_edge = best in (0, len(lags) - 1)
+    return Offset(float(offset), float(scores[best]), bool(at_edge))
+
+
+def _lag_score(p: Motion, r: Motion, chosen: Sequence[str], lag: float) -> float:
+    """The correlation of prediction and reference with the prediction moved
+    by `lag` seconds, every column standardised and pooled; NaN when too few
+    frames overlap."""
+    t = p.time + lag
+    inside = (t >= r.time[0] - 1e-9) & (t <= r.time[-1] + 1e-9)
+    if inside.sum() < max(3, MIN_OVERLAP * len(t)):
+        return float("nan")
+    xs, ys = [], []
+    for name in chosen:
+        period = {"deg": 360.0, "rad": 2 * math.pi}.get(r.unit(name))
+        x = p.columns[name][inside].astype(float)
+        y = _at(r.time, r.columns[name], t[inside], period)
+        ok = np.isfinite(x) & np.isfinite(y)
+        if ok.sum() < 3:
+            continue
+        x, y = x[ok], y[ok]
+        if period is not None:  # each side in its own unit, unwrapped
+            x = np.unwrap(x, period={"deg": 360.0, "rad": 2 * math.pi}[p.unit(name)])
+            y = np.unwrap(y, period=period)
+        if x.std() == 0 or y.std() == 0:
+            continue
+        xs.append((x - x.mean()) / x.std())
+        ys.append((y - y.mean()) / y.std())
+    if not xs:
+        return float("nan")
+    return float(np.mean(np.concatenate(xs) * np.concatenate(ys)))
+
+
 def pair_mot(
     pred: "str | Path | Motion",
     ref: "str | Path | Motion",
     subject: str | None = None,
     trial: str | None = None,
     columns: Sequence[str] | None = None,
-    time_offset: float = 0.0,
+    time_offset: "float | str" = 0.0,
     match: Mapping[str, str] | None = None,
+    max_lag: float = MAX_LAG,
 ) -> dict[str, list]:
     """Line up a predicted and a reference .mot file by time and column name,
     as a long-format table for `audit_paired`: one row per frame and column
@@ -143,12 +246,20 @@ def pair_mot(
     `match` pairs columns named differently, prediction's name to the
     reference's, such as {"right knee": "knee_angle_r"}; the measure takes
     the reference's name. Predicted frames outside the reference's span are
-    left out with a warning that counts them.
+    left out with a warning that counts them. `time_offset="auto"` takes
+    the offset `estimate_offset` finds within +/-`max_lag` seconds and says
+    which in a warning.
     """
     p = pred if isinstance(pred, Motion) else load_mot(pred)
     r = ref if isinstance(ref, Motion) else load_mot(ref)
     if match:
         p = _matched(p, r, match)
+    if time_offset == "auto":
+        found = estimate_offset(p, r, columns, max_lag)
+        time_offset = found.offset
+        warnings.warn(offset_text(found, max_lag), stacklevel=2)
+    elif isinstance(time_offset, str):
+        raise ValueError(f"time_offset takes seconds or 'auto', got {time_offset!r}")
     shared = [c for c in r.columns if c in p.columns]
     if columns is not None:
         for c in columns:
@@ -201,6 +312,20 @@ def pair_mot(
     if trial is not None:
         table["trial"] = [str(trial)] * n
     return table
+
+
+def offset_text(found: Offset, max_lag: float) -> str:
+    """The warning that says which offset was taken, and when to doubt it."""
+    text = (
+        f"time offset found: {found.offset:+.3f} s added to the prediction's "
+        f"times (correlation {found.r:.3f} there)"
+    )
+    if found.at_edge:
+        text += (
+            f"; it lies on the edge of the +/-{max_lag:g} s searched, so the true "
+            "one may be further: widen the search"
+        )
+    return text
 
 
 def _matched(p: Motion, r: Motion, match: Mapping[str, str]) -> Motion:

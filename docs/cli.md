@@ -230,7 +230,7 @@ measure          n  bias                     limits            mean |error|     
 knee_angle_r   720  +0.55° [-1.25 to +2.18]  -7.57° to +9.15°  3.51° [3.19 to 3.90]  4.35°  24.7% [19.6% to 30.4%]  0.892  0.978*
 hip_flexion_r  720  -0.05° [-0.91 to +0.75]  -5.15° to +5.34°  2.15° [1.96 to 2.33]  2.67°  6.8% [4.6% to 9.3%]     1.002  0.988*
   ! every measure: Only 6 subjects: bootstrap intervals are too narrow with this few.
-  ! every measure: ICC, CCC and r (marked *) pool the frames of each recording, so the range of motion alone pushes them towards 1: they do not show agreement frame by frame. Judge that by the bias, the limits and the mean |error|.
+  ! every measure: ICC, CCC and r (marked *) pool the frames of each recording, so the range of motion alone pushes them towards 1: they do not show agreement frame by frame. Judge that by the bias, the limits and the mean |error|, and the curve of each trial by its peak, trough and range.
 ```
 
 **A long-format table** (`--table`, a CSV; in Python also a DataFrame or a
@@ -262,7 +262,13 @@ reference interpolated linearly there (angles the short way round, so 170°
 to -170° passes through 180°). A reference value next to a missing one is
 missing, and predicted frames outside the reference's span are left out
 with a warning that counts them. `--time-offset S` moves the prediction onto
-the reference's clock. Columns named otherwise, as a Sports2D angle file
+the reference's clock; `--time-offset auto` finds the offset, trying lags up
+to `--max-lag` seconds either way (0.5 by default) at half a predicted frame
+and taking the one where the curves correlate best (each column
+standardised, refined between frames). With `--mot-pairs` it takes the median
+over the pairs and warns when they spread over more than two frames or one
+sits on the edge of the search; the JSON lists each pair's under
+`settings.time_offset_auto`. Columns named otherwise, as a Sports2D angle file
 (`right knee`) against inverse kinematics (`knee_angle_r`), are paired with
 `--match "right knee=knee_angle_r"`; the measure takes the reference's name.
 A sign or zero convention that differs shows as a slope near -1 or a large
@@ -278,7 +284,12 @@ poseaudit paired --pred-mot S01_walk1_pose.mot --ref-mot S01_walk1_mocap.mot \
 
 With subjects, the summary adds the limits for repeated readings (Bland and
 Altman 2007) and the spread of the bias across subjects; the report has a
-table per subject and per subject and trial. Every interval resamples whole
+table per subject and per subject and trial. For a time series (several
+frames to a trial) the summary also compares each trial's curve: the peak,
+the trough and the range of motion of the prediction against the reference's
+(each side its own, over the frames read on both), with their bias, limits
+and mean |error| across trials; trials of under 3 frames are left out, and
+angles that come near the wrap get none. Every interval resamples whole
 subjects, so with fewer than 20 they are too narrow, as the warning says.
 
 | option | what it does |
@@ -288,7 +299,8 @@ subjects, so with fewer than 20 they are too narrow, as the warning says.
 | `--pred-mot MOT`, `--ref-mot MOT` | one predicted and one reference .mot file |
 | `--mot-pairs CSV` | several .mot pairs: columns `subject`, `trial` (optional), `pred`, `ref`, paths relative to the CSV |
 | `--subject NAME`, `--trial NAME` | with `--pred-mot`: whose files they are |
-| `--time-offset S` | seconds added to the prediction's times (default 0) |
+| `--time-offset S` | seconds added to the prediction's times (default 0), or `auto` to find them |
+| `--max-lag S` | with `--time-offset auto`: how far to search either way (default 0.5) |
 | `--match PRED=REF` | pair a prediction column with a reference column named otherwise; repeat it for several |
 | `--measure NAME` | audit this measure only; repeat it for several |
 | `--unit NAME=UNIT` | a measure's unit, over the table's `unit` column |

@@ -17,6 +17,7 @@ from poseaudit._files import write_text
 from poseaudit._version import __version__
 from poseaudit.audit import BIG_ERROR_KEYS, audit
 from poseaudit.io import load_coco, load_coco_results, load_yolo
+from poseaudit.io.mot import MAX_LAG, estimate_offset, load_mot, offset_text
 from poseaudit.measures import Measure, angle, length, ratio, tilt
 from poseaudit.pairing import pair
 from poseaudit.report import csv_rows_many, table
@@ -855,11 +856,20 @@ def _paired_parser(sub) -> None:
     data.add_argument("--trial", help="with --pred-mot: the trial's name")
     data.add_argument(
         "--time-offset",
-        type=float,
+        type=_offset,
         default=0.0,
         metavar="S",
         help="seconds added to the prediction's times to put them on the "
-        "reference's clock (.mot)",
+        "reference's clock (.mot), or 'auto' to find them: the lag where the "
+        "curves correlate best, the median over the pairs with --mot-pairs",
+    )
+    data.add_argument(
+        "--max-lag",
+        type=float,
+        default=MAX_LAG,
+        metavar="S",
+        help=f"with --time-offset auto: search this many seconds either way "
+        f"(default {MAX_LAG:g})",
     )
     data.add_argument(
         "--measure",
@@ -1315,6 +1325,21 @@ def _run_paired(args):
     big_error = _paired_big_errors(args.big_error)
     bands = _bands(args.bands)
     columns = args.measure
+    offset_settings: dict = {}
+    if args.time_offset == "auto":
+        if args.table:
+            raise UsageError(
+                "--time-offset auto lines up .mot files; a table's rows are "
+                "already paired"
+            )
+        pairs = (
+            [(args.subject, args.trial, Path(args.pred_mot), Path(args.ref_mot))]
+            if args.pred_mot
+            else _mot_pairs(Path(args.mot_pairs))
+        )
+        args.time_offset, offset_settings = _auto_offset(
+            pairs, columns, args.max_lag, match
+        )
     if args.table:
         table = read_table(args.table, roles)
     elif args.pred_mot:
@@ -1381,10 +1406,74 @@ def _run_paired(args):
             "ref_mot": args.ref_mot,
             "mot_pairs": args.mot_pairs,
             "time_offset": args.time_offset,
+            **offset_settings,
             **({"columns": roles} if roles else {}),
             **({"match": match} if match else {}),
         },
     )
+
+
+def _offset(text: str) -> "float | str":
+    """--time-offset: seconds, or 'auto'."""
+    if text.strip().lower() == "auto":
+        return "auto"
+    try:
+        return float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"seconds or 'auto', got {text!r}") from None
+
+
+def _auto_offset(pairs, columns, max_lag: float, match) -> tuple[float, dict]:
+    """One offset for every pair: the median of each pair's best lag, with a
+    warning when they disagree by more than a frame or one sits on the edge
+    of the search."""
+    found = [
+        estimate_offset(pred, ref, columns, max_lag, match) for _, _, pred, ref in pairs
+    ]
+    offsets = np.array([f.offset for f in found])
+    offset = float(np.median(offsets))
+    frame = min(
+        float(np.median(np.diff(load_mot(pred).time))) for _, _, pred, _ in pairs
+    )
+    if len(found) == 1:
+        warnings.warn(offset_text(found[0], max_lag), stacklevel=2)
+    else:
+        warnings.warn(
+            f"time offset found: {offset:+.3f} s, the median of {len(found)} pairs "
+            f"({offsets.min():+.3f} to {offsets.max():+.3f} s)",
+            stacklevel=2,
+        )
+        if offsets.max() - offsets.min() > 2 * frame:
+            warnings.warn(
+                f"the pairs' best offsets spread over "
+                f"{offsets.max() - offsets.min():.3f} s, "
+                f"more than two frames ({2 * frame:.3f} s): the clocks may not be "
+                "started apart by one fixed time; check the pairs, or give each "
+                "its own offset in separate runs",
+                stacklevel=2,
+            )
+        edge = sum(f.at_edge for f in found)
+        if edge:
+            warnings.warn(
+                f"{edge} of {len(found)} pairs found their best offset on the edge "
+                f"of the +/-{max_lag:g} s searched: widen it with --max-lag",
+                stacklevel=2,
+            )
+    return offset, {
+        "time_offset_auto": {
+            "max_lag": max_lag,
+            "per_pair": [
+                {
+                    "subject": s,
+                    "trial": t,
+                    "offset": f.offset,
+                    "r": f.r,
+                    "at_edge": f.at_edge,
+                }
+                for (s, t, _, _), f in zip(pairs, found, strict=True)
+            ],
+        }
+    }
 
 
 def _pairs(given: list[str], flag: str, form: str) -> dict[str, str]:

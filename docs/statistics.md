@@ -311,8 +311,10 @@ a reading either side of the +90 to -90 wrap is not 180° away; the CSV's
   inversion, swap and miss, which `poseaudit` does not.
 - Readings are pooled across frames: with subjects named, the intervals
   resample whole subjects and each subject and trial is summarised, but the
-  pooled ICC and CCC still mix between- and within-subject spread, and there
-  is no summary of the curve itself (peak angle, range of motion) yet. For a
+  pooled ICC and CCC still mix between- and within-subject spread. The peak,
+  trough and range of each trial are compared, each side taking its own
+  extreme; noise in the prediction pushes its peak up and its trough down,
+  so a noisy model shows a wider range than it reads on average. For a
   time series (a frame or time column, or .mot files) ICC, CCC and r pool
   every frame, so a wide range of motion pushes them towards 1 however far
   each frame is off: they are marked `*` in the text, tables and Markdown,
@@ -339,15 +341,15 @@ a reading either side of the +90 to -90 wrap is not 180° away; the CSV's
 - Matching is greedy and ignores scores (filter them first with `--min-score`);
   in dense crowds an optimal assignment may pair differently.
 - One level of clusters (the subject); trials are summarised, not resampled
-  within subjects. Frames are compared value by value, with no account of a
-  time lag between the two systems beyond a fixed `--time-offset`.
+  within subjects. Frames are compared value by value at one offset for the
+  whole recording (fixed, or found with `--time-offset auto` as the lag of
+  best correlation): a drift between the clocks within a recording is not
+  modelled.
 
 ## Roadmap
 
 - a label-noise reference beside the jitter one (from annotator spread or
   repeated labels)
 - left-right swap detection
-- curve summaries for paired values (peak, range of motion), and finding the
-  time lag between two systems
 - directed angles (0 to 360), signed joint angles, a chosen reference axis
 - regression-based limits of agreement; nested resampling of trials

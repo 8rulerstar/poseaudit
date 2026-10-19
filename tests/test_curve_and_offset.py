@@ -1,0 +1,232 @@
+"""The curve of each trial (peak, trough, range of motion) and the time
+offset found between two .mot files."""
+
+import json
+
+import numpy as np
+import pytest
+
+import poseaudit as pa
+from poseaudit.cli import main
+from poseaudit.io.mot import Motion, estimate_offset, pair_mot
+
+FAST = {"resamples": 200}
+
+
+def _series(subjects=5, trials=2, frames=60, gain=0.9, shift=2.0, noise=0.0, seed=0):
+    """Knee curves per subject and trial; the prediction is the reference
+    scaled by `gain` and moved by `shift`, so its peak, trough and range
+    are known."""
+    rng = np.random.default_rng(seed)
+    pred, ref, subject, trial, frame = [], [], [], [], []
+    for s in range(subjects):
+        for t in range(trials):
+            r = 40 + 30 * np.sin(np.linspace(0, 2 * np.pi, frames) + rng.uniform(0, 1))
+            pred += list(
+                gain * r + shift + rng.normal(0, noise, frames)
+                if noise
+                else gain * r + shift
+            )
+            ref += list(r)
+            subject += [f"s{s}"] * frames
+            trial += [f"t{t}"] * frames
+            frame += list(range(frames))
+    return pred, ref, subject, trial, frame
+
+
+def _audit(pred, ref, subject, trial, frame, **kw):
+    return pa.audit_values(
+        pred,
+        ref,
+        5,
+        name="knee",
+        unit="deg",
+        subject=subject,
+        trial=trial,
+        frame=frame,
+        **FAST,
+        **kw,
+    )
+
+
+def test_peak_trough_and_range_match_the_known_curves():
+    data = _series()
+    result = _audit(*data)
+    by = {c.feature: c for c in result.curve}
+    assert [c.feature for c in result.curve] == ["peak", "trough", "range"]
+    assert len(result.curve_trials) == 10 and by["peak"].n == 10
+    for x in result.curve_trials:
+        assert x.pred_peak == pytest.approx(0.9 * x.ref_peak + 2)
+        assert x.pred_trough == pytest.approx(0.9 * x.ref_trough + 2)
+        assert x.pred_range == pytest.approx(0.9 * x.ref_range)
+    peaks = np.array([x.pred_peak - x.ref_peak for x in result.curve_trials])
+    assert by["peak"].bias == pytest.approx(peaks.mean())
+    assert by["range"].bias == pytest.approx(
+        np.mean([-0.1 * x.ref_range for x in result.curve_trials])
+    )
+    assert by["peak"].bias_ci[0] <= by["peak"].bias <= by["peak"].bias_ci[1]
+
+
+def test_each_side_takes_its_own_peak():
+    """The predicted peak need not fall on the reference's frame."""
+    ref = [0, 10, 20, 10, 0, 0]
+    pred = [0, 0, 10, 0, 25, 0]
+    result = _audit(pred, ref, ["a"] * 6, ["t"] * 6, list(range(6)))
+    (x,) = result.curve_trials
+    assert (x.pred_peak, x.ref_peak) == (25, 20)
+    assert result.curve[0].bias == 5
+
+
+def test_short_trials_and_no_series_are_left_out():
+    pred, ref, subject, trial, frame = _series(subjects=2, trials=1, frames=2)
+    result = _audit(pred, ref, subject, trial, frame)
+    assert result.curve == [] and result.curve_trials == []
+    one = pa.audit_values([1, 2], [1, 2], 5, unit="deg", subject=["a", "b"], **FAST)
+    assert one.curve == []  # one value per subject: not a time series
+
+
+def test_values_near_the_wrap_get_no_peak():
+    pred, ref, subject, trial, frame = _series()
+    ref = [v + 140 for v in ref]  # up to 210, past the +/-180 wrap
+    pred = [v + 140 for v in pred]
+    result = _audit(pred, ref, subject, trial, frame)
+    assert result.curve == []
+    assert any("wrap" in w and "peak" in w for w in result.warnings)
+
+
+def test_one_subject_has_no_interval():
+    result = _audit(*_series(subjects=1, trials=3))
+    assert all(np.isnan(c.bias_ci[0]) for c in result.curve)
+
+
+def test_curve_reaches_json_and_markdown():
+    result = _audit(*_series())
+    data = result.to_dict()
+    assert [c["feature"] for c in data["curve"]] == ["peak", "trough", "range"]
+    assert len(data["curve_trials"]) == 10
+    text = pa.report.markdown(result)
+    assert "## Peak, trough and range of motion per trial" in text
+    assert "peak" in pa.report.summary(result)
+
+
+def _sines(t, lag=0.0):
+    x = t + lag
+    return {
+        "knee": 40
+        + 30 * np.sin(2 * np.pi * 0.8 * x)
+        + 10 * np.sin(2 * np.pi * 2.1 * x),
+        "hip": 20 + 15 * np.sin(2 * np.pi * 0.8 * x + 1),
+    }
+
+
+@pytest.mark.parametrize("lag", [0.0, 0.137, -0.31, 0.05])
+def test_offset_found_to_a_fraction_of_a_frame(lag):
+    """The prediction shows at time t what the reference shows at t + lag."""
+    t_ref = np.arange(0, 5, 0.01)
+    t_pred = np.arange(0, 5, 1 / 30)
+    ref = Motion(t_ref, _sines(t_ref))
+    pred = Motion(t_pred, _sines(t_pred, lag))
+    found = estimate_offset(pred, ref)
+    assert found.offset == pytest.approx(lag, abs=0.004)
+    assert not found.at_edge and found.r > 0.99
+
+
+def test_offset_beyond_the_search_is_flagged():
+    t = np.arange(0, 5, 0.01)
+    found = estimate_offset(
+        Motion(t, _sines(t, 0.6)), Motion(t, _sines(t)), max_lag=0.3
+    )
+    assert found.at_edge
+
+
+def test_offset_survives_units_and_scale():
+    """A column in radians, scaled and moved, lines up as the degrees did."""
+    t = np.arange(0, 5, 0.01)
+    ref = Motion(t, _sines(t))
+    moved = {k: np.radians(0.8 * v + 5) for k, v in _sines(t, 0.2).items()}
+    found = estimate_offset(Motion(t, moved, in_degrees=False), ref)
+    assert found.offset == pytest.approx(0.2, abs=0.004)
+
+
+def test_pair_mot_auto_uses_and_reports_the_offset():
+    t = np.arange(0, 5, 0.01)
+    with pytest.warns(UserWarning, match=r"time offset found: \+0\.150"):
+        table = pair_mot(
+            Motion(t, _sines(t, 0.15)), Motion(t, _sines(t)), time_offset="auto"
+        )
+    pred = np.array(table["pred"])
+    ref = np.array(table["ref"])
+    assert np.abs(pred - ref).max() < 0.5  # lined up, not 0.15 s apart
+    with pytest.raises(ValueError, match="seconds or 'auto'"):
+        pair_mot(Motion(t, _sines(t)), Motion(t, _sines(t)), time_offset="later")
+
+
+def _write_mot(path, t, columns):
+    names = list(columns)
+    lines = ["demo", "inDegrees=yes", "endheader", "time\t" + "\t".join(names)]
+    lines += [
+        "\t".join([f"{t[i]:.4f}"] + [f"{columns[n][i]:.4f}" for n in names])
+        for i in range(len(t))
+    ]
+    path.write_text("\n".join(lines) + "\n")
+
+
+def test_cli_auto_offset_over_pairs(tmp_path, capsys):
+    rows = ["subject,trial,pred,ref"]
+    for s in range(3):
+        t_ref = np.arange(0, 4, 0.01)
+        t_pred = np.arange(0, 4, 1 / 30)
+        _write_mot(tmp_path / f"r{s}.mot", t_ref, _sines(t_ref + s))
+        _write_mot(tmp_path / f"p{s}.mot", t_pred, _sines(t_pred + s, 0.1))
+        rows.append(f"s{s},t,p{s}.mot,r{s}.mot")
+    (tmp_path / "pairs.csv").write_text("\n".join(rows) + "\n")
+    out = tmp_path / "out.json"
+    main(
+        [
+            "paired",
+            "--mot-pairs",
+            str(tmp_path / "pairs.csv"),
+            "--time-offset",
+            "auto",
+            "--measure",
+            "knee",
+            "--big-error",
+            "5",
+            "--resamples",
+            "200",
+            "--json",
+            str(out),
+        ]
+    )
+    settings = json.loads(out.read_text())["settings"]
+    assert settings["time_offset"] == pytest.approx(0.1, abs=0.004)
+    assert len(settings["time_offset_auto"]["per_pair"]) == 3
+    assert "median of 3 pairs" in capsys.readouterr().err
+
+
+def test_cli_auto_offset_refuses_a_table(tmp_path):
+    (tmp_path / "t.csv").write_text("measure,pred,ref\nk,1,1\nk,2,2\n")
+    with pytest.raises(SystemExit):
+        main(
+            [
+                "paired",
+                "--table",
+                str(tmp_path / "t.csv"),
+                "--time-offset",
+                "auto",
+                "--big-error",
+                "5",
+            ]
+        )
+
+
+def test_offset_weighs_columns_alike():
+    """A column of large unrelated values does not drown the one that lines
+    up: each is standardised before they are pooled."""
+    rng = np.random.default_rng(0)
+    t = np.arange(0, 5, 0.01)
+    big_ref = rng.normal(0, 500, len(t))
+    big_pred = rng.normal(0, 500, len(t))
+    ref = Motion(t, {"knee": _sines(t)["knee"], "pelvis_tx": big_ref})
+    pred = Motion(t, {"knee": _sines(t, 0.2)["knee"], "pelvis_tx": big_pred})
+    assert estimate_offset(pred, ref).offset == pytest.approx(0.2, abs=0.03)

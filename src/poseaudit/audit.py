@@ -10,6 +10,7 @@ import numpy as np
 
 from poseaudit import agreement as ag
 from poseaudit.confidence import clustered_bootstrap, wilson
+from poseaudit.curve import CurveFeature, CurveTrial
 from poseaudit.measures import Measure, Ratio, Tilt
 from poseaudit.pairing import Pairing
 from poseaudit.reference import (
@@ -190,6 +191,9 @@ class AuditResult:
       cluster, since they assume independent readings.
     - `by_subject`, `by_trial`: the errors summarised per subject (or named
       cluster) and per trial of a subject.
+    - `curve`, `curve_trials`: for paired time series, the peak, trough and
+      range of motion of each trial on both sides, and their errors across
+      trials (`poseaudit.curve`).
     - experimental (`EXPERIMENTAL`): `jitter_gain`, `gain_gap`, `jitter_p`:
       the slope that keypoint jitter alone gives, the gap to it, and the
       one-sided p of the gap.
@@ -251,6 +255,8 @@ class AuditResult:
     thresholds: list[ThresholdAgreement] = field(default_factory=list)
     by_subject: list[GroupSummary] = field(default_factory=list)
     by_trial: list[GroupSummary] = field(default_factory=list)
+    curve: list[CurveFeature] = field(default_factory=list)
+    curve_trials: list[CurveTrial] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     settings: dict = field(default_factory=dict)
 

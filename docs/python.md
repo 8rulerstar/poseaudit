@@ -114,6 +114,17 @@ for repeated readings and `by_subject` and `by_trial` (each a
 `GroupSummary`: n, bias, SD, mean |error| and RMSE) are filled in. How the
 files are aligned: [cli.md](cli.md#paired-values).
 
+Two systems whose clocks started apart are lined up with
+`time_offset="auto"` (`max_lag=0.5` seconds either way by default), or the
+offset is found first with `pa.estimate_offset(pred, ref)`, which returns an
+`Offset`: the seconds to add to the prediction's times, the correlation
+there, and `at_edge` when the best lag sits on the edge of the search.
+
+For a time series, `curve_trials` holds a `CurveTrial` per trial (the peak,
+trough and range of motion of each side, over the frames read on both) and
+`curve` a `CurveFeature` per feature: the bias, its interval, the SD, the
+limits and the mean |error| of predicted minus reference across trials.
+
 ## Compare models
 
 `compare` takes any number of prediction sets and compares every pair on the
@@ -248,12 +259,16 @@ worse. A plain mean over each set would call that a 2° improvement.
   as values is a `Quantity` (its `period`, 360 for degrees, makes
   differences wrap). `load_mot(path)` returns a `Motion` (times, columns,
   `unit(name)`); `pair_mot(pred, ref, subject=..., trial=...,
-  time_offset=..., match=...)` lines up two of them as a table.
+  time_offset=..., match=...)` lines up two of them as a table, with
+  `time_offset="auto"` finding the offset; `estimate_offset(pred, ref)`
+  returns it as an `Offset`.
   `audit_paired(..., columns={"pred": "App", ...})` reads columns named
   otherwise.
 - Repeated measures: with named clusters or subjects, `by_subject` holds a
   `GroupSummary` per subject (or cluster), and for paired values with trials
-  `by_trial` one per subject and trial.
+  `by_trial` one per subject and trial. A time series also gets `curve`
+  (a `CurveFeature` each for the peak, trough and range of motion) and
+  `curve_trials` (a `CurveTrial` each).
 - `pa.__version__` is the installed version; the JSON and the report record
   it, with every setting and the `seed`, for a methods section.
 - What the outputs reveal (paths, image names) and how far they agree from

@@ -4,8 +4,11 @@ from poseaudit._version import __version__
 from poseaudit.audit import AuditResult, Band, GroupSummary, NotRead, Reading, audit
 from poseaudit.budget import BudgetGroup, BudgetResult
 from poseaudit.compare import Comparison, Difference, compare
+from poseaudit.curve import CurveFeature, CurveTrial
 from poseaudit.io import (
     Motion,
+    Offset,
+    estimate_offset,
     from_supervision,
     load_coco,
     load_coco_results,
@@ -25,6 +28,8 @@ __all__ = [
     "BudgetGroup",
     "BudgetResult",
     "Comparison",
+    "CurveFeature",
+    "CurveTrial",
     "Dataset",
     "Difference",
     "GroupSummary",
@@ -32,6 +37,7 @@ __all__ = [
     "Measure",
     "Motion",
     "NotRead",
+    "Offset",
     "Pair",
     "Pairing",
     "Quantity",
@@ -43,6 +49,7 @@ __all__ = [
     "audit_paired",
     "audit_values",
     "compare",
+    "estimate_offset",
     "from_supervision",
     "length",
     "load_coco",

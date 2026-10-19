@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Paired time series compare each trial's curve: the peak, the trough and
+  the range of motion of the prediction against the reference's, each side
+  its own (`curve_trials`, a `CurveTrial` each), and their bias, interval,
+  limits and mean |error| across trials (`curve`, a `CurveFeature` each).
+  The summary, the Markdown report and the JSON show them. Trials of under 3
+  frames are left out; angles near the wrap get none, with a warning.
+- `--time-offset auto` (`time_offset="auto"` in `pair_mot`) finds the offset
+  between a predicted and a reference .mot file: the lag, within
+  `--max-lag` seconds (0.5 by default), where the curves correlate best,
+  refined between frames. With `--mot-pairs` the median over the pairs is
+  taken, with a warning when they disagree by more than two frames or one
+  sits on the edge of the search; the JSON lists each pair's under
+  `settings.time_offset_auto`. `estimate_offset` returns it as an `Offset`.
+
 ## 0.5.0
 
 ### Added
