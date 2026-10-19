@@ -302,7 +302,9 @@ angles that come near the wrap get none. These are each trial's extremes
 over all its frames as given, every cycle together: noise pushes a peak up
 and a trough down and widens the range, so filter both sides as for the
 study first (unfiltered, frame noise of SD 2 widened ranges by about 4 in
-simulation) and cut trials into cycles for per-cycle values. Their intervals
+simulation) and cut trials into cycles for per-cycle values. They are in the summary,
+the Markdown report and the JSON of each measure; the table of several
+measures leaves them out. Their intervals
 resample subjects, and like the others are too narrow with few of them (95%
 intervals held the true bias about 80% of the time with 5 subjects, 90% with
 10). Every interval resamples whole

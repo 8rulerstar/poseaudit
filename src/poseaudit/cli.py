@@ -1455,12 +1455,22 @@ def _offset(text: str) -> "float | str":
         raise argparse.ArgumentTypeError(f"seconds or 'auto', got {text!r}") from None
 
 
+def _pair_offset(subject, trial, pred, ref, columns, max_lag, match):
+    """One pair's offset, a failure naming the pair."""
+    try:
+        return estimate_offset(pred, ref, columns, max_lag, match)
+    except ValueError as error:
+        who = " ".join(str(x) for x in (subject, trial) if x) or Path(pred).name
+        raise ValueError(f"--time-offset auto, {who}: {error}") from None
+
+
 def _auto_offset(pairs, columns, max_lag: float, match) -> tuple[float, dict]:
     """One offset for every pair: the median of each pair's best lag, with a
     warning when they disagree by more than a frame or one sits on the edge
     of the search."""
     found = [
-        estimate_offset(pred, ref, columns, max_lag, match) for _, _, pred, ref in pairs
+        _pair_offset(subject, trial, pred, ref, columns, max_lag, match)
+        for subject, trial, pred, ref in pairs
     ]
     offsets = np.array([f.offset for f in found])
     offset = float(np.median(offsets))

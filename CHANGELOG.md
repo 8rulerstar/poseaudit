@@ -17,11 +17,19 @@
   taken, with a warning when they disagree by more than two frames or one
   sits on the edge of the search; the JSON lists each pair's under
   `settings.time_offset_auto`. `estimate_offset` returns it as an `Offset`.
+  A repeating motion lines up again a cycle away, so a second lag that
+  correlates within 0.05 of the best is named (`rival`) with a warning that
+  the offset may be a whole cycle off; keep `--max-lag` under half a cycle.
+  A `--max-lag` that is not a finite number of seconds, or too wide for any
+  recording, is refused, and a pair that fails is named.
+- Every result with the curve figures says that they are each trial's raw
+  extremes over all its cycles, which noise widens: filter both sides first.
 - `--matching optimal` (`matching="optimal"` in `pair`, `audit` and
   `compare`) pairs people with labels by the assignment of largest total
   overlap (Hungarian method, in NumPy) instead of the most similar pair
   first. The summary and `settings.matching_changed` say how many truths it
   paired differently. Greedy stays the default, and its output is unchanged.
+  The `budget` JSON records `matching`.
 - `--full` (`summary(full=True)`) prints the intervals of the percentile
   limits of agreement beside those of the normal ones. The warning that sends
   readers to the percentile limits left them without one; the JSON and the

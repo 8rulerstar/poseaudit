@@ -104,6 +104,7 @@ class BudgetResult:
     clustered: bool = False
     redraws: int = 0
     groups: list[BudgetGroup] = field(default_factory=list)
+    matching: str = "greedy"
 
     def summary(self) -> str:
         deg = "\N{DEGREE SIGN}"
@@ -236,6 +237,7 @@ class BudgetResult:
             "straight_from": self.straight_from,
             "clustered": self.clustered,
             "redraws": self.redraws,
+            "matching": self.matching,
             "groups": [
                 {
                     **{k: _finite(v) for k, v in g.__dict__.items() if k != "checks"},
@@ -315,6 +317,7 @@ def budget(
         )
     named = cluster is not None
     result = BudgetResult(measure.title(), big_error, target, straight_from, named)
+    result.matching = getattr(pairing, "matching", "greedy")
     settings = (named, big_error, target, straight_from)
     result.groups = _groups(truth, predicted, keys, keys, *settings, seed)
     if redraw:

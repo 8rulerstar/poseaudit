@@ -206,7 +206,7 @@ def test_cli_auto_offset_over_pairs(tmp_path, capsys):
 
 def test_cli_auto_offset_refuses_a_table(tmp_path):
     (tmp_path / "t.csv").write_text("measure,pred,ref\nk,1,1\nk,2,2\n")
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit, match="already paired"):
         main(
             [
                 "paired",
@@ -278,3 +278,63 @@ def test_curve_figures_say_what_they_are():
     assert any(
         "not per cycle" in w and "Filter both sides" in w for w in result.warnings
     )
+
+
+@pytest.mark.parametrize("max_lag", [0, -1, float("nan"), float("inf"), 1e9])
+def test_max_lag_out_of_range_is_refused(max_lag):
+    t = np.arange(0, 5, 0.01)
+    with pytest.raises(ValueError, match="max_lag"):
+        estimate_offset(Motion(t, _sines(t)), Motion(t, _sines(t)), max_lag=max_lag)
+
+
+def _pairs_csv(tmp_path, lags, length=4.0):
+    rows = ["subject,trial,pred,ref"]
+    for s, lag in enumerate(lags):
+        t_ref = np.arange(0, length, 0.01)
+        t_pred = np.arange(0, length, 1 / 30)
+        _write_mot(tmp_path / f"r{s}.mot", t_ref, _sines(t_ref + s))
+        _write_mot(tmp_path / f"p{s}.mot", t_pred, _sines(t_pred + s, lag))
+        rows.append(f"s{s},t,p{s}.mot,r{s}.mot")
+    (tmp_path / "pairs.csv").write_text("\n".join(rows) + "\n")
+    return str(tmp_path / "pairs.csv")
+
+
+def _auto(pairs, *extra):
+    main(
+        [
+            "paired",
+            "--mot-pairs",
+            pairs,
+            "--time-offset",
+            "auto",
+            "--measure",
+            "knee",
+            "--big-error",
+            "5",
+            "--resamples",
+            "200",
+            *extra,
+        ]
+    )
+
+
+def test_cli_warns_when_pairs_disagree(tmp_path, capsys):
+    _auto(_pairs_csv(tmp_path, [0.1, 0.1, 0.3]))
+    assert "spread over" in capsys.readouterr().err
+
+
+def test_cli_warns_when_a_pair_sits_on_the_edge(tmp_path, capsys):
+    _auto(_pairs_csv(tmp_path, [0.1, 0.1, 0.45]), "--max-lag", "0.3")
+    assert "on the edge" in capsys.readouterr().err
+
+
+def test_cli_names_the_pair_that_failed(tmp_path):
+    pairs = _pairs_csv(tmp_path, [0.1, 0.1])
+    t = np.arange(0, 4, 0.01)
+    _write_mot(
+        tmp_path / "p1.mot",
+        t,
+        {"knee": np.full(len(t), 5.0), "hip": np.full(len(t), 1.0)},
+    )
+    with pytest.raises(SystemExit, match="s1"):
+        _auto(pairs)

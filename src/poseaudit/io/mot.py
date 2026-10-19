@@ -131,6 +131,8 @@ MIN_OVERLAP = 0.5
 # another peak of the correlation this close to the best one makes the lag
 # ambiguous: a repeating motion (a gait cycle) lines up again a cycle away
 RIVAL_GAP = 0.05
+# lags tried either way at most: a search wider than any recording is a typo
+MAX_LAG_STEPS = 100_000
 
 
 @dataclass(frozen=True)
@@ -164,8 +166,8 @@ def estimate_offset(
     columns weigh alike and one in radians lines up with one in degrees;
     angles are unwrapped first. A lag that keeps fewer than half the
     predicted frames on the reference's span is not tried."""
-    if not max_lag > 0:
-        raise ValueError(f"max_lag must be above 0 seconds, got {max_lag}")
+    if not (max_lag > 0 and math.isfinite(max_lag)):
+        raise ValueError(f"max_lag must be a number of seconds above 0, got {max_lag}")
     p = pred if isinstance(pred, Motion) else load_mot(pred)
     r = ref if isinstance(ref, Motion) else load_mot(ref)
     if match:
@@ -182,6 +184,11 @@ def estimate_offset(
     if not step > 0:
         raise ValueError("the prediction's times must increase")
     count = int(math.floor(max_lag / step + 1e-9))
+    if count > MAX_LAG_STEPS:
+        raise ValueError(
+            f"max_lag {max_lag:g} s is {count} prediction half-frames each way, over "
+            f"{MAX_LAG_STEPS}: no recording is that long; give a few seconds at most"
+        )
     lags = np.arange(-count, count + 1) * step
     scores = np.array([_lag_score(p, r, chosen, float(lag)) for lag in lags])
     if not np.isfinite(scores).any():

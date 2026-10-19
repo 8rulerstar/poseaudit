@@ -21,8 +21,18 @@ cluster. When the values are a time series (a frame or time column with
 several frames to a subject and trial, as from .mot files), `settings.frames_pooled`
 is `true` and a warning says that `icc`, `ccc` and `pearson` pool the frames,
 so the range of motion inflates them; the text and Markdown mark them with
-`*`. `experimental` lists the keys whose method is still being validated
-(the jitter reference): read them apart from the core figures.
+`*`. A time series also gets `curve`, one entry per feature (`feature`:
+`peak`, `trough` or `range`, with `n` trials, `bias`, `bias_ci`, `sd`,
+`limits`, `mean_abs_error`, `mean_abs_error_ci`), and `curve_trials`, one
+per trial (`subject, trial, frames, pred_peak, ref_peak, pred_trough,
+ref_trough, pred_range, ref_range`); both are empty lists otherwise. With
+`--time-offset auto`, `settings.time_offset` is the offset taken and
+`settings.time_offset_auto` holds `max_lag` and `per_pair` (each pair's
+`subject, trial, offset, r, at_edge, rival`). With `--matching optimal` the
+settings gain `matching` and `matching_changed`; their absence means greedy.
+The `budget` JSON records `matching` either way. `experimental` lists the
+keys whose method is still being validated (the jitter reference): read
+them apart from the core figures.
 
 With several measures the JSON is `{"poseaudit", "schema", "settings",
 "measures": [...]}`, each entry of `measures` what a single measure's JSON
@@ -64,6 +74,7 @@ after the flag `--big-error`. The same figure in each:
 | normal (bias +/- 1.96 SD) | `limits`, `lower_limit_ci`, `upper_limit_ci` | `limits` | |
 | limit CIs (`--full`): percentile, normal, then exact | `empirical_lower_ci`, `empirical_upper_ci`, `lower_limit_ci`, `upper_limit_ci`, `lower_limit_exact_ci`, `upper_limit_exact_ci` | the same | |
 | by subject | `by_subject`, `by_trial` | the same | |
+| peak, trough, range (time series) | `curve`, `curve_trials` | the same | |
 | \|error\| mean, median, 95th pct | `mean_abs_error`, `mean_abs_error_ci`, `median_abs_error`, `p95_abs_error` | the same | `mean_abs_error`, `mean_abs_error_ci_low`, `mean_abs_error_ci_high` |
 | RMSE | `rmse`, `rmse_ci` | the same | `rmse` |
 | `>= 15°` (in a table of measures that differ in it, `large if` and `large errors`) | `big_error_rate`, `big_error_rate_ci`; the threshold `big_error` | the same | `big_error`, `big_error_rate`, `big_error_rate_ci_low`, `big_error_rate_ci_high` |
