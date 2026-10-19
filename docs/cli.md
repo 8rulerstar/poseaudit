@@ -275,11 +275,15 @@ its own offset (recordings are often started apart by different times),
 with warnings naming the pairs whose offset sits on the edge of the search
 or may be a cycle off; the JSON lists each pair's, as `applied`, under
 `settings.time_offset_auto`, and `settings.time_offset` reads `"auto"`. A
+pair whose offset lies more than two frames from the pairs' median is named
+too: a short or noisy recording can be lined up wrong, so give one offset
+with `--time-offset S` when the recordings share a clock. A
 repeating motion lines up again a whole cycle away (a gait cycle of 1.1 s
 correlates as well at -0.6 s as at +0.5 s). Lags that correlate within
 0.001 of the best count as tied and the one nearest 0 is taken, so **the
-offset found is right only when the true one is under half a cycle**; a
-larger one comes out a cycle short. When a second lag correlates within
+offset found is right only when both the true one and `--max-lag` are under
+half a cycle**: a larger true offset comes out a cycle short, and a wider
+search can let the lag a cycle away win by noise. When a second lag correlates within
 0.05 of the best, a warning says so and the JSON gives it as `rival`. Keep
 `--max-lag` under half a cycle; the default 0.5 s is already more than half
 a running stride (about 0.7 s). If the true offset may be larger, line the
@@ -569,7 +573,7 @@ unmatched truths beside unmatched predictions with this in mind: a lower
 - `--matching optimal` uses the same qualifying pairs and ranks but picks the
   set whose ranks sum highest in each image (the Hungarian method), so a
   person is not left unpaired only because a neighbour took their prediction
-  first, even where a different assignment would give both of them pairs. It maximises the summed rank,
+  first when another assignment ranks higher in sum. It maximises the summed rank,
   not the number of pairs: one strong pair can still outweigh two weak ones
   and leave a person unpaired. Pairs below `--min-iou` or `--min-similarity` are never
   taken. The summary then adds a `matching` line and the JSON `settings` gain

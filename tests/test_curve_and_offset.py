@@ -360,7 +360,8 @@ def test_a_tie_a_cycle_apart_takes_the_lag_nearer_zero():
     sine = lambda x: {"k": np.sin(2 * np.pi * x)}  # noqa: E731
     found = estimate_offset(Motion(t, sine(t - 0.1)), Motion(t, sine(t)), max_lag=1.2)
     assert found.offset == pytest.approx(-0.1, abs=0.004)
-    assert found.rival == pytest.approx(-1.1, abs=0.02)
+    # +0.9 and -1.1 are both a cycle away and tie; which is named varies
+    assert min(abs(found.rival - 0.9), abs(found.rival + 1.1)) < 0.02
 
 
 def test_frames_left_out_are_added_up_over_the_pairs(tmp_path, capsys):
@@ -434,3 +435,56 @@ def test_other_warnings_of_a_pair_still_show(tmp_path):
 
     with pytest.warns(UserWarning, match="something else"):
         _pair_each([{}], pair_mot)
+
+
+def test_a_pair_far_from_the_others_is_named(tmp_path, capsys):
+    _auto(_pairs_csv(tmp_path, [0.1, 0.1, 0.1, 0.3]))
+    err = capsys.readouterr().err
+    assert "from the median" in err and "s3 t" in err and "s0 t" not in err
+
+
+def test_pairs_that_agree_are_not_named(tmp_path, capsys):
+    _auto(_pairs_csv(tmp_path, [0.1, 0.1, 0.1]))
+    assert "from the median" not in capsys.readouterr().err
+
+
+def test_a_rival_names_the_pair(tmp_path, capsys):
+    rows = ["subject,trial,pred,ref"]
+    t = np.arange(0, 8, 0.01)
+    for s in range(2):
+        _write_mot(tmp_path / f"r{s}.mot", t, {"knee": np.sin(2 * np.pi * t)})
+        _write_mot(tmp_path / f"p{s}.mot", t, {"knee": np.sin(2 * np.pi * (t - 0.1))})
+        rows.append(f"s{s},t,p{s}.mot,r{s}.mot")
+    (tmp_path / "pairs.csv").write_text("\n".join(rows) + "\n")
+    _auto(str(tmp_path / "pairs.csv"), "--max-lag", "1.2")
+    err = capsys.readouterr().err
+    assert "may be a whole cycle off" in err and "sync event" in err
+
+
+def test_unit_is_refused_for_mot_files(tmp_path):
+    with pytest.raises(SystemExit, match="carry their own"):
+        _auto(_pairs_csv(tmp_path, [0.1]), "--unit", "knee=deg")
+
+
+def test_a_measure_missing_from_a_file_is_named():
+    t = np.arange(0, 5, 0.01)
+    with pytest.raises(ValueError, match="no column 'right knee'"):
+        estimate_offset(
+            Motion(t, _sines(t)), Motion(t, _sines(t)), columns=["right knee"]
+        )
+
+
+def test_a_single_pair_is_lined_up_by_the_offset_found(tmp_path):
+    t_ref = np.arange(0, 4, 0.01)
+    t_pred = np.arange(0, 4, 1 / 30)
+    _write_mot(tmp_path / "r.mot", t_ref, _sines(t_ref))
+    _write_mot(tmp_path / "p.mot", t_pred, _sines(t_pred, 0.2))
+    out = tmp_path / "o.json"
+    main(
+        ["paired", "--pred-mot", str(tmp_path / "p.mot"), "--ref-mot"]
+        + [str(tmp_path / "r.mot"), "--time-offset", "auto", "--measure", "knee"]
+        + ["--big-error", "5", "--resamples", "200", "--json", str(out)]
+    )
+    result = json.loads(out.read_text())
+    assert result["settings"]["time_offset"] == pytest.approx(0.2, abs=0.004)
+    assert result["mean_abs_error"] < 0.5

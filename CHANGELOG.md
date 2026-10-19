@@ -21,12 +21,14 @@
   correlates within 0.05 of the best is named (`rival`) with a warning that
   the offset may be a whole cycle off; keep `--max-lag` under half a cycle.
   Tied lags go to the one nearest 0, so the offset is right only when the
-  true one is under half a cycle; beyond that, line up by a sync event and
-  give `--time-offset S`.
+  true one and `--max-lag` are under half a cycle; beyond that, line up by
+  a sync event and give `--time-offset S`. A pair whose offset lies more
+  than two frames from the median is named. `--unit` with .mot files is
+  refused (they carry their own units), and a `--measure` missing from
+  either file is named.
   A `--max-lag` that is not a finite number of seconds, or too wide for any
   recording, is refused, and a pair that fails is named.
-  When two lags correlate alike a cycle apart, the one nearer 0 is taken
-  and the other named. With `--mot-pairs` the predicted frames left outside
+  With `--mot-pairs` the predicted frames left outside
   the reference are added up over the pairs in one warning.
 - Every result with the curve figures says that they are each trial's raw
   extremes over all its cycles, which noise widens: filter both sides first.

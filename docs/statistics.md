@@ -346,7 +346,8 @@ a reading either side of the +90 to -90 wrap is not 180° away; the CSV's
   out a cycle short; with noise the two peaks may differ by more than that
   and either can win. The curve's bias averages trials, not subjects, and
   its interval resamples subjects: with 10 subjects or fewer it held the
-  true bias in about 83 to 90% of simulated runs, not 95. For a
+  true bias of the peak, the trough and the range in about 83 to 90% of
+  simulated runs, not 95. For a
   time series (a frame or time column, or .mot files) ICC, CCC and r pool
   every frame, so a wide range of motion pushes them towards 1 however far
   each frame is off: they are marked `*` in the text, tables and Markdown,

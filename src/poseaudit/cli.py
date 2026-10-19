@@ -21,6 +21,7 @@ from poseaudit.io.mot import (
     MAX_LAG,
     SYNC_HINT,
     estimate_offset,
+    load_mot,
     offset_text,
 )
 from poseaudit.measures import Measure, angle, length, ratio, tilt
@@ -1353,6 +1354,11 @@ def _run_paired(args):
         if not sep or not name.strip():
             raise UsageError(f"--unit takes NAME=UNIT, got {item!r}")
         units[name.strip()] = unit.strip()
+    if units and not args.table:
+        raise UsageError(
+            "--unit relabels a table's unit column; .mot files carry their own "
+            "(inDegrees in the header), and both sides are converted to it"
+        )
     if args.column and not args.table:
         raise UsageError("--column names the columns of --table")
     if args.match and args.table:
@@ -1527,6 +1533,24 @@ def _auto_offset(pairs, columns, max_lag: float, match) -> tuple[list[float], di
             " ".join(str(x) for x in (s, t) if x) or Path(pred).name
             for s, t, pred, _ in pairs
         ]
+        frame = min(
+            float(np.median(np.diff(load_mot(pred).time))) for _, _, pred, _ in pairs
+        )
+        middle = float(np.median(offsets))
+        odd = [
+            n
+            for n, o in zip(names, offsets, strict=True)
+            if abs(o - middle) > 2 * frame
+        ]
+        if odd:
+            warnings.warn(
+                f"{len(odd)} of {len(found)} pairs found an offset more than two "
+                f"frames ({2 * frame:.3f} s) from the median {middle:+.3f} s: "
+                f"{_and(odd)}. A short or noisy recording can be lined up wrong; "
+                "if the recordings share one clock, give its offset with "
+                "--time-offset S",
+                stacklevel=2,
+            )
         rivals = [n for n, f in zip(names, found, strict=True) if f.rival is not None]
         if rivals:
             warnings.warn(

@@ -186,6 +186,12 @@ def estimate_offset(
         if columns is not None
         else [c for c in r.columns if c in p.columns]
     )
+    missing = [c for c in chosen if c not in p.columns or c not in r.columns]
+    if columns is not None and missing:
+        raise ValueError(
+            f"no column {missing[0]!r} in both files: name the reference's "
+            "column, and pair a prediction named otherwise with --match PRED=REF"
+        )
     chosen = [c for c in chosen if c in p.columns and c in r.columns]
     if not chosen or len(p.time) < 3:
         raise ValueError("estimating a time offset needs a shared column and 3 frames")
