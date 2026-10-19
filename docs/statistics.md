@@ -241,8 +241,9 @@ unless more errors fall past one normal limit than chance explains: above
 4% (against 2.5%) and a one-sided binomial p under 0.05. Then a warning says
 to use the percentile limits. The share alone is a poor guide in small
 samples: with 30 to 60 normal errors it passed 4% in 19 to 39% of
-samples, while the test flagged at most about 1.3% at any size from 30 to
-1000 (simulated, 4000 samples each). It mostly catches skew; a symmetric heavy tail widens
+samples, while the test flagged at most about 2% at any size from 30 to
+1000 (1.6% at 300; simulated, 8000 samples each; the binomial cut is
+discrete, so the rate rises and falls with the size). It mostly catches skew; a symmetric heavy tail widens
 the SD too, so the normal limits can still hold 95% of errors while being
 far from the percentile ones, which is why both are printed (`--full` adds
 the intervals of both). With 40
@@ -336,8 +337,9 @@ a reading either side of the +90 to -90 wrap is not 180° away; the CSV's
   trough and range of each trial are compared, each side taking its own
   extreme over every frame of the trial, all cycles together; noise pushes
   a peak up and a trough down, so unfiltered values overstate the range
-  (frame noise of SD 2 on a 60-frame cycle added about 3.9 to it, enough to
-  reverse an underread range) and the figures assume both sides filtered as
+  (frame noise of SD 2 on a 60-frame cycle added about 3 to 6 to it, more
+  the smaller the motion: 6.2 at an amplitude of 5, 3.9 at 45, 3.1 at 100;
+  enough to reverse an underread range) and the figures assume both sides filtered as
   for the study. The time offset is the lag of best correlation within
   `--max-lag`: a repeating motion correlates again a cycle away, so with a
   search wider than half a cycle it may land a cycle off (a warning names
@@ -345,9 +347,15 @@ a reading either side of the +90 to -90 wrap is not 180° away; the CSV's
   and the one nearest 0 is taken, so a true offset over half a cycle comes
   out a cycle short; with noise the two peaks may differ by more than that
   and either can win. The curve's bias averages trials, not subjects, and
-  its interval resamples subjects: with 10 subjects or fewer it held the
-  true bias of the peak, the trough and the range in about 83 to 90% of
-  simulated runs, not 95. For a
+  its interval resamples subjects: with 5 to 20 subjects its intervals for
+  the bias and for the mean absolute error of the peak, the trough and the
+  range held the true value in about 81 to 93% of simulated runs, not 95,
+  and the limits are point estimates with no interval. A time offset found
+  with `--time-offset auto` is taken as fixed: the intervals leave out its
+  uncertainty, and fitting it to the noise makes the SD and the mean
+  absolute error a little smaller (more so on short, noisy, weak
+  recordings). A lag a whole cycle off need not show in the figures at all,
+  so heed the rival warning. For a
   time series (a frame or time column, or .mot files) ICC, CCC and r pool
   every frame, so a wide range of motion pushes them towards 1 however far
   each frame is off: they are marked `*` in the text, tables and Markdown,

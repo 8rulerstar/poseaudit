@@ -25,7 +25,8 @@ EXTREMES = (
     "Peak, trough and range are each trial's extremes over all its frames as "
     "given, every cycle together, not per cycle: noise in a side pushes its "
     "peak up and its trough down and widens its range (frame noise of SD 2 "
-    "widened ranges by about 4 in simulation, enough to turn an underread "
+    "widened ranges by 3 to 6 in simulation, more for smaller motions, enough "
+    "to turn an underread "
     "range into an overread one). Filter both sides as for the study first, "
     "and cut trials into cycles for per-cycle values."
 )

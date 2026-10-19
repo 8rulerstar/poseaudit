@@ -235,7 +235,7 @@ knee_angle_r   720  +0.55° [-1.25 to +2.18]  -7.57° to +9.15°  3.51° [3.19 t
 hip_flexion_r  720  -0.05° [-0.91 to +0.75]  -5.15° to +5.34°  2.15° [1.96 to 2.33]  2.67°  6.8% [4.6% to 9.3%]     1.002  0.988*
   ! every measure: Only 6 subjects: bootstrap intervals are too narrow with this few.
   ! every measure: ICC, CCC and r (marked *) pool the frames of each recording, so the range of motion alone pushes them towards 1: they do not show agreement frame by frame. Judge that by the bias, the limits and the mean |error|.
-  ! every measure: Peak, trough and range are each trial's extremes over all its frames as given, every cycle together, not per cycle: noise in a side pushes its peak up and its trough down and widens its range (frame noise of SD 2 widened ranges by about 4 in simulation, enough to turn an underread range into an overread one). Filter both sides as for the study first, and cut trials into cycles for per-cycle values.
+  ! every measure: Peak, trough and range are each trial's extremes over all its frames as given, every cycle together, not per cycle: noise in a side pushes its peak up and its trough down and widens its range (frame noise of SD 2 widened ranges by 3 to 6 in simulation, more for smaller motions, enough to turn an underread range into an overread one). Filter both sides as for the study first, and cut trials into cycles for per-cycle values.
 ```
 
 **A long-format table** (`--table`, a CSV; in Python also a DataFrame or a
@@ -313,8 +313,8 @@ and mean |error| across trials; trials of under 3 frames are left out, and
 angles that come near the wrap get none. These are each trial's extremes
 over all its frames as given, every cycle together: noise pushes a peak up
 and a trough down and widens the range, so filter both sides as for the
-study first (unfiltered, frame noise of SD 2 widened ranges by about 4 in
-simulation) and cut trials into cycles for per-cycle values. They are in the summary,
+study first (unfiltered, frame noise of SD 2 widened ranges by 3 to 6 in
+simulation, more for smaller motions) and cut trials into cycles for per-cycle values. They are in the summary,
 the Markdown report and the JSON of each measure; the table of several
 measures leaves them out. Their intervals
 resample subjects, and like the others are too narrow with few of them (95%
