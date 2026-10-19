@@ -206,7 +206,11 @@ worse. A plain mean over each set would call that a 2° improvement.
   `load_yolo(folder, image_size, num_keypoints)`, `from_supervision(...)`, or
   `Instance.from_keypoints(xy, visible)` for your own arrays.
 - `pair(truth, predicted)` matches people image by image (box IoU, or keypoint
-  similarity without boxes) and returns a `Pairing`; the rules are in
+  similarity without boxes) and returns a `Pairing`. `matching="optimal"`
+  maximises the summed rank in each image instead of taking the best pair
+  first; `Pairing.matching` and `Pairing.changed_from_greedy` (truths paired
+  differently than greedy) record it, and `compare(..., matching=...)` passes
+  it on. The rules are in
   [cli.md](cli.md#how-pairs-counts-and-intervals-are-made), and what each
   loader reads in [Inputs](cli.md#inputs).
 - Measures: `angle(a, b, c)`, `tilt(a, b)`, `length(a, b)`,

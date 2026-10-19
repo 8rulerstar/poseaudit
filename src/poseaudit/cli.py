@@ -541,6 +541,13 @@ def _data_args(run, compare: bool = True) -> None:
         help="smallest keypoint similarity that pairs them when a side has no box "
         "(default 0.5)",
     )
+    data.add_argument(
+        "--matching",
+        choices=("greedy", "optimal"),
+        default="greedy",
+        help="greedy takes the most similar pair first; optimal pairs to "
+        "maximise the summed similarity in each image (default greedy)",
+    )
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -1565,6 +1572,7 @@ def _run(args):
         predicted,
         min_iou=args.min_iou,
         min_keypoint_similarity=args.min_similarity,
+        matching=args.matching,
     )
     _say_if_slow(len(pairing.pairs), args.resamples, args.jitter_repeats, len(measures))
     return [
@@ -1602,6 +1610,7 @@ def _run_budget(args):
         predicted,
         min_iou=args.min_iou,
         min_keypoint_similarity=args.min_similarity,
+        matching=args.matching,
     )
     return budget(
         pairing,

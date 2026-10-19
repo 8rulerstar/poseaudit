@@ -523,6 +523,15 @@ def audit(
             "thresholds": list(thresholds),
             "threshold_side": threshold_side,
             "predicted_thresholds": list(predicted_thresholds),
+            # only when not the default, so greedy reports read as before
+            **(
+                {
+                    "matching": pairing.matching,
+                    "matching_changed": pairing.changed_from_greedy,
+                }
+                if pairing.matching != "greedy"
+                else {}
+            ),
         },
     )
     result.warnings = list(pairing.warnings)

@@ -338,8 +338,10 @@ a reading either side of the +90 to -90 wrap is not 180° away; the CSV's
   measured here). It assumes independent objects whose errors, apart from a
   shift shared by similar angles, depend only on the true value and the
   object's own frames. The p and the interval can disagree near the edge.
-- Matching is greedy and ignores scores (filter them first with `--min-score`);
-  in dense crowds an optimal assignment may pair differently.
+- Matching ignores scores (filter them first with `--min-score`). It is greedy
+  by default; `--matching optimal` maximises the summed similarity per image
+  and reports how many truths it paired differently. Neither weighs which
+  pairing gives the smaller error: both rank by overlap, not by the measure.
 - One level of clusters (the subject); trials are summarised, not resampled
   within subjects. Frames are compared value by value at one offset for the
   whole recording (fixed, or found with `--time-offset auto` as the lag of

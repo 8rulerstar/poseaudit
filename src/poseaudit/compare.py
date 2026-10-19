@@ -216,14 +216,15 @@ def compare(
     seed: int = 0,
     min_iou: float = 0.3,
     min_keypoint_similarity: float = 0.5,
+    matching: str = "greedy",
     **audit_options,
 ) -> Comparison:
     """Audit each model in `predictions` ({name: dataset}) against `truth` on
     every measure, and compare every pair of models on the readings both made
     of the same labelled instance. `big_error` is one value, or with measures
     in different units a mapping by kind or unit such as
-    `{"angle": 15, "length": 10, "ratio": 0.1}`. Other keyword arguments go
-    to `audit`."""
+    `{"angle": 15, "length": 10, "ratio": 0.1}`. `matching` goes to `pair`.
+    Other keyword arguments go to `audit`."""
     if len(predictions) < 2:
         raise ValueError("compare needs at least two models")
     chosen = [measures] if isinstance(measures, Measure) else list(measures)
@@ -240,7 +241,13 @@ def compare(
         )
     results: dict[str, list[AuditResult]] = {}
     for name, predicted in predictions.items():
-        pairing = pair(truth, predicted, min_iou, min_keypoint_similarity)
+        pairing = pair(
+            truth,
+            predicted,
+            min_iou,
+            min_keypoint_similarity,
+            matching=matching,
+        )
         results[name] = [
             audit(
                 pairing,
