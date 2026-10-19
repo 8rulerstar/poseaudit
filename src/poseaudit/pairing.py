@@ -8,6 +8,11 @@ not depend on the order instances were listed in. Only candidates that agree
 on every one of these scores fall back to list position, and a warning says
 when such a tie decided a pair between predictions with different keypoints.
 Instances of different classes are never paired.
+
+With `matching="optimal"` the same qualifying pairs are assigned to maximise
+the summed rank over the image instead (the Hungarian method), which can pair
+differently in crowds where taking the best pair first leaves its neighbours
+worse off.
 """
 
 from dataclasses import dataclass, field
@@ -37,6 +42,9 @@ class Pairing:
     images_without_prediction: list[str] = field(default_factory=list)
     images_without_truth: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    matching: str = "greedy"
+    # truths whose partner (or lack of one) differs from the greedy pairing
+    changed_from_greedy: int = 0
 
     def __repr__(self) -> str:
         """Counts only: the dataclass's own repr prints every keypoint array."""
@@ -54,6 +62,7 @@ def pair(
     min_iou: float = 0.3,
     min_keypoint_similarity: float = 0.5,
     min_shared_points: int = 2,
+    matching: str = "greedy",
 ) -> Pairing:
     """Boxes are compared by IoU. A pair qualifies when its IoU reaches
     `min_iou`; qualifying pairs are then ranked by the mean of IoU and OKS
@@ -74,8 +83,15 @@ def pair(
     Image names are compared as given. When none match but they do once the
     file extension is dropped (`x.jpg` against `x`), extensions are dropped and
     a warning says so.
+
+    matching: "greedy" takes the best-ranked pair first; "optimal" picks the
+    pairs whose ranks sum highest. Both use only the pairs that qualify
+    above, and `changed_from_greedy` counts the truths optimal pairs
+    differently.
     """
-    result = Pairing()
+    if matching not in ("greedy", "optimal"):
+        raise ValueError(f"matching must be 'greedy' or 'optimal', got {matching!r}")
+    result = Pairing(matching=matching)
     tied_images: list[str] = []
     _same_skeleton(truth, predicted)
     truth, predicted = _aligned_names(truth, predicted, result.warnings)
@@ -109,17 +125,19 @@ def pair(
                     candidates.append((rank, oks, iou, i, j))
                 elif score > 0:
                     near.append((i, j))
-        used_t: set[int] = set()
-        used_p: set[int] = set()
         candidates.sort(key=lambda c: (-c[0], -c[1], -c[2], c[3], c[4]))
-        for k, (*_scores, i, j) in enumerate(candidates):
-            if i in used_t or j in used_p:
-                continue
-            if _tied(candidates, k, used_t, used_p, truths, preds):
-                tied_images.append(image)
-            used_t.add(i)
-            used_p.add(j)
-            result.pairs.append(Pair(image, truths[i], preds[j], i, j))
+        ties = tied_images if matching == "greedy" else []  # greedy's ties only
+        chosen = _greedy(candidates, truths, preds, image, ties)
+        if matching == "optimal":
+            best = _optimal(candidates, len(truths), len(preds))
+            was, now = dict(chosen), dict(best)
+            result.changed_from_greedy += sum(
+                int(was.get(i) != now.get(i)) for i in range(len(truths))
+            )
+            chosen = best
+        used_t = {i for i, _ in chosen}
+        used_p = {j for _, j in chosen}
+        result.pairs.extend(Pair(image, truths[i], preds[j], i, j) for i, j in chosen)
         result.missed.extend(
             (image, t) for i, t in enumerate(truths) if i not in used_t
         )
@@ -146,6 +164,91 @@ def pair(
     elif folders:
         result.warnings.append(folders)
     return result
+
+
+def _greedy(candidates, truths, preds, image, tied_images) -> list[tuple[int, int]]:
+    """The best-ranked open pair first, from candidates sorted best first."""
+    used_t: set[int] = set()
+    used_p: set[int] = set()
+    chosen = []
+    for k, (*_scores, i, j) in enumerate(candidates):
+        if i in used_t or j in used_p:
+            continue
+        if _tied(candidates, k, used_t, used_p, truths, preds):
+            tied_images.append(image)
+        used_t.add(i)
+        used_p.add(j)
+        chosen.append((i, j))
+    return chosen
+
+
+def _optimal(candidates, rows: int, cols: int) -> list[tuple[int, int]]:
+    """The qualifying pairs whose ranks sum highest, in truth order. Pairs
+    that do not qualify weigh 0, so they are never worth taking; ranks are
+    above 0, so every pair an assignment takes from them is a real one."""
+    weight = np.zeros((rows, cols))
+    for rank, *_scores, i, j in candidates:
+        weight[i, j] = rank
+    assigned = linear_sum_assignment(weight, maximize=True)
+    pairs = zip(assigned[0].tolist(), assigned[1].tolist(), strict=True)
+    return [(i, j) for i, j in pairs if weight[i, j] > 0]
+
+
+def linear_sum_assignment(
+    cost: np.ndarray, maximize: bool = False
+) -> tuple[np.ndarray, np.ndarray]:
+    """The rows and columns of a rectangular cost matrix that pair every row
+    (or every column, whichever are fewer) at the least total cost, like
+    scipy.optimize.linear_sum_assignment. Shortest augmenting paths with
+    potentials (Jonker-Volgenant), O(n^2 m); rows are added in order and the
+    first column of equal reduced cost wins, so equal inputs give equal
+    results."""
+    cost = np.asarray(cost, dtype=float)
+    if not np.isfinite(cost).all():
+        raise ValueError("cost matrix must be finite")
+    if maximize:
+        cost = -cost
+    flip = cost.shape[0] > cost.shape[1]
+    if flip:
+        cost = cost.T
+    n, m = cost.shape
+    u = np.zeros(n + 1)  # row potentials, 1-based with 0 a free slot
+    v = np.zeros(m + 1)
+    owner = np.zeros(m + 1, dtype=int)  # row holding each column, 0 for none
+    way = np.zeros(m + 1, dtype=int)
+    for row in range(1, n + 1):
+        owner[0] = row
+        col = 0
+        least = np.full(m + 1, np.inf)
+        done = np.zeros(m + 1, dtype=bool)
+        while owner[col] != 0:
+            done[col] = True
+            r = owner[col]
+            reduced = cost[r - 1] - u[r] - v[1:]
+            open_ = ~done[1:]
+            better = open_ & (reduced < least[1:])
+            least[1:][better] = reduced[better]
+            way[1:][better] = col
+            gaps = np.where(open_, least[1:], np.inf)
+            nxt = int(np.argmin(gaps)) + 1
+            delta = gaps[nxt - 1]
+            u[owner[done]] += delta
+            v[done] -= delta
+            least[1:][open_] -= delta
+            col = nxt
+        while col:
+            prev = way[col]
+            owner[col] = owner[prev]
+            col = prev
+    cols = np.flatnonzero(owner[1:])
+    rows = owner[1:][cols] - 1
+    order = np.argsort(rows)
+    rows, cols = rows[order], cols[order]
+    if flip:
+        rows, cols = cols, rows
+        order = np.argsort(rows)
+        rows, cols = rows[order], cols[order]
+    return rows, cols
 
 
 def _folders_differ(unmatched: list[str], unused: list[str]) -> str:

@@ -374,6 +374,7 @@ ratio.
 | `--min-score S` | drop predicted detections scored below this (default 0); matching ignores scores |
 | `--min-iou IOU` | the smallest box IoU that pairs a prediction with a truth (default 0.3) |
 | `--min-similarity OKS` | the smallest keypoint similarity that pairs them when a side has no box (default 0.5) |
+| `--matching {greedy,optimal}` | greedy takes the best pair first; optimal pairs to maximise the summed rank in each image (default greedy) |
 
 **Measure** (repeat these for [several](#several-joints); keypoints by index, counted from 0)
 
@@ -520,6 +521,14 @@ unmatched truths beside unmatched predictions with this in mind: a lower
   in matching: drop low-scoring detections first (`--min-score`, or
   `min_score=` in the loaders), or a stray box that overlaps better can take
   the pair.
+- `--matching optimal` uses the same qualifying pairs and ranks but picks the
+  set whose ranks sum highest in each image (the Hungarian method), so in a
+  crowd a person is not left unpaired because a neighbour took their
+  prediction first. Pairs below `--min-iou` or `--min-similarity` are never
+  taken. The summary then adds a `matching` line and the JSON `settings` gain
+  `matching` and `matching_changed`, the number of truths paired differently
+  than greedy would have (0 means greedy was already optimal). Exact ties are
+  settled the same way on every run, but not by the tie-breaks greedy uses.
 - A prediction too far off to reach the matching threshold counts as missed,
   not as an error. When many such misses overlap a prediction that was left
   over, a warning names the threshold to lower.

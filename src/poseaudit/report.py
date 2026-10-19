@@ -161,6 +161,12 @@ def _summary(result: "AuditResult", full: bool = False) -> str:
             f"  not counted  {r.unlabelled} with a point unlabelled in the truth, "
             f"{r.unmatched_predictions} unmatched predictions",
         ]
+        if result.settings.get("matching") == "optimal":
+            changed = result.settings.get("matching_changed")
+            lines.append(
+                f"  matching     optimal, {changed} truths paired differently "
+                "than greedy"
+            )
     rest = [w for w in result.warnings if w not in first]
     if result.n == 0:
         return "\n".join(lines + [f"  ! {w}" for w in rest])
