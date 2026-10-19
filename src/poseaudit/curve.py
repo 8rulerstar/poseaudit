@@ -113,7 +113,12 @@ def curve_summary(
         )
     if period is not None and trials:
         edge = period / 2 * (1 - 2 * NEAR_WRAP)
-        values = [r.predicted for r in readings] + [r.truth for r in readings]
+        # only the trials kept: a short one left out must not void the rest
+        values = [
+            v
+            for x in trials
+            for v in (x.pred_peak, x.ref_peak, x.pred_trough, x.ref_trough)
+        ]
         if max(abs(v) for v in values) > edge:
             warnings.append(
                 f"Values come within {NEAR_WRAP:.0%} of the period of the wrap "

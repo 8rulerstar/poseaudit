@@ -1388,22 +1388,25 @@ def _run_paired(args):
         )
     else:
         table = read_table(
-            [
-                pair_mot(
-                    pred,
-                    ref,
-                    subject=subject,
-                    # Each row is its own recording: with no trial given, the
-                    # prediction file names it, so two recordings of one subject
-                    # are not taken for one table stacked twice (the same file
-                    # listed twice still is).
-                    trial=trial or pred.name,
-                    columns=columns,
-                    time_offset=args.time_offset,
-                    match=match,
-                )
-                for subject, trial, pred, ref in _mot_pairs(Path(args.mot_pairs))
-            ]
+            _pair_each(
+                [
+                    dict(
+                        pred=pred,
+                        ref=ref,
+                        subject=subject,
+                        # Each row is its own recording: with no trial given,
+                        # the prediction file names it, so two recordings of
+                        # one subject are not taken for one table stacked
+                        # twice (the same file listed twice still is).
+                        trial=trial or pred.name,
+                        columns=columns,
+                        time_offset=args.time_offset,
+                        match=match,
+                    )
+                    for subject, trial, pred, ref in _mot_pairs(Path(args.mot_pairs))
+                ],
+                pair_mot,
+            )
         )
     names = args.measure or list(dict.fromkeys(table["measure"]))
     if args.plot and len(names) > 1:
@@ -1453,6 +1456,35 @@ def _offset(text: str) -> "float | str":
         return float(text)
     except ValueError:
         raise argparse.ArgumentTypeError(f"seconds or 'auto', got {text!r}") from None
+
+
+def _pair_each(calls: list[dict], pair_mot) -> list[dict]:
+    """Line up every .mot pair. The frames each pair leaves outside its
+    reference's span are added up into one warning: Python shows a warning
+    worded alike only once, so one pair's count would pass for the total."""
+    tables, outside, total, pairs_out = [], 0, 0, 0
+    for call in calls:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            tables.append(pair_mot(**call))
+        for w in caught:
+            found = re.match(
+                r"(\d+) of (\d+) predicted frames lie outside", str(w.message)
+            )
+            if found:
+                outside += int(found.group(1))
+                total += int(found.group(2))
+                pairs_out += 1
+            else:
+                warnings.warn(w.message, w.category, stacklevel=2)
+    if outside:
+        warnings.warn(
+            f"{outside} of the predicted frames lie outside their reference's span "
+            f"and are left out, in {pairs_out} of {len(calls)} pairs ({total} "
+            "frames in those pairs)",
+            stacklevel=2,
+        )
+    return tables
 
 
 def _pair_offset(subject, trial, pred, ref, columns, max_lag, match):

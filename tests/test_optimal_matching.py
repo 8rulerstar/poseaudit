@@ -139,3 +139,11 @@ def test_cli_matching_flag(tmp_path, capsys) -> None:
     assert settings["matching"] == "optimal" and settings["matching_changed"] == 2
     with pytest.raises(SystemExit):
         main(base + ["--matching", "best"])
+
+
+def test_optimal_maximises_the_sum_not_the_number_of_pairs():
+    """One strong pair outweighs two weak ones, leaving a truth unpaired."""
+    from poseaudit.pairing import _optimal
+
+    candidates = [(0.9, 0.9, 0.9, 0, 0), (0.1, 0.1, 0.1, 0, 1), (0.3, 0.3, 0.3, 1, 0)]
+    assert _optimal(candidates, 2, 2) == [(0, 0)]

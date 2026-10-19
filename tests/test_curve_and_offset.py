@@ -8,7 +8,7 @@ import pytest
 
 import poseaudit as pa
 from poseaudit.cli import main
-from poseaudit.io.mot import Motion, estimate_offset, pair_mot
+from poseaudit.io.mot import MAX_LAG_STEPS, Motion, estimate_offset, pair_mot
 
 FAST = {"resamples": 200}
 
@@ -280,7 +280,12 @@ def test_curve_figures_say_what_they_are():
     )
 
 
-@pytest.mark.parametrize("max_lag", [0, -1, float("nan"), float("inf"), 1e9])
+# One step past the cap, not a huge number: with the cap removed (as a
+# mutation test does) a huge one would build billions of lags and eat memory.
+_JUST_OVER = (MAX_LAG_STEPS + 1) * 0.01 / 2
+
+
+@pytest.mark.parametrize("max_lag", [0, -1, float("nan"), float("inf"), _JUST_OVER])
 def test_max_lag_out_of_range_is_refused(max_lag):
     t = np.arange(0, 5, 0.01)
     with pytest.raises(ValueError, match="max_lag"):
@@ -338,3 +343,35 @@ def test_cli_names_the_pair_that_failed(tmp_path):
     )
     with pytest.raises(SystemExit, match="s1"):
         _auto(pairs)
+
+
+def test_a_tie_a_cycle_apart_takes_the_lag_nearer_zero():
+    t = np.arange(0, 8, 0.01)
+    sine = lambda x: {"k": np.sin(2 * np.pi * x)}  # noqa: E731
+    found = estimate_offset(Motion(t, sine(t - 0.1)), Motion(t, sine(t)), max_lag=1.2)
+    assert found.offset == pytest.approx(-0.1, abs=0.004)
+    assert found.rival == pytest.approx(-1.1, abs=0.02)
+
+
+def test_frames_left_out_are_added_up_over_the_pairs(tmp_path, capsys):
+    _auto(_pairs_csv(tmp_path, [0.1, 0.1, 0.1]))
+    err = capsys.readouterr().err
+    assert "in 3 of 3 pairs" in err
+    assert "of 120 predicted frames" not in err  # not one pair's count alone
+
+
+def test_a_short_trial_near_the_wrap_does_not_void_the_others():
+    pred, ref, subject, trial, frame = _series(subjects=3, trials=1)
+    pred += [175.0, 176.0]  # two frames: left out, and near the +/-180 wrap
+    ref += [175.0, 176.0]
+    subject += ["s9", "s9"]
+    trial += ["t9", "t9"]
+    frame += [0, 1]
+    result = _audit(pred, ref, subject, trial, frame)
+    assert [c.feature for c in result.curve] == ["peak", "trough", "range"]
+
+
+def test_pair_mot_takes_auto_in_any_case():
+    t = np.arange(0, 5, 0.01)
+    with pytest.warns(UserWarning, match="time offset found"):
+        pair_mot(Motion(t, _sines(t, 0.1)), Motion(t, _sines(t)), time_offset="AUTO")

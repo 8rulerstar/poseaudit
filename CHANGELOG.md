@@ -22,6 +22,9 @@
   the offset may be a whole cycle off; keep `--max-lag` under half a cycle.
   A `--max-lag` that is not a finite number of seconds, or too wide for any
   recording, is refused, and a pair that fails is named.
+  When two lags correlate alike a cycle apart, the one nearer 0 is taken
+  and the other named. With `--mot-pairs` the predicted frames left outside
+  the reference are added up over the pairs in one warning.
 - Every result with the curve figures says that they are each trial's raw
   extremes over all its cycles, which noise widens: filter both sides first.
 - `--matching optimal` (`matching="optimal"` in `pair`, `audit` and

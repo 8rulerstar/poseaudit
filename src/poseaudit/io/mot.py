@@ -131,6 +131,8 @@ MIN_OVERLAP = 0.5
 # another peak of the correlation this close to the best one makes the lag
 # ambiguous: a repeating motion (a gait cycle) lines up again a cycle away
 RIVAL_GAP = 0.05
+# correlations this close to the best count as tied for it
+TIE = 1e-3
 # lags tried either way at most: a search wider than any recording is a typo
 MAX_LAG_STEPS = 100_000
 
@@ -196,7 +198,15 @@ def estimate_offset(
             f"no lag within +/-{max_lag:g} s leaves half the predicted frames on "
             "the reference's span with values to compare"
         )
-    best = int(np.nanargmax(scores))
+    # of peaks that correlate within a hair of the best, the one nearest 0: a
+    # repeating motion ties a cycle apart, and the nearer lag is the likelier
+    filled = np.where(np.isfinite(scores), scores, -np.inf)
+    left = np.concatenate(([-np.inf], filled[:-1]))
+    right = np.concatenate((filled[1:], [-np.inf]))
+    peaks = np.flatnonzero(
+        (filled >= left) & (filled >= right) & (filled >= filled.max() - TIE)
+    )
+    best = int(peaks[np.argmin(np.abs(lags[peaks]))])
     offset = float(lags[best])
     if 0 < best < len(lags) - 1 and np.isfinite(scores[best - 1 : best + 2]).all():
         a, b, c = scores[best - 1 : best + 2]
@@ -290,7 +300,7 @@ def pair_mot(
     r = ref if isinstance(ref, Motion) else load_mot(ref)
     if match:
         p = _matched(p, r, match)
-    if time_offset == "auto":
+    if isinstance(time_offset, str) and time_offset.strip().lower() == "auto":
         found = estimate_offset(p, r, columns, max_lag)
         time_offset = found.offset
         warnings.warn(offset_text(found, max_lag), stacklevel=2)

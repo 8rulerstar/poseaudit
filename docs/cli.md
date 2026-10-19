@@ -559,9 +559,11 @@ unmatched truths beside unmatched predictions with this in mind: a lower
   pairs); a prediction the keypoints gave to another label instead is a
   person told apart, and is not counted.
 - `--matching optimal` uses the same qualifying pairs and ranks but picks the
-  set whose ranks sum highest in each image (the Hungarian method), so in a
-  crowd a person is not left unpaired because a neighbour took their
-  prediction first. Pairs below `--min-iou` or `--min-similarity` are never
+  set whose ranks sum highest in each image (the Hungarian method), so a
+  person is not left unpaired only because a neighbour took their prediction
+  first when pairing both scores higher in all. It maximises the summed rank,
+  not the number of pairs: one strong pair can still outweigh two weak ones
+  and leave a person unpaired. Pairs below `--min-iou` or `--min-similarity` are never
   taken. The summary then adds a `matching` line and the JSON `settings` gain
   `matching` and `matching_changed`, the number of truths paired differently
   than greedy would have (0 means greedy was already optimal; above 0 may
