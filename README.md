@@ -24,13 +24,20 @@ The mean |error| is one line of numpy. The work is around it (brackets are 95% i
   The 254 people both settings read were read alike but for one, and on them the
   difference, every detection minus filtered, is -0.06° [-0.20 to +0.00]. Models given as
   `--pred a=a.json --pred b=b.json` are compared the same way, on what both read.
-- **Pairing.** People are matched to labels image by image by box overlap; points left
-  unlabelled in the truth stay out of the count instead of counting as errors.
+- **Pairing.** People are matched to labels image by image by box overlap and keypoint
+  similarity (OKS); points left unlabelled in the truth stay out of the count instead of
+  counting as errors.
 - **Honest intervals.** Readings from one image, or from one subject with `--cluster`,
   are resampled together.
 - **Where it goes wrong.** 58% of elbows disagree with COCO's labels by 15° or more when
-  the arm segments average under 30 px, against 26% above 60 px. Across all arms 43%
-  disagree, and the labels' own spread alone would put 25.9 to 39.9% there ([statistics](https://github.com/8rulerstar/poseaudit/blob/main/docs/statistics.md#reading-the-demo)).
+  the arm segments average under 30 px, against 26% above 60 px. How much of that is the
+  labels' is not known: COCO's sigmas give the size of their spread, not its shape. As
+  independent, isotropic noise on each point, that spread alone would put 30 to 44% of the
+  small arms there, 17 to 31% of the large ones and 25.9 to 39.9% of all arms (43%
+  observed). Yet on val2017 `yolo11x-pose` disagrees on 9 to 10% of straight left elbows
+  with segments of 35 px or more, where that noise alone gives 22 to 25% on the demo's
+  straight arms of the same lengths: most likely the labels' noise is shaped otherwise, or
+  models learn it ([statistics](https://github.com/8rulerstar/poseaudit/blob/main/docs/statistics.md#reading-the-demo)).
 
 ![The score filter person by person: the mean drops only because the worst-read people were dropped](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/score-filter.gif)
 
@@ -58,6 +65,22 @@ shoulder, elbow, wrist; 11, 13, 15: left hip, knee, ankle; each right-side point
 higher). `--big-error` is required: the error that counts as large, in the measure's unit.
 Add `--report report.md` for a report that explains every line, `--full` for every statistic
 and `--plot panels.png` for [this figure](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/panels.png) (with `[plot]`). If `poseaudit` is not found, use `python -m poseaudit`.
+
+The same audit from Python, in the same folder:
+
+```python
+import poseaudit as pa
+
+truth = pa.load_coco("gt_200.json")
+predicted = pa.load_coco_results("pred_yolo11n.json", "gt_200.json")
+result = pa.audit(
+    pa.pair(truth, predicted), pa.angle(5, 7, 9), big_error=15, size_bands=[30, 60]
+)
+print(result.summary())
+```
+
+Your own arrays, YOLO labels and `result.to_markdown()` / `to_csv()` / `plot()` are in
+[Python](https://github.com/8rulerstar/poseaudit/blob/main/docs/python.md).
 
 ## For a validation paper
 
@@ -105,9 +128,10 @@ knee groups; one elbow group passed in only 10 of 20 redraws of the data (`--red
 
 ## What is new versus OKS, PCK and pycocotools
 
-They score where the points land, yet points scattered by the label spread OKS is built on
-turn these elbow angles by 11 to 16° on average. poseaudit scores the angle itself, with the
-statistics clinicians use to compare two measuring devices, from COCO, YOLO or supervision.
+They score where the points land, yet points scattered by the label spread OKS is built on,
+as independent isotropic noise, turn these elbow angles by 11 to 16° on average. poseaudit
+scores the angle itself, with the statistics clinicians use to compare two measuring
+devices, from COCO, YOLO or supervision.
 
 ## More
 

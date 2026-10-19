@@ -145,7 +145,14 @@ class Band:
 
 @dataclass(frozen=True)
 class SizeBand:
-    """How error depends on how large the measured part is in the image."""
+    """How error depends on how large the measured part is in the image.
+    The intervals are made as the overall ones are: the slope's resamples
+    whole clusters, and so does the rate's when some cluster holds several
+    readings (never narrower than Wilson's; Wilson's alone otherwise). A band
+    held by so few clusters that it is missing from more than 2.5% of the
+    resamples has no slope interval (NaN), and no rate interval either when
+    clusters hold several readings: Wilson's would take those as
+    independent."""
 
     low: float
     high: float
@@ -154,6 +161,7 @@ class SizeBand:
     big_error_rate: float
     big_error_rate_ci: Interval
     gain: float
+    gain_ci: Interval = NAN
 
 
 @dataclass(frozen=True)
@@ -910,12 +918,24 @@ def _fill(result, bands, size_bands, noise_ratio, resamples, seed, jitter) -> No
 
     band_index = _band_index(level, bands)
     count = int(band_index.max()) + 1
+    # each size band's readings, fixed on the full sample; none for paired values
+    by_size = [] if size_bands is None else _size_masks(sizes, size_bands)
+    large = absolute >= result.big_error
 
     def statistics(idx: np.ndarray, draw: np.ndarray) -> np.ndarray:
         ti, pi, ei, bi = t[idx], p[idx], e[idx], band_index[idx]
         per_band = [
             ei[bi == k].mean() if (bi == k).any() else np.nan for k in range(count)
         ]
+        per_size = []
+        li = large[idx]  # once per resample, not once per band
+        for _low, _high, inside in by_size:
+            drawn = inside[idx]
+            per_size += (
+                [li[drawn].mean(), ag.gain(ti[drawn], pi[drawn])[0]]
+                if drawn.any()
+                else [np.nan, np.nan]
+            )
         lo, hi = ag.limits(ei)
         elo, ehi = ag.empirical_limits(ei)
         # by draw, not by cluster: a cluster drawn twice is two subjects
@@ -932,13 +952,14 @@ def _fill(result, bands, size_bands, noise_ratio, resamples, seed, jitter) -> No
                 ei.mean(), lo, hi, np.abs(ei).mean(), np.sqrt((ei**2).mean()),
                 slope, ag.ba_slope(ti, pi), ag.icc_a1(ti, pi),
                 ag.ccc(ti, pi), deming, elo, ehi, rlo, rhi, gap, *per_band,
+                *per_size,
             ]
         )  # fmt: skip
 
     rng = np.random.default_rng(seed + 1)
 
     if result.clusters < 2:  # every resample would hold the same readings
-        ci = [NAN] * (15 + count)
+        ci = [NAN] * (15 + count + 2 * len(by_size))
     else:
         lows, highs = clustered_bootstrap(
             clusters, statistics, resamples=resamples, seed=seed, copies=True
@@ -956,11 +977,11 @@ def _fill(result, bands, size_bands, noise_ratio, resamples, seed, jitter) -> No
     if jitter:
         result.gain_gap_ci = ci[14]
     edges = None if isinstance(bands, int) else sorted(bands)
-    result.bands = _bands(level, e, band_index, count, ci[15:], edges)
-    if size_bands is None:  # values given as they are: no part to measure
-        result.size_bands = []
-    else:
-        result.size_bands = _size_bands(sizes, t, p, e, size_bands, result.big_error)
+    result.bands = _bands(level, e, band_index, count, ci[15 : 15 + count], edges)
+    # values given as they are have no part to measure, and no size bands
+    result.size_bands = _size_bands(
+        by_size, t, p, e, result.big_error, ci[15 + count :], repeated
+    )
     if result.clusters < 2:  # Wilson's would treat the readings as independent
         result.size_bands = [
             replace(b, big_error_rate_ci=NAN) for b in result.size_bands
@@ -1000,7 +1021,8 @@ def _decide(result, thresholds, side, predicted_thresholds, grouped=False) -> No
 def _clustered_rates(result, t, p, rows):
     """With several readings to an image or a named cluster, the catch and
     precision intervals resample whole clusters: Wilson intervals treat every
-    reading as independent."""
+    reading as independent. A rate whose flagged readings sit in so few
+    clusters that it is undefined in more than 2.5% of resamples gets none."""
     from poseaudit.thresholds import flagged
 
     groups = [r.cluster for r in result.readings]
@@ -1034,13 +1056,16 @@ def _clustered_rates(result, t, p, rows):
     return out
 
 
-def _wider(wilson_ci, resampled) -> tuple[float, float]:
+def _wider(wilson_ci, resampled) -> Interval:
     """The cluster interval, but never narrower than Wilson's: with no event or
     only events, every resample gives the same rate and the bootstrap interval
-    shrinks to a point."""
+    shrinks to a point. None (NaN) when the rate is undefined in too many
+    resamples for one (its readings sit in a few clusters): Wilson's would
+    then treat them as independent, which is what resampling clusters is for.
+    The size bands' rates and the decision rates both come through here."""
     lo, hi = (float(x) for x in resampled)
     if not (np.isfinite(lo) and np.isfinite(hi)):
-        return wilson_ci
+        return NAN
     return (min(lo, wilson_ci[0]), max(hi, wilson_ci[1]))
 
 
@@ -1122,7 +1147,9 @@ def _bands(level, errors, band_index, count, cis, edges=None) -> list[Band]:
     return out
 
 
-def _size_bands(sizes, t, p, e, bands, big_error) -> list[SizeBand]:
+def _size_masks(sizes, bands) -> list[tuple[float, float, np.ndarray]]:
+    """Each size band's edges and which readings fall in it; empty bands are
+    left out."""
     if isinstance(bands, int):
         # to a hundredth of a pixel: sizes that differ only by rounding would
         # otherwise make bands that all read 150-150 px
@@ -1136,20 +1163,36 @@ def _size_bands(sizes, t, p, e, bands, big_error) -> list[SizeBand]:
     for k, (low, high) in enumerate(zip(edges[:-1], edges[1:], strict=True)):
         last = k == len(edges) - 2
         inside = (sizes >= low) & ((sizes <= high) if last else (sizes < high))
+        if inside.any():
+            out.append((float(low), float(high), inside))
+    return out
+
+
+def _size_bands(masks, t, p, e, big_error, resampled, grouped) -> list[SizeBand]:
+    """`resampled` holds each band's bootstrap interval of its large-error
+    rate, then of its slope. With several readings to a cluster the rate's
+    interval is the bootstrap's, never narrower than Wilson's, and none when
+    the band is missing from too many resamples for one; with one reading to
+    each, Wilson's, as for the overall rate."""
+    out = []
+    for k, (low, high, inside) in enumerate(masks):
         n = int(inside.sum())
-        if n:
-            big = int((np.abs(e[inside]) >= big_error).sum())
-            out.append(
-                SizeBand(
-                    float(low),
-                    float(high),
-                    n,
-                    float(np.abs(e[inside]).mean()),
-                    big / n,
-                    wilson(big, n),
-                    ag.gain(t[inside], p[inside])[0],
-                )
+        big = int((np.abs(e[inside]) >= big_error).sum())
+        rate_ci = wilson(big, n)
+        if grouped:
+            rate_ci = _wider(rate_ci, resampled[2 * k])
+        out.append(
+            SizeBand(
+                low,
+                high,
+                n,
+                float(np.abs(e[inside]).mean()),
+                big / n,
+                rate_ci,
+                ag.gain(t[inside], p[inside])[0],
+                resampled[2 * k + 1],
             )
+        )
     return out
 
 

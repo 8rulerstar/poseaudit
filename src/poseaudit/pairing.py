@@ -9,6 +9,13 @@ on every one of these scores fall back to list position, and a warning says
 when such a tie decided a pair between predictions with different keypoints.
 Instances of different classes are never paired.
 
+The similarity mixes box IoU with keypoint similarity (OKS), so among several
+predictions overlapping one truth the one whose keypoints sit closest to it
+tends to win: with duplicate detections of one person, the best of several
+tries is scored. A warning counts the truths whose pair OKS changed while the
+prediction box overlap alone would have paired them with was left unpaired;
+predictions OKS moved from one truth to another are not counted.
+
 With `matching="optimal"` the same qualifying pairs are assigned to maximise
 the summed rank over the image instead (the Hungarian method), which can pair
 differently in crowds where taking the best pair first leaves its neighbours
@@ -93,6 +100,8 @@ def pair(
         raise ValueError(f"matching must be 'greedy' or 'optimal', got {matching!r}")
     result = Pairing(matching=matching)
     tied_images: list[str] = []
+    switched: list[str] = []  # one image per truth whose pair OKS chose over a
+    # prediction left unpaired
     _same_skeleton(truth, predicted)
     truth, predicted = _aligned_names(truth, predicted, result.warnings)
     use_classes = _comparable_classes(truth, predicted, result.warnings)
@@ -105,7 +114,7 @@ def pair(
             result.images_without_prediction.append(image)
             result.missed.extend((image, t) for t in truths)
             continue
-        candidates, near = [], []
+        candidates, near, by_box = [], [], []
         for i, t in enumerate(truths):
             for j, p in enumerate(preds):
                 if use_classes and t.class_id != p.class_id:
@@ -123,6 +132,7 @@ def pair(
                 if score >= floor:
                     oks = -1.0 if np.isnan(oks) else oks
                     candidates.append((rank, oks, iou, i, j))
+                    by_box.append((score, i, j))  # the rank without OKS
                 elif score > 0:
                     near.append((i, j))
         candidates.sort(key=lambda c: (-c[0], -c[1], -c[2], c[3], c[4]))
@@ -138,6 +148,7 @@ def pair(
         used_t = {i for i, _ in chosen}
         used_p = {j for _, j in chosen}
         result.pairs.extend(Pair(image, truths[i], preds[j], i, j) for i, j in chosen)
+        switched += [image] * _switched_by_keypoints(dict(chosen), by_box)
         result.missed.extend(
             (image, t) for i, t in enumerate(truths) if i not in used_t
         )
@@ -152,6 +163,8 @@ def pair(
             "score exactly alike but differ in keypoints, by list position "
             f"(e.g. {tied_images[0]!r}); the pairing there is arbitrary."
         )
+    if switched:
+        result.warnings.append(_switched_warning(switched))
     _few_matched(truth, predicted, result)
     folders = _folders_differ(
         result.images_without_prediction, result.images_without_truth
@@ -286,6 +299,51 @@ def _tied(candidates, k, used_t, used_p, truths, preds) -> bool:
         if b == j and not _same_points(truths[a], truths[i]):
             return True
     return False
+
+
+def _switched_by_keypoints(chosen: dict[int, int], by_box) -> int:
+    """Truths with two or more qualifying predictions whose pair would change
+    if the rank left OKS out (greedy pairing again, by IoU alone; keypoint
+    similarity where there are no boxes, which has no OKS to drop), and whose
+    pair by IoU alone was left unpaired: the case of duplicates. A prediction
+    that went to another truth instead is a person the keypoints told apart,
+    not a try left over."""
+    rivals: dict[int, int] = {}
+    for _score, i, _j in by_box:
+        rivals[i] = rivals.get(i, 0) + 1
+    alone: dict[int, int] = {}
+    taken: set[int] = set()
+    for _score, i, j in sorted(by_box, key=lambda c: (-c[0], c[1], c[2])):
+        if i not in alone and j not in taken:
+            alone[i] = j
+            taken.add(j)
+    paired = set(chosen.values())
+    return sum(
+        1
+        for i, count in rivals.items()
+        if count >= 2
+        and i in alone
+        and chosen.get(i) != alone[i]
+        and alone[i] not in paired
+    )
+
+
+def _switched_warning(images: list[str]) -> str:
+    """Among predictions that overlap one truth, the one whose keypoints sit
+    closest to it wins: the best of several tries when they are duplicates."""
+    n = len(images)
+    which = (
+        f"{n} labelled instances had" if n > 1 else "1 labelled instance had"
+    ) + " two or more predictions overlapping enough to pair"
+    return (
+        f"{which}, and keypoint similarity (OKS), not box overlap alone, chose "
+        "which one: the prediction box overlap alone would have taken was left "
+        f"unpaired (e.g. {images[0]!r}). With duplicate detections of one "
+        "person that scores the model on its best try, which flatters it: drop "
+        "duplicates first (--min-score, min_score= in the loaders). Where the "
+        "one left unpaired is another, unlabelled person, the keypoints rightly "
+        "tell them apart."
+    )
 
 
 def _same_points(a: Instance, b: Instance) -> bool:

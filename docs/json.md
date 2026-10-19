@@ -62,12 +62,12 @@ after the flag `--big-error`. The same figure in each:
 | bias, median | `bias`, `bias_ci`, `median_error` | the same | `bias`, `bias_ci_low`, `bias_ci_high` |
 | limits (percentile) | `percentile_limits`, `empirical_lower_ci`, `empirical_upper_ci` | `percentile_limits` | `limits_low`, `limits_high` |
 | normal (bias +/- 1.96 SD) | `limits`, `lower_limit_ci`, `upper_limit_ci` | `limits` | |
-| limit CIs (`--full`): cluster bootstrap, then exact | `lower_limit_ci`, `upper_limit_ci`, `lower_limit_exact_ci`, `upper_limit_exact_ci` | the same | |
+| limit CIs (`--full`): percentile, normal, then exact | `empirical_lower_ci`, `empirical_upper_ci`, `lower_limit_ci`, `upper_limit_ci`, `lower_limit_exact_ci`, `upper_limit_exact_ci` | the same | |
 | by subject | `by_subject`, `by_trial` | the same | |
 | \|error\| mean, median, 95th pct | `mean_abs_error`, `mean_abs_error_ci`, `median_abs_error`, `p95_abs_error` | the same | `mean_abs_error`, `mean_abs_error_ci_low`, `mean_abs_error_ci_high` |
 | RMSE | `rmse`, `rmse_ci` | the same | `rmse` |
 | `>= 15°` (in a table of measures that differ in it, `large if` and `large errors`) | `big_error_rate`, `big_error_rate_ci`; the threshold `big_error` | the same | `big_error`, `big_error_rate`, `big_error_rate_ci_low`, `big_error_rate_ci_high` |
-| by size | `size_bands` | `size_bands` | |
+| by size | `size_bands`, each with `big_error_rate_ci`, `gain` and `gain_ci` | `size_bands` | |
 | slope; Theil-Sen | `gain`, `gain_ci`; `robust_gain` | `slope` (also `gain`); `theil_sen` (also `robust_gain`) | `slope` |
 | ICC(A,1) | `icc`, `icc_ci` | the same | `icc` |
 | vs jitter (`--full`, experimental) | `jitter_gain`, `gain_gap`, `gain_gap_ci`, `jitter_p`; listed in `experimental` | the same | |
