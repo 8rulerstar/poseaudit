@@ -234,7 +234,8 @@ measure          n  bias                     limits            mean |error|     
 knee_angle_r   720  +0.55° [-1.25 to +2.18]  -7.57° to +9.15°  3.51° [3.19 to 3.90]  4.35°  24.7% [19.6% to 30.4%]  0.892  0.978*
 hip_flexion_r  720  -0.05° [-0.91 to +0.75]  -5.15° to +5.34°  2.15° [1.96 to 2.33]  2.67°  6.8% [4.6% to 9.3%]     1.002  0.988*
   ! every measure: Only 6 subjects: bootstrap intervals are too narrow with this few.
-  ! every measure: ICC, CCC and r (marked *) pool the frames of each recording, so the range of motion alone pushes them towards 1: they do not show agreement frame by frame. Judge that by the bias, the limits and the mean |error|, and the curve of each trial by its peak, trough and range.
+  ! every measure: ICC, CCC and r (marked *) pool the frames of each recording, so the range of motion alone pushes them towards 1: they do not show agreement frame by frame. Judge that by the bias, the limits and the mean |error|.
+  ! every measure: Peak, trough and range are each trial's extremes over all its frames as given, every cycle together, not per cycle: noise in a side pushes its peak up and its trough down and widens its range (frame noise of SD 2 widened ranges by about 4 in simulation, enough to turn an underread range into an overread one). Filter both sides as for the study first, and cut trials into cycles for per-cycle values.
 ```
 
 **A long-format table** (`--table`, a CSV; in Python also a DataFrame or a
@@ -272,7 +273,11 @@ and taking the one where the curves correlate best (each column
 standardised, refined between frames). With `--mot-pairs` it takes the median
 over the pairs and warns when they spread over more than two frames or one
 sits on the edge of the search; the JSON lists each pair's under
-`settings.time_offset_auto`. Columns named otherwise, as a Sports2D angle file
+`settings.time_offset_auto`. A repeating motion lines up again a whole cycle
+away (a gait cycle of 1.1 s correlates as well at -0.6 s as at +0.5 s), so
+keep `--max-lag` under half a cycle: when a second lag correlates within
+0.05 of the best, a warning says the offset may be a cycle off and the JSON
+gives that lag as `rival`. Columns named otherwise, as a Sports2D angle file
 (`right knee`) against inverse kinematics (`knee_angle_r`), are paired with
 `--match "right knee=knee_angle_r"`; the measure takes the reference's name.
 A sign or zero convention that differs shows as a slope near -1 or a large
@@ -293,7 +298,14 @@ frames to a trial) the summary also compares each trial's curve: the peak,
 the trough and the range of motion of the prediction against the reference's
 (each side its own, over the frames read on both), with their bias, limits
 and mean |error| across trials; trials of under 3 frames are left out, and
-angles that come near the wrap get none. Every interval resamples whole
+angles that come near the wrap get none. These are each trial's extremes
+over all its frames as given, every cycle together: noise pushes a peak up
+and a trough down and widens the range, so filter both sides as for the
+study first (unfiltered, frame noise of SD 2 widened ranges by about 4 in
+simulation) and cut trials into cycles for per-cycle values. Their intervals
+resample subjects, and like the others are too narrow with few of them (95%
+intervals held the true bias about 80% of the time with 5 subjects, 90% with
+10). Every interval resamples whole
 subjects, so with fewer than 20 they are too narrow, as the warning says.
 
 | option | what it does |
@@ -550,8 +562,9 @@ unmatched truths beside unmatched predictions with this in mind: a lower
   prediction first. Pairs below `--min-iou` or `--min-similarity` are never
   taken. The summary then adds a `matching` line and the JSON `settings` gain
   `matching` and `matching_changed`, the number of truths paired differently
-  than greedy would have (0 means greedy was already optimal). Exact ties are
-  settled the same way on every run, but not by the tie-breaks greedy uses.
+  than greedy would have (0 means greedy was already optimal; above 0 may
+  also be ties settled the other way). Exact ties are settled the same way
+  on every run, but not by the tie-breaks greedy uses.
 - A prediction too far off to reach the matching threshold counts as missed,
   not as an error. When many such misses overlap a prediction that was left
   over, a warning names the threshold to lower.

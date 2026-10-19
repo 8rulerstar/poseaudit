@@ -334,8 +334,14 @@ a reading either side of the +90 to -90 wrap is not 180° away; the CSV's
   resample whole subjects and each subject and trial is summarised, but the
   pooled ICC and CCC still mix between- and within-subject spread. The peak,
   trough and range of each trial are compared, each side taking its own
-  extreme; noise in the prediction pushes its peak up and its trough down,
-  so a noisy model shows a wider range than it reads on average. For a
+  extreme over every frame of the trial, all cycles together; noise pushes
+  a peak up and a trough down, so unfiltered values overstate the range
+  (frame noise of SD 2 on a 60-frame cycle added about 3.9 to it, enough to
+  reverse an underread range) and the figures assume both sides filtered as
+  for the study. The time offset is the lag of best correlation within
+  `--max-lag`: a repeating motion correlates again a cycle away, so with a
+  search wider than half a cycle it may land a cycle off (a warning names
+  the rival lag). For a
   time series (a frame or time column, or .mot files) ICC, CCC and r pool
   every frame, so a wide range of motion pushes them towards 1 however far
   each frame is off: they are marked `*` in the text, tables and Markdown,
@@ -363,6 +369,10 @@ a reading either side of the +90 to -90 wrap is not 180° away; the CSV's
   by default; `--matching optimal` maximises the summed similarity per image
   and reports how many truths it paired differently. Neither weighs which
   pairing gives the smaller error: both rank by overlap, not by the measure.
+  Neither is COCO's evaluation either, which takes detections in score order
+  and matches each to its best label by OKS alone: poseaudit ignores the
+  score and ranks by box IoU and OKS together, so its pairs can differ from
+  pycocotools' on the same files.
   The rank mixes box IoU with OKS, so among several predictions that overlap
   one label the
   one whose keypoints sit closest to it tends to win: duplicate detections of

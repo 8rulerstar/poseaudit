@@ -204,8 +204,7 @@ def audit_values(
 FRAMES_POOLED = (
     "ICC, CCC and r (marked *) pool the frames of each recording, so the range "
     "of motion alone pushes them towards 1: they do not show agreement frame by "
-    "frame. Judge that by the bias, the limits and the mean |error|, and the "
-    "curve of each trial by its peak, trough and range."
+    "frame. Judge that by the bias, the limits and the mean |error|."
 )
 
 

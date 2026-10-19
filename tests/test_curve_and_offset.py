@@ -230,3 +230,51 @@ def test_offset_weighs_columns_alike():
     ref = Motion(t, {"knee": _sines(t)["knee"], "pelvis_tx": big_ref})
     pred = Motion(t, {"knee": _sines(t, 0.2)["knee"], "pelvis_tx": big_pred})
     assert estimate_offset(pred, ref).offset == pytest.approx(0.2, abs=0.03)
+
+
+def _gait(x, cycle=1.1):
+    return {
+        "knee": 35
+        + 30 * np.sin(2 * np.pi * x / cycle)
+        + 5 * np.sin(4 * np.pi * x / cycle)
+    }
+
+
+@pytest.mark.parametrize(("lag", "max_lag"), [(-0.6, 1.5), (-0.5, 3.0)])
+def test_a_cycle_inside_the_search_names_a_rival(lag, max_lag):
+    """A repeating motion lines up again a cycle away: the lag found may be
+    the wrong one, and the rival says so."""
+    t = np.arange(0, 8, 0.01)
+    found = estimate_offset(
+        Motion(t, _gait(t + lag)), Motion(t, _gait(t)), max_lag=max_lag
+    )
+    assert found.rival is not None
+    assert abs(found.rival - found.offset) == pytest.approx(1.1, abs=0.02) or abs(
+        found.rival - found.offset
+    ) == pytest.approx(2.2, abs=0.02)
+
+
+def test_no_rival_within_half_a_cycle():
+    t = np.arange(0, 8, 0.01)
+    found = estimate_offset(
+        Motion(t, _gait(t + 0.12)), Motion(t, _gait(t)), max_lag=0.5
+    )
+    assert found.rival is None and found.offset == pytest.approx(0.12, abs=0.004)
+
+
+def test_rival_reaches_the_warning():
+    t = np.arange(0, 8, 0.01)
+    with pytest.warns(UserWarning, match="a whole cycle off"):
+        pair_mot(
+            Motion(t, _gait(t - 0.6)),
+            Motion(t, _gait(t)),
+            time_offset="auto",
+            max_lag=1.5,
+        )
+
+
+def test_curve_figures_say_what_they_are():
+    result = _audit(*_series())
+    assert any(
+        "not per cycle" in w and "Filter both sides" in w for w in result.warnings
+    )

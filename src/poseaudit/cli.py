@@ -1484,11 +1484,21 @@ def _auto_offset(pairs, columns, max_lag: float, match) -> tuple[float, dict]:
                 "its own offset in separate runs",
                 stacklevel=2,
             )
+        rivals = sum(f.rival is not None for f in found)
+        if rivals:
+            warnings.warn(
+                f"{rivals} of {len(found)} pairs have a second lag that correlates "
+                "almost as well, as a repeating motion (a gait cycle) does a cycle "
+                "away: the offset may be a whole cycle off. Give --max-lag under "
+                "half a cycle",
+                stacklevel=2,
+            )
         edge = sum(f.at_edge for f in found)
         if edge:
             warnings.warn(
                 f"{edge} of {len(found)} pairs found their best offset on the edge "
-                f"of the +/-{max_lag:g} s searched: widen it with --max-lag",
+                f"of the +/-{max_lag:g} s searched: widen it with --max-lag, but "
+                "keep it under half a cycle of a repeating motion",
                 stacklevel=2,
             )
     return offset, {
@@ -1501,6 +1511,7 @@ def _auto_offset(pairs, columns, max_lag: float, match) -> tuple[float, dict]:
                     "offset": f.offset,
                     "r": f.r,
                     "at_edge": f.at_edge,
+                    "rival": f.rival,
                 }
                 for (s, t, _, _), f in zip(pairs, found, strict=True)
             ],

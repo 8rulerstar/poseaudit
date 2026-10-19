@@ -20,6 +20,15 @@ from poseaudit.confidence import clustered_bootstrap
 FEATURES = ("peak", "trough", "range")
 # fewer frames than this to a trial is not a curve
 MIN_FRAMES = 3
+# said whenever the figures are given: what they are, and what noise does
+EXTREMES = (
+    "Peak, trough and range are each trial's extremes over all its frames as "
+    "given, every cycle together, not per cycle: noise in a side pushes its "
+    "peak up and its trough down and widens its range (frame noise of SD 2 "
+    "widened ranges by about 4 in simulation, enough to turn an underread "
+    "range into an overread one). Filter both sides as for the study first, "
+    "and cut trials into cycles for per-cycle values."
+)
 # a periodic measure whose values come this close to its wrap (as a share of
 # the period from the edge) has no peak to take: 179 and -179 are 2 apart
 NEAR_WRAP = 0.1
@@ -139,6 +148,7 @@ def curve_summary(
         k = len(FEATURES)
         bias_ci = [(float(low[i]), float(high[i])) for i in range(k)]
         mae_ci = [(float(low[k + i]), float(high[k + i])) for i in range(k)]
+    warnings.append(EXTREMES)
     features = []
     for i, name in enumerate(FEATURES):
         e = errors[:, i]

@@ -128,19 +128,25 @@ LAG_STEPS_PER_FRAME = 2
 # a lag must leave at least this share of the prediction's frames on the
 # reference's span to be scored
 MIN_OVERLAP = 0.5
+# another peak of the correlation this close to the best one makes the lag
+# ambiguous: a repeating motion (a gait cycle) lines up again a cycle away
+RIVAL_GAP = 0.05
 
 
 @dataclass(frozen=True)
 class Offset:
     """The time offset that best lines a prediction up with its reference:
     `offset` seconds added to the prediction's times, the correlation `r` of
-    the two there (pooled over the columns, each standardised), and whether
+    the two there (pooled over the columns, each standardised), whether
     the best lag lies on the edge of the search (`at_edge`), where the true
-    one may lie beyond it."""
+    one may lie beyond it, and `rival`: another lag whose correlation peaks
+    within `RIVAL_GAP` of the best, as a repeating motion gives a cycle
+    away, or None. With a rival the lag found may be a whole cycle off."""
 
     offset: float
     r: float
     at_edge: bool
+    rival: float | None = None
 
 
 def estimate_offset(
@@ -191,7 +197,30 @@ def estimate_offset(
         if bend < 0:  # a peak: the vertex of the parabola through the three
             offset += step * 0.5 * (a - c) / bend
     at_edge = best in (0, len(lags) - 1)
-    return Offset(float(offset), float(scores[best]), bool(at_edge))
+    return Offset(
+        float(offset), float(scores[best]), bool(at_edge), _rival(lags, scores, best)
+    )
+
+
+def _rival(lags: np.ndarray, scores: np.ndarray, best: int) -> float | None:
+    """The lag of the highest other local peak of `scores` that comes within
+    `RIVAL_GAP` of the best, or None. Peaks next to the best one, on the same
+    hump, do not count: the scores must dip between the two."""
+    finite = np.where(np.isfinite(scores), scores, -np.inf)
+    rivals = []
+    for k in range(len(finite)):
+        if k == best or finite[k] < finite[best] - RIVAL_GAP:
+            continue
+        left = finite[k - 1] if k > 0 else -np.inf
+        right = finite[k + 1] if k < len(finite) - 1 else -np.inf
+        if finite[k] < left or finite[k] < right:
+            continue  # not a peak
+        low, high = sorted((k, best))
+        if finite[low : high + 1].min() < finite[best] - RIVAL_GAP:
+            rivals.append(k)
+    if not rivals:
+        return None
+    return float(lags[max(rivals, key=lambda k: finite[k])])
 
 
 def _lag_score(p: Motion, r: Motion, chosen: Sequence[str], lag: float) -> float:
@@ -323,7 +352,14 @@ def offset_text(found: Offset, max_lag: float) -> str:
     if found.at_edge:
         text += (
             f"; it lies on the edge of the +/-{max_lag:g} s searched, so the true "
-            "one may be further: widen the search"
+            "one may be further: widen the search, but keep it under half a "
+            "cycle of a repeating motion"
+        )
+    if found.rival is not None:
+        text += (
+            f"; a lag of {found.rival:+.3f} s correlates almost as well, as a "
+            "repeating motion (a gait cycle) does a cycle away, so the lag found "
+            "may be a whole cycle off: narrow the search below half a cycle"
         )
     return text
 
