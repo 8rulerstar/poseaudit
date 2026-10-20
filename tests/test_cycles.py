@@ -63,7 +63,13 @@ def test_each_cycle_gets_its_peak_trough_and_range():
     assert c.pred_peak == pytest.approx(0.9 * c.ref_peak + 2, abs=1e-9)
     assert c.pred_range == pytest.approx(0.9 * c.ref_range, abs=1e-9)
     bias = {f.feature: f.bias for f in result.cycle}
-    peak = np.mean([x.ref_peak for x in result.cycles])
+    # each subject's mean counts once, however many cycles it has
+    peak = np.mean(
+        [
+            np.mean([x.ref_peak for x in result.cycles if x.subject == s])
+            for s in ("s0", "s1", "s2", "s3")
+        ]
+    )
     assert bias["peak"] == pytest.approx(-0.1 * peak + 2, abs=1e-9)
     assert np.isfinite(result.cycle[0].bias_ci).all()  # four subjects
 
@@ -249,3 +255,125 @@ def test_cycles_with_too_few_frames_are_left_out():
     result = _audit(tuple(pick), events)
     assert result.cycles == []
     assert any("under 5 frames" in w for w in result.warnings)
+
+
+def test_a_subject_with_more_cycles_weighs_no_more():
+    """Two subjects off by 1 and by 5, one with three times the cycles: the
+    bias is 3, the mean of the subjects, not 2 as the cycles would give."""
+    pred, ref, subject, trial, frame, events = [], [], [], [], [], {}
+    for s, (shift, length) in enumerate([(1.0, 12.0), (5.0, 4.0)]):
+        t = np.arange(0, length, 0.01)
+        r = 40 - 30 * np.cos(2 * np.pi * t)
+        pred += list(r + shift)
+        ref += list(r)
+        subject += [f"s{s}"] * len(t)
+        trial += ["t"] * len(t)
+        frame += list(t)
+        events[(f"s{s}", "t")] = list(np.arange(0, length, 1.0))
+    result = _audit((pred, ref, subject, trial, frame), events)
+    assert [c.bias for c in result.cycle][:2] == pytest.approx([3.0, 3.0])
+    assert result.cycle_error.rmse == pytest.approx(3.0)
+    assert result.cycle_error.bias_curve == pytest.approx([3.0] * 101)
+
+
+def test_cycles_the_recording_does_not_cover_are_left_out():
+    """Events from before the recording to after it: the part cycles at
+    either end are not counted as whole ones."""
+    (pred, ref, subject, trial, frame), _ = _gait(subjects=1, trials=1)
+    events = {(None, None): [-0.55, 0.55, 1.65, 2.75, 3.85, 4.95, 6.05]}
+    result = _audit((pred, ref, subject, trial, frame), events)
+    assert [c.start for c in result.cycles] == pytest.approx([0.55, 1.65, 2.75, 3.85])
+    assert any("not covered to both ends" in w for w in result.warnings)
+
+
+def test_a_gap_inside_a_cycle_leaves_it_out():
+    (pred, ref, subject, trial, frame), events = _gait(subjects=1, trials=1)
+    keep = [i for i, t in enumerate(frame) if not 1.3 < t < 1.8]
+    cols = [[c[i] for i in keep] for c in (pred, ref, subject, trial, frame)]
+    result = _audit(tuple(cols), events)
+    assert all(not (c.start < 1.5 < c.end) for c in result.cycles)
+    assert len(result.cycles) == 4  # of the five in 6 s, one has the gap
+
+
+def test_auto_needs_evenly_spaced_frames():
+    t = np.arange(0, 6, 0.01)
+    y = 40 - 30 * np.cos(2 * np.pi * t)
+    keep = (t < 2) | (t > 2.8)
+    assert found_starts(t[keep], y[keep]) is None
+
+
+def test_an_extra_event_makes_a_short_cycle_that_is_left_out():
+    columns, events = _gait(subjects=2, trials=1)
+    events[("s0", "t0")] = sorted(events[("s0", "t0")] + [0.3])
+    result = _audit(columns, events)
+    assert not any(c.subject == "s0" and c.end - c.start < 0.5 for c in result.cycles)
+    assert any("shorter than 0.5" in w for w in result.warnings)
+
+
+def test_event_keys_are_matched_as_text_and_unused_ones_named():
+    (pred, ref, _, trial, frame), _ = _gait(subjects=1, trials=1)
+    subject = [1] * len(pred)
+    t = np.array(frame)
+    ok = _audit((pred, ref, subject, trial, frame), {(1, None): [0, 1.1, 2.2]})
+    assert len(ok.cycles) == 2
+    stray = _audit(
+        (pred, ref, subject, trial, frame),
+        {(1, None): [0, 1.1, 2.2], ("zz", None): [0, 1]},
+    )
+    assert any("match no subject" in w and "zz" in w for w in stray.warnings)
+    assert t.size  # the frames were used as given
+
+
+def test_non_finite_event_times_are_refused():
+    columns, _ = _gait(subjects=1, trials=1)
+    with pytest.raises(ValueError, match="finite"):
+        _audit(columns, {(None, None): [0, float("nan"), 2.2]})
+
+
+def test_duplicate_event_times_count_once():
+    columns, _ = _gait(subjects=1, trials=1)
+    events = {(None, None): [0, 1.1, 1.1, 2.2, 2.2, 3.3, 3.3]}
+    assert len(_audit(columns, events).cycles) == 3
+
+
+def test_sd_curve_is_the_sd_across_cycles():
+    columns, events = _gait(subjects=3, trials=1, noise=1.0)
+    result = _audit(columns, events)
+    sd = np.std([c.rmse for c in result.cycles])  # only to be non-trivial
+    assert sd > 0
+    e = result.cycle_error
+    assert all(v > 0 for v in e.sd_curve)
+    # two cycles that differ by 2 everywhere have an SD of sqrt(2)
+    (p, r, s, k, f), ev = _gait(subjects=1, trials=1, length=2.3)
+    p = [v + (2 if t >= 1.1 else 0) for v, t in zip(p, f, strict=True)]
+    two = _audit((p, r, s, k, f), ev).cycle_error
+    assert two.sd_curve[50] == pytest.approx(np.sqrt(2), abs=1e-6)
+
+
+def test_auto_takes_any_case_in_python():
+    columns, _ = _gait(subjects=2, trials=1)
+    assert _audit(columns, " Auto ").cycles
+
+
+def test_cli_fails_when_no_cycle_is_cut(tmp_path):
+    t = np.arange(0, 6, 0.01)
+    r = 40 - 30 * np.cos(2 * np.pi * t / 1.2)
+    _write_mot(tmp_path / "r.mot", t, {"knee": r})
+    (tmp_path / "ev.csv").write_text("subject,time\nzz,0\nzz,1.2\n")
+    with pytest.raises(SystemExit, match="no cycle could be cut"):
+        main(
+            ["paired", "--pred-mot", str(tmp_path / "r.mot"), "--ref-mot"]
+            + [str(tmp_path / "r.mot"), "--big-error", "5"]
+            + ["--cycles", str(tmp_path / "ev.csv")]
+        )
+
+
+def test_the_trial_warning_drops_its_cycles_hint_when_cycles_are_given():
+    columns, events = _gait(subjects=2, trials=1)
+    given = _audit(columns, events)
+    assert not any("Give --cycles" in w for w in given.warnings)
+    pred, ref, subject, trial, frame = columns
+    plain = pa.audit_values(
+        pred, ref, 5, unit="deg", subject=subject, trial=trial, frame=frame, **FAST
+    )
+    assert any("Give --cycles" in w for w in plain.warnings)

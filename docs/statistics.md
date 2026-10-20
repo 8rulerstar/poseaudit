@@ -242,7 +242,7 @@ unless more errors fall past one normal limit than chance explains: above
 to use the percentile limits. The share alone is a poor guide in small
 samples: with 30 to 60 normal errors it passed 4% in 19 to 39% of
 samples, while the test flagged at most about 2% at any size from 30 to
-1000 (1.6% at 300; simulated, 8000 samples each; the binomial cut is
+1000 (1.6 to 2% at 300; simulated, 8000 samples each; the binomial cut is
 discrete, so the rate rises and falls with the size). It mostly catches skew; a symmetric heavy tail widens
 the SD too, so the normal limits can still hold 95% of errors while being
 far from the percentile ones, which is why both are printed (`--full` adds
@@ -338,24 +338,39 @@ a reading either side of the +90 to -90 wrap is not 180° away; the CSV's
   extreme over every frame of the trial, all cycles together; noise pushes
   a peak up and a trough down, so unfiltered values overstate the range
   (frame noise of SD 2 on a 60-frame cycle added about 3 to 6 to it, more
-  the smaller the motion: 6.2 at an amplitude of 5, 3.9 at 45, 3.1 at 100;
+  the smaller the motion: 6.2 at an amplitude (half the swing) of 5, 3.9 at 45, 3.1 at 100;
   enough to reverse an underread range) and the figures assume both sides filtered as
   for the study. Cut into cycles (`--cycles`), each cycle takes its own
   extremes and is stretched to 101 points by linear interpolation between
-  frames; the bias averages cycles, so a subject with more cycles weighs
-  more, and the intervals resample subjects. Cycles found with `auto`
-  start at a trough of the reference, where its curve repeats, and were
-  checked only on synthetic curves (cycles of 0.8 to 1.6 s found to 0.02 s,
-  per-cycle biases within 0.5 of those from the true starts). The time offset is the lag of best correlation within
+  frames. The bias, the mean absolute error, the mean RMSE and the error
+  curve average each subject's mean, so a subject with more cycles (a
+  faster walker) weighs no more, and their intervals resample subjects:
+  in simulation (150 runs each) they held the true bias in 86% of runs
+  with 5 subjects and 94 to 96% with 20, with cycle counts equal or
+  following the subject's error. The SD and the limits take every cycle
+  as it comes, and `sd_curve` is the SD across all cycles, between and
+  within subjects together, which runs about 10 to 15% low with 5
+  subjects; neither curve has an interval, so do not read its points as
+  tests. The RMSE is each cycle's, then averaged, not one RMSE over all
+  frames. A cycle the frames do not cover to both ends, or with a gap
+  inside, is left out. With `.mot` files both sides are read at the
+  prediction's frames (the reference interpolated there), so a reference
+  sampled faster loses a little of its peaks: about 0.4 degrees on a
+  synthetic knee at 30 against 100 Hz. Cycles found with `auto` start at a
+  trough of the reference, where its curve repeats, need evenly spaced
+  frames, and were checked only on synthetic curves (cycles of 0.8 to
+  1.6 s found to 0.02 s, per-cycle biases within 0.5 of those from the
+  true starts); a flat or double trough moves the start between cycles. The time offset is the lag of best correlation within
   `--max-lag`: a repeating motion correlates again a cycle away, so with a
   search wider than half a cycle it may land a cycle off (a warning names
   the rival lag). Lags within 0.001 of the best correlation count as tied
   and the one nearest 0 is taken, so a true offset over half a cycle comes
   out a cycle short; with noise the two peaks may differ by more than that
-  and either can win. The curve's bias averages trials, not subjects, and
-  its interval resamples subjects: with 5 to 20 subjects its intervals for
-  the bias and for the mean absolute error of the peak, the trough and the
-  range held the true value in about 81 to 93% of simulated runs, not 95,
+  and either can win. The curve's bias averages each subject's trials
+  first, and its interval resamples subjects: with 5 to 20 subjects and
+  equal trials its intervals for the bias and for the mean absolute error
+  of the peak, the trough and the range held the true value in about 78
+  to 93% of simulated runs, not 95,
   and the limits are point estimates with no interval. A time offset found
   with `--time-offset auto` is taken as fixed: the intervals leave out its
   uncertainty, and fitting it to the noise makes the SD and the mean

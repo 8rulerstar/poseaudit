@@ -26,10 +26,11 @@ EXTREMES = (
     "given, every cycle together, not per cycle: noise in a side pushes its "
     "peak up and its trough down and widens its range (frame noise of SD 2 "
     "widened ranges by 3 to 6 in simulation, more for smaller motions, enough "
-    "to turn an underread "
-    "range into an overread one). Filter both sides as for the study first, "
-    "and give --cycles (cycles= in Python) for per-cycle values."
+    "to turn an underread range into an overread one). Filter both sides as "
+    "for the study first."
 )
+# added unless cycles were asked for
+PER_CYCLE = " Give --cycles (cycles= in Python) for per-cycle values."
 # a periodic measure whose values come this close to its wrap (as a share of
 # the period from the edge) has no peak to take: 179 and -179 are 2 apart
 NEAR_WRAP = 0.1
@@ -77,6 +78,7 @@ def curve_summary(
     period: float | None,
     resamples: int,
     seed: int,
+    cycles: bool = False,
 ) -> tuple[list[CurveFeature], list[CurveTrial], list[str]]:
     """The features of every trial with `MIN_FRAMES` frames or more, and
     their errors across trials. Without subjects the readings are one trial.
@@ -130,13 +132,22 @@ def curve_summary(
             return [], trials, warnings
     if not trials:
         return [], [], warnings
-    warnings.append(EXTREMES)
+    warnings.append(EXTREMES + ("" if cycles else PER_CYCLE))
     return features_of(trials, resamples, seed), trials, warnings
+
+
+def subject_means(values: np.ndarray, subjects: np.ndarray) -> np.ndarray:
+    """The mean of `values` (rows) for each subject, in order of first
+    appearance: so a subject with more trials or cycles weighs no more."""
+    labels = list(dict.fromkeys(subjects))
+    return np.array([values[subjects == s].mean(axis=0) for s in labels])
 
 
 def features_of(trials: Sequence, resamples: int, seed: int) -> list[CurveFeature]:
     """The error of the peak, trough and range across `trials` (anything with
-    the `CurveTrial` fields), intervals resampling whole subjects."""
+    the `CurveTrial` fields): the bias and mean |error| average each
+    subject's mean, so each subject counts once, with intervals resampling
+    subjects; the SD and limits take every trial."""
     errors = np.array(
         [
             [
@@ -148,13 +159,12 @@ def features_of(trials: Sequence, resamples: int, seed: int) -> list[CurveFeatur
         ]
     )
     subjects = np.array([str(x.subject) for x in trials])
+    per = subject_means(np.hstack([errors, np.abs(errors)]), subjects)
     bias_ci = mae_ci = [NAN] * len(FEATURES)
-    if len(set(subjects)) > 1:
+    if len(per) > 1:
         low, high = clustered_bootstrap(
-            subjects,
-            lambda idx: np.concatenate(
-                [errors[idx].mean(axis=0), np.abs(errors[idx]).mean(axis=0)]
-            ),
+            np.arange(len(per)).astype(str),
+            lambda idx: per[idx].mean(axis=0),
             resamples=resamples,
             seed=seed,
         )
@@ -168,11 +178,11 @@ def features_of(trials: Sequence, resamples: int, seed: int) -> list[CurveFeatur
             CurveFeature(
                 name,
                 len(e),
-                float(e.mean()),
+                float(per[:, i].mean()),
                 bias_ci[i],
                 float(e.std(ddof=1)) if len(e) > 1 else float("nan"),
                 ag.repeated_limits(e, subjects),
-                float(np.abs(e).mean()),
+                float(per[:, len(FEATURES) + i].mean()),
                 mae_ci[i],
             )
         )

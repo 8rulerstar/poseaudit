@@ -201,7 +201,7 @@ def audit_values(
         result.settings["frames_pooled"] = True
         result.warnings.append(FRAMES_POOLED)
         result.curve, result.curve_trials, curve_warnings = curve_summary(
-            readings, named, measure.period, resamples, seed
+            readings, named, measure.period, resamples, seed, cycles is not None
         )
         result.warnings += curve_warnings
     if cycles is not None:

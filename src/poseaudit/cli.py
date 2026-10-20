@@ -1445,7 +1445,7 @@ def _run_paired(args):
     _one_unit(args, [quantity(name, unit_of[name]) for name in names], bands)
     if isinstance(big_error, dict):
         big_error = _per_measure(big_error, names, unit_of)
-    return audit_paired(
+    results = audit_paired(
         table,
         big_error,
         measures=names,
@@ -1472,6 +1472,13 @@ def _run_paired(args):
             **({"match": match} if match else {}),
         },
     )
+    if args.cycles and not any(r.cycles for r in results):
+        reasons = sorted({w for r in results for w in r.warnings if "cycle" in w})
+        raise ValueError(
+            "--cycles: no cycle could be cut"
+            + (": " + " ".join(reasons) if reasons else "")
+        )
+    return results
 
 
 def _cycles(given: str | None):

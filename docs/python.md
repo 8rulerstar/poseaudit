@@ -125,7 +125,8 @@ trough and range of motion of each side, over the frames read on both) and
 `curve` a `CurveFeature` per feature: the bias, its interval, the SD, the
 limits and the mean |error| of predicted minus reference across trials.
 With `cycles=` (start times by `(subject, trial)`, `(subject, None)` for
-every trial of a subject or `(None, None)` for all, or `"auto"`) the same
+every trial of a subject or `(None, None)` for all, matched as text so a
+subject 1 is `(1, None)` or `("1", None)`; or `"auto"`) the same
 figures come per cycle: `cycles` holds a `CurveCycle` each (with its
 `start`, `end` and `rmse` over the cycle stretched to 0 to 100%), `cycle` a
 `CurveFeature` per feature across cycles, and `cycle_error` a `CycleError`:

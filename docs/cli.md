@@ -235,7 +235,7 @@ knee_angle_r   720  +0.55° [-1.25 to +2.18]  -7.57° to +9.15°  3.51° [3.19 t
 hip_flexion_r  720  -0.05° [-0.91 to +0.75]  -5.15° to +5.34°  2.15° [1.96 to 2.33]  2.67°  6.8% [4.6% to 9.3%]     1.002  0.988*
   ! every measure: Only 6 subjects: bootstrap intervals are too narrow with this few.
   ! every measure: ICC, CCC and r (marked *) pool the frames of each recording, so the range of motion alone pushes them towards 1: they do not show agreement frame by frame. Judge that by the bias, the limits and the mean |error|.
-  ! every measure: Peak, trough and range are each trial's extremes over all its frames as given, every cycle together, not per cycle: noise in a side pushes its peak up and its trough down and widens its range (frame noise of SD 2 widened ranges by 3 to 6 in simulation, more for smaller motions, enough to turn an underread range into an overread one). Filter both sides as for the study first, and give --cycles (cycles= in Python) for per-cycle values.
+  ! every measure: Peak, trough and range are each trial's extremes over all its frames as given, every cycle together, not per cycle: noise in a side pushes its peak up and its trough down and widens its range (frame noise of SD 2 widened ranges by 3 to 6 in simulation, more for smaller motions, enough to turn an underread range into an overread one). Filter both sides as for the study first. Give --cycles (cycles= in Python) for per-cycle values.
 ```
 
 **A long-format table** (`--table`, a CSV; in Python also a DataFrame or a
@@ -340,8 +340,14 @@ over the cycles with an interval resampling subjects; the JSON adds the
 mean error and its SD at each of the 101 points (`cycle_error.bias_curve`,
 `sd_curve`), where an error that comes at one phase shows. Cycles shorter
 than half or longer than 1.5 times their trial's median (a missed or extra
-event) and cycles of under 5 frames are left out with a warning, and
-angles near the wrap get no cycle figures. Every interval resamples whole
+event), cycles of under 5 frames and cycles the frames do not cover to
+both ends or that have a gap inside are left out with a warning, as are
+event keys that match no subject and trial; with none cut at all the run
+fails. The figures average each subject's cycles first, so a subject
+with more cycles weighs no more, and angles near the wrap get no cycle
+figures. With `.mot` files the reference is read at the prediction's
+frames, which trims a faster reference's peaks a little
+([statistics](statistics.md)). Every interval resamples whole
 subjects, so with fewer than 20 they are too narrow, as the warning says.
 
 | option | what it does |

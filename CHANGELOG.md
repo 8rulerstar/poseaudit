@@ -13,11 +13,16 @@
   and the RMSE over the cycle stretched to 0 to 100%, with its mean,
   interval and the mean error and SD at each of 101 points (`cycle_error`,
   a `CycleError`). Cycles far shorter or longer than their trial's median,
-  or of under 5 frames, are left out with a warning.
+  of under 5 frames, or not covered by the frames to both ends are left
+  out with a warning; event keys that match nothing are named, and a run
+  that cuts no cycle fails.
+
 - Paired time series compare each trial's curve: the peak, the trough and
   the range of motion of the prediction against the reference's, each side
   its own (`curve_trials`, a `CurveTrial` each), and their bias, interval,
   limits and mean |error| across trials (`curve`, a `CurveFeature` each).
+  The bias and mean |error| average each subject's mean first, so a
+  subject with more trials weighs no more.
   The summary, the Markdown report and the JSON show them. Trials of under 3
   frames are left out; angles near the wrap get none, with a warning.
 - `--time-offset auto` (`time_offset="auto"` in `pair_mot`) finds the offset

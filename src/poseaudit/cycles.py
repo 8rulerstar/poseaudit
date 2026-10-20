@@ -15,7 +15,14 @@ from dataclasses import dataclass
 import numpy as np
 
 from poseaudit.confidence import clustered_bootstrap
-from poseaudit.curve import NAN, NEAR_WRAP, CurveFeature, Interval, features_of
+from poseaudit.curve import (
+    NAN,
+    NEAR_WRAP,
+    CurveFeature,
+    Interval,
+    features_of,
+    subject_means,
+)
 
 # points a cycle is stretched to: 0, 1, ..., 100% of its length
 POINTS = 101
@@ -30,8 +37,11 @@ MIN_REPEAT = 0.5
 SEARCH = 0.3
 FOUND = (
     "Cycles were found from the reference curve, one trough a cycle apart: "
-    "that is where its own curve repeats, not a gait event such as a heel "
-    "strike. Give event times for cycles that start where the study's do."
+    "that is where its own curve repeats, not an event such as a heel strike "
+    "or the start of a repetition, and where the trough is flat or double (a "
+    "knee in stance) the start can shift from cycle to cycle. The peak, "
+    "trough and range hold; read the error by point of the cycle "
+    "(bias_curve) only with event times given."
 )
 
 Key = tuple[str | None, str | None]
@@ -84,18 +94,23 @@ def cycle_summary(
     trial, see `starts_for`) or, with "auto", where the reference repeats.
     Returns the features across cycles, the cycles, the error over the
     stretched cycles and any warnings."""
-    if isinstance(events, str) and events != "auto":
-        raise ValueError(f"cycles must be start times or 'auto', got {events!r}")
+    if isinstance(events, str):
+        events = events.strip().lower()
+        if events != "auto":
+            raise ValueError(f"cycles must be start times or 'auto', got {events!r}")
+    else:
+        events = _keyed(events)
     series: dict[Key, list] = {}
     for r in readings:
         key = (r.cluster, r.trial) if named else (None, None)
         series.setdefault(key, []).append(r)
     cycles: list[CurveCycle] = []
     curves: list[tuple[np.ndarray, np.ndarray]] = []
-    no_events = odd = thin = 0
+    no_events = odd = thin = cut = 0
     for key, members in series.items():
         members = sorted(members, key=lambda r: r.frame)
         t = np.array([r.frame for r in members], dtype=float)
+        step = float(np.median(np.diff(t))) if len(t) > 1 else 0.0
         p = np.array([r.predicted for r in members])
         y = np.array([r.truth for r in members])
         starts = (
@@ -113,6 +128,14 @@ def cycle_summary(
             inside = (t >= a) & (t < b)
             if inside.sum() < MIN_FRAMES:
                 thin += 1
+                continue
+            first, last = t[inside][0], t[inside][-1]
+            if (
+                first - a > 1.5 * step
+                or b - last > 1.5 * step
+                or np.diff(t[inside]).max() > 1.5 * step
+            ):
+                cut += 1  # the recording starts or ends inside the cycle
                 continue
             share = (t[inside] - a) / (b - a)
             grid = np.linspace(0, 1, POINTS)
@@ -140,13 +163,26 @@ def cycle_summary(
                 )
             )
     warnings = []
+    if not isinstance(events, str):
+        taken = {used_key(events, k) for k in series}
+        unused = [k for k in events if k not in taken]
+        if unused:
+            names = ", ".join(
+                "/".join(x for x in k if x is not None) or "all" for k in unused[:5]
+            )
+            warnings.append(
+                f"{len(unused)} event keys match no subject and trial and are "
+                f"not used: {names}{', ...' if len(unused) > 5 else ''}. Check "
+                "the names against the data's subject and trial."
+            )
     if events == "auto" and series:
         warnings.append(FOUND)
     if no_events:
         warnings.append(
             f"{no_events} of {len(series)} trials have no cycle "
             + (
-                "found (the reference does not repeat clearly)"
+                "found (the reference does not repeat clearly, or frames are "
+                "missing: give event times there)"
                 if events == "auto"
                 else "(fewer than two event times given for them)"
             )
@@ -157,6 +193,11 @@ def cycle_summary(
             f"{odd} cycles are shorter than {SHORT:g} or longer than {LONG:g} "
             "times their trial's median and are left out: a missed or an extra "
             "event."
+        )
+    if cut:
+        warnings.append(
+            f"{cut} cycles are not covered to both ends (the recording starts "
+            "or ends inside them, or frames are missing there) and are left out."
         )
     if thin:
         warnings.append(
@@ -188,32 +229,62 @@ def cycle_summary(
 
 
 def _error(cycles, curves, resamples: int, seed: int) -> CycleError:
-    """The cycles' RMSE and the error at each point of the stretched cycle."""
-    rmse = np.array([c.rmse for c in cycles])
+    """The cycles' RMSE and the error at each point of the stretched cycle,
+    each subject's mean counting once; the SD curve takes every cycle."""
+    rmse = np.array([[c.rmse] for c in cycles])
     diff = np.array([pp - yy for pp, yy in curves])
     subjects = np.array([str(c.subject) for c in cycles])
+    per_rmse = subject_means(rmse, subjects)[:, 0]
+    per_diff = subject_means(diff, subjects)
     ci = NAN
-    if len(set(subjects)) > 1:
+    if len(per_rmse) > 1:
         low, high = clustered_bootstrap(
-            subjects, lambda idx: np.array([rmse[idx].mean()]), resamples, seed=seed
+            np.arange(len(per_rmse)).astype(str),
+            lambda idx: np.array([per_rmse[idx].mean()]),
+            resamples,
+            seed=seed,
         )
         ci = (float(low[0]), float(high[0]))
     sd = diff.std(axis=0, ddof=1) if len(diff) > 1 else np.full(POINTS, np.nan)
     return CycleError(
         len(cycles),
-        float(rmse.mean()),
+        float(per_rmse.mean()),
         ci,
-        [float(v) for v in diff.mean(axis=0)],
+        [float(v) for v in per_diff.mean(axis=0)],
         [float(v) for v in sd],
     )
+
+
+def _keyed(events: Mapping) -> dict[Key, list[float]]:
+    """The event times keyed as the readings are, by subject and trial as
+    text (a subject given as 1 matches the key (1, None)), refusing a time
+    that is not a finite number."""
+    out: dict[Key, list[float]] = {}
+    for key, times in events.items():
+        if not isinstance(key, tuple) or len(key) != 2:
+            raise ValueError(
+                f"cycles are keyed by (subject, trial), with None for any, got {key!r}"
+            )
+        values = [float(x) for x in times]
+        if not all(np.isfinite(values)):
+            raise ValueError(f"cycles {key!r}: start times must be finite numbers")
+        subject, trial = (None if k is None else str(k) for k in key)
+        out[(subject, trial)] = values
+    return out
 
 
 def starts_for(events: Mapping[Key, Sequence[float]], key: Key) -> list[float] | None:
     """The event times of one trial: given for its subject and trial, else
     for its subject (every trial), else for all (no subject or trial)."""
+    k = used_key(events, key)
+    return None if k is None else sorted({float(x) for x in events[k]})
+
+
+def used_key(events: Mapping[Key, Sequence[float]], key: Key) -> Key | None:
+    """Which key of `events` a trial takes its times from, if any."""
     for k in (key, (key[0], None), (None, None)):
         if k in events:
-            return sorted(float(x) for x in events[k])
+            return k
     return None
 
 
@@ -221,9 +292,13 @@ def found_starts(t: np.ndarray, y: np.ndarray) -> list[float] | None:
     """Where the reference `y` repeats: its cycle length is the first lag at
     which it correlates with itself by `MIN_REPEAT` or more after first
     falling below it, and each cycle starts at a trough about one length
-    after the last. None when it does not repeat."""
+    after the last. None when it does not repeat, or when frames are missing:
+    the lags count frames, so they must be evenly spaced."""
     n = len(y)
     if n < 2 * MIN_FRAMES or np.ptp(y) == 0:
+        return None
+    gaps = np.diff(t)
+    if gaps.max() > 1.5 * np.median(gaps):
         return None
     z = y - y.mean()
     corr = np.array(
