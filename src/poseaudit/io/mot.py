@@ -436,7 +436,11 @@ def _at(times: np.ndarray, values: np.ndarray, at: np.ndarray, period) -> np.nda
     out = values[left] * (1 - w) + values[right] * w
     out = np.where(exact, values[right], out)
     if unwrapped:  # back into the file's own range, e.g. -180 to 180
-        out = lowest + (out - lowest) % period
+        above = out - lowest
+        # rounding can put a value between two equal samples a hair below the
+        # lowest, which the modulo would carry a whole period up
+        above = np.where((above < 0) & (above > -1e-9 * period), 0.0, above)
+        out = lowest + above % period
     return out
 
 

@@ -31,6 +31,9 @@ MIN_FRAMES = 5
 # a cycle this much shorter or longer than its trial's median is a missed or
 # extra event, not a cycle
 SHORT, LONG = 0.5, 1.5
+# a gap this many times the usual frame spacing is a frame missing: one
+# missing makes 2, while timing jitter of up to 0.45 frame stays under it
+GAP = 1.9
 # found cycles: a repeat of the reference this well correlated sets the length
 MIN_REPEAT = 0.5
 # and the next trough is looked for this far either side of one length on
@@ -70,10 +73,10 @@ class CurveCycle:
 
 @dataclass(frozen=True)
 class CycleError:
-    """The error over the stretched cycles: `rmse` the mean of the cycles'
-    RMSE (interval resampling whole subjects), and at each of the 101 points
-    from 0 to 100% the mean error (`bias_curve`) and its SD across cycles
-    (`sd_curve`)."""
+    """The error over the stretched cycles: `rmse` the cycles' RMSE averaged
+    per subject and then over subjects (interval resampling whole subjects),
+    and at each of the 101 points from 0 to 100% the mean error, averaged
+    the same way (`bias_curve`), and its SD across all cycles (`sd_curve`)."""
 
     n: int
     rmse: float
@@ -102,6 +105,8 @@ def cycle_summary(
         events = _keyed(events)
     series: dict[Key, list] = {}
     for r in readings:
+        if not np.isfinite(r.frame):  # no time to place it in a cycle
+            continue
         key = (r.cluster, r.trial) if named else (None, None)
         series.setdefault(key, []).append(r)
     cycles: list[CurveCycle] = []
@@ -110,7 +115,9 @@ def cycle_summary(
     for key, members in series.items():
         members = sorted(members, key=lambda r: r.frame)
         t = np.array([r.frame for r in members], dtype=float)
-        step = float(np.median(np.diff(t))) if len(t) > 1 else 0.0
+        gaps = np.diff(t)
+        gaps = gaps[gaps > 0]  # frames read twice at one time are no gap
+        step = float(np.median(gaps)) if len(gaps) else 0.0
         p = np.array([r.predicted for r in members])
         y = np.array([r.truth for r in members])
         starts = (
@@ -131,9 +138,9 @@ def cycle_summary(
                 continue
             first, last = t[inside][0], t[inside][-1]
             if (
-                first - a > 1.5 * step
-                or b - last > 1.5 * step
-                or np.diff(t[inside]).max() > 1.5 * step
+                first - a > GAP * step
+                or b - last > GAP * step
+                or np.diff(t[inside]).max() > GAP * step
             ):
                 cut += 1  # the recording starts or ends inside the cycle
                 continue
@@ -175,7 +182,7 @@ def cycle_summary(
                 f"not used: {names}{', ...' if len(unused) > 5 else ''}. Check "
                 "the names against the data's subject and trial."
             )
-    if events == "auto" and series:
+    if events == "auto" and cycles:
         warnings.append(FOUND)
     if no_events:
         warnings.append(
@@ -255,6 +262,14 @@ def _error(cycles, curves, resamples: int, seed: int) -> CycleError:
     )
 
 
+def _text(value) -> str:
+    """A subject or trial name as the readings hold it: 3.0 is 3 (as
+    `paired` reads a number column)."""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
+
+
 def _keyed(events: Mapping) -> dict[Key, list[float]]:
     """The event times keyed as the readings are, by subject and trial as
     text (a subject given as 1 matches the key (1, None)), refusing a time
@@ -265,10 +280,14 @@ def _keyed(events: Mapping) -> dict[Key, list[float]]:
             raise ValueError(
                 f"cycles are keyed by (subject, trial), with None for any, got {key!r}"
             )
+        if isinstance(times, (str, bytes)) or not hasattr(times, "__iter__"):
+            raise ValueError(
+                f"cycles {key!r}: give a list of start times, got {times!r}"
+            )
         values = [float(x) for x in times]
         if not all(np.isfinite(values)):
             raise ValueError(f"cycles {key!r}: start times must be finite numbers")
-        subject, trial = (None if k is None else str(k) for k in key)
+        subject, trial = (None if k is None else _text(k) for k in key)
         out[(subject, trial)] = values
     return out
 
@@ -298,7 +317,8 @@ def found_starts(t: np.ndarray, y: np.ndarray) -> list[float] | None:
     if n < 2 * MIN_FRAMES or np.ptp(y) == 0:
         return None
     gaps = np.diff(t)
-    if gaps.max() > 1.5 * np.median(gaps):
+    gaps = gaps[gaps > 0]
+    if not len(gaps) or gaps.max() > GAP * np.median(gaps):
         return None
     z = y - y.mean()
     corr = np.array(

@@ -377,3 +377,114 @@ def test_the_trial_warning_drops_its_cycles_hint_when_cycles_are_given():
         pred, ref, 5, unit="deg", subject=subject, trial=trial, frame=frame, **FAST
     )
     assert any("Give --cycles" in w for w in plain.warnings)
+
+
+def test_a_flat_angle_is_not_carried_a_period_up():
+    """Interpolating between equal samples can land a hair below the lowest
+    value, which the wrap used to carry 360 up (ICC then read 1)."""
+    from poseaudit.io.mot import _at
+
+    t = np.arange(0, 5, 0.01)
+    at = np.arange(0, 4.9, 1 / 30) + 0.0037
+    for value in (-7.3456, 12.1, 0.0):
+        out = _at(t, np.full(len(t), value), at, 360.0)
+        assert out == pytest.approx(value, abs=1e-9)
+
+
+def test_limits_are_centred_on_the_bias_reported():
+    pred, ref, subject, trial, frame, events = [], [], [], [], [], {}
+    for s, (shift, length) in enumerate([(1.0, 12.0), (5.0, 4.0), (2.0, 6.0)]):
+        t = np.arange(0, length, 0.01)
+        r = 40 - 30 * np.cos(2 * np.pi * t)
+        noise = np.random.default_rng(s).normal(0, 0.5, len(t))
+        pred += list(r + shift + noise)
+        ref += list(r)
+        subject += [f"s{s}"] * len(t)
+        trial += ["t"] * len(t)
+        frame += list(t)
+        events[(f"s{s}", "t")] = list(np.arange(0, length, 1.0))
+    for c in _audit((pred, ref, subject, trial, frame), events).cycle:
+        assert (c.limits[0] + c.limits[1]) / 2 == pytest.approx(c.bias)
+
+
+def test_readings_without_a_time_are_named_and_left_out_of_curves():
+    (pred, ref, subject, trial, frame), events = _gait(subjects=2, trials=1)
+    frame = list(frame)
+    frame[50] = float("nan")
+    result = _audit((pred, ref, subject, trial, frame), events)
+    assert any("1 readings have no frame or time" in w for w in result.warnings)
+    assert result.cycles and result.curve_trials
+
+
+def test_a_frame_read_twice_does_not_void_its_trial():
+    (pred, ref, subject, trial, frame), events = _gait(subjects=1, trials=1)
+    cols = [list(c) for c in (pred, ref, subject, trial, frame)]
+    for c in cols:
+        c.insert(300, c[300])  # the frame at 3 s twice
+    assert len(_audit(tuple(cols), events).cycles) == 5
+
+
+def test_auto_says_nothing_of_cycles_found_when_none_is():
+    t = list(np.arange(0, 5, 0.01))
+    flat = [10.0] * len(t)
+    result = pa.audit_values(
+        flat,
+        flat,
+        5,
+        unit="deg",
+        subject=["a"] * len(t),
+        frame=t,
+        cycles="auto",
+        **FAST,
+    )
+    assert not any("were found from the reference" in w for w in result.warnings)
+
+
+def test_cli_no_cycle_error_names_unmatched_keys_not_the_trial_warning(tmp_path):
+    t = np.arange(0, 6, 0.01)
+    r = 40 - 30 * np.cos(2 * np.pi * t / 1.2)
+    _write_mot(tmp_path / "r.mot", t, {"knee": r})
+    (tmp_path / "ev.csv").write_text("subject,time\nzz,0\nzz,1.2\n")
+    with pytest.raises(SystemExit) as caught:
+        main(
+            ["paired", "--pred-mot", str(tmp_path / "r.mot"), "--ref-mot"]
+            + [str(tmp_path / "r.mot"), "--big-error", "5"]
+            + ["--cycles", str(tmp_path / "ev.csv")]
+        )
+    message = str(caught.value)
+    assert "match no subject" in message and "zz" in message
+    assert "Peak, trough and range" not in message
+
+
+def test_the_noise_warning_covers_cycles_too():
+    columns, events = _gait(subjects=2, trials=1)
+    result = _audit(columns, events)
+    assert any(
+        "of each cycle" in w and "does not undo it" in w for w in result.warnings
+    )
+
+
+def test_timing_jitter_does_not_pass_for_missing_frames():
+    """30 fps whose times wander by up to 0.4 of a frame: every cycle is
+    whole, and auto still finds them."""
+    rng = np.random.default_rng(3)
+    t = np.arange(0, 6, 1 / 30) + rng.uniform(-0.4, 0.4, 180) / 30
+    r = 40 - 30 * np.cos(2 * np.pi * t / 1.1)
+    events = {(None, None): list(np.arange(0, 6, 1.1))}
+    result = pa.audit_values(r + 2, r, 5, unit="deg", frame=t, cycles=events, **FAST)
+    assert len(result.cycles) == 5
+    assert found_starts(t, r) is not None
+
+
+def test_float_keys_match_as_the_subjects_are_read():
+    (pred, ref, _, trial, frame), _ = _gait(subjects=1, trials=1)
+    subject = [3] * len(pred)
+    assert _audit(
+        (pred, ref, subject, trial, frame), {(3.0, None): [0, 1.1, 2.2]}
+    ).cycles
+
+
+def test_a_string_of_times_is_refused():
+    columns, _ = _gait(subjects=1, trials=1)
+    with pytest.raises(ValueError, match="list of start times"):
+        _audit(columns, {(None, None): "0123"})

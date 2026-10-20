@@ -197,6 +197,14 @@ def audit_values(
         if trials is not None:
             result.by_trial = groups(readings, by_trial=True)
     result.warnings += _warnings(result, bands, named, "subject" if named else "row")
+    if frames is not None:
+        timeless = int((~np.isfinite(frames[keep])).sum())
+        if timeless:
+            result.warnings.append(
+                f"{timeless} readings have no frame or time (blank or not a "
+                "number): they count in the figures over all frames but not in "
+                "the peak, trough and range of a trial or cycle."
+            )
     if frames is not None and _series(readings, named):
         result.settings["frames_pooled"] = True
         result.warnings.append(FRAMES_POOLED)

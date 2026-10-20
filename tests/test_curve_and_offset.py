@@ -278,7 +278,7 @@ def test_rival_reaches_the_warning():
 def test_curve_figures_say_what_they_are():
     result = _audit(*_series())
     assert any(
-        "not per cycle" in w and "Filter both sides" in w for w in result.warnings
+        "of each trial" in w and "Filter both sides" in w for w in result.warnings
     )
 
 

@@ -78,6 +78,12 @@
 
 ### Fixed
 
+- A flat angle column in a reference `.mot` (a locked coordinate) could be
+  read a whole period up (-7.35 as 352.65) where it was interpolated
+  between equal samples, which pushed ICC, r and the slope to 1 and voided
+  the peak figures; rounding no longer carries it over the wrap.
+- Readings with no frame or time are named in a warning and left out of
+  the peak, trough and range of their trial or cycle.
 - The large-error rate of each size band kept Wilson's interval with
   `--cluster` (or several readings to an image), as if every reading were
   independent, so with errors shared within a clip it came out far too

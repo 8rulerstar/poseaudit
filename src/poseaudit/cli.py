@@ -1473,7 +1473,15 @@ def _run_paired(args):
         },
     )
     if args.cycles and not any(r.cycles for r in results):
-        reasons = sorted({w for r in results for w in r.warnings if "cycle" in w})
+        reasons = sorted(
+            {
+                w
+                for r in results
+                for w in r.warnings
+                if ("cycle" in w or "event keys" in w)
+                and not w.startswith("Peak, trough and range")
+            }
+        )
         raise ValueError(
             "--cycles: no cycle could be cut"
             + (": " + " ".join(reasons) if reasons else "")

@@ -235,7 +235,7 @@ knee_angle_r   720  +0.55° [-1.25 to +2.18]  -7.57° to +9.15°  3.51° [3.19 t
 hip_flexion_r  720  -0.05° [-0.91 to +0.75]  -5.15° to +5.34°  2.15° [1.96 to 2.33]  2.67°  6.8% [4.6% to 9.3%]     1.002  0.988*
   ! every measure: Only 6 subjects: bootstrap intervals are too narrow with this few.
   ! every measure: ICC, CCC and r (marked *) pool the frames of each recording, so the range of motion alone pushes them towards 1: they do not show agreement frame by frame. Judge that by the bias, the limits and the mean |error|.
-  ! every measure: Peak, trough and range are each trial's extremes over all its frames as given, every cycle together, not per cycle: noise in a side pushes its peak up and its trough down and widens its range (frame noise of SD 2 widened ranges by 3 to 6 in simulation, more for smaller motions, enough to turn an underread range into an overread one). Filter both sides as for the study first. Give --cycles (cycles= in Python) for per-cycle values.
+  ! every measure: Peak, trough and range are extremes over the frames as given, of each trial (every cycle together) and, with cycles, of each cycle: noise in a side pushes its peak up and its trough down and widens its range (frame noise of SD 2 widened ranges by 3 to 6 in simulation, more for smaller motions, enough to hide an underread range or turn it into an overread one). Filter both sides as for the study first: cutting into cycles does not undo it. Give --cycles (cycles= in Python) for figures per cycle.
 ```
 
 **A long-format table** (`--table`, a CSV; in Python also a DataFrame or a
@@ -293,7 +293,9 @@ less steady. Columns named otherwise, as a Sports2D angle file
 (`right knee`) against inverse kinematics (`knee_angle_r`), are paired with
 `--match "right knee=knee_angle_r"`; the measure takes the reference's name.
 A sign or zero convention that differs shows as a slope near -1 or a large
-bias; convert such a column first.
+bias with a given offset; with `--time-offset auto` a flipped sign can
+line up a wrong lag and show a positive slope, so check the bias too, and
+convert such a column first.
 Columns ending `_tx`, `_ty` or `_tz` are translations in metres; the rest are
 angles, in degrees unless the header says `inDegrees=no` (with no inDegrees line at
 all, a warning says the file is read as degrees).
@@ -347,7 +349,9 @@ fails. The figures average each subject's cycles first, so a subject
 with more cycles weighs no more, and angles near the wrap get no cycle
 figures. With `.mot` files the reference is read at the prediction's
 frames, which trims a faster reference's peaks a little
-([statistics](statistics.md)). Every interval resamples whole
+([statistics](statistics.md)). Per-cycle peaks and ranges are extremes
+too, so frame noise widens them as it does a trial's: filter first. Near
+the wrap the cycle table is kept but the figures across cycles are not. Every interval resamples whole
 subjects, so with fewer than 20 they are too narrow, as the warning says.
 
 | option | what it does |

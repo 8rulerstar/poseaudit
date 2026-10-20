@@ -22,15 +22,16 @@ FEATURES = ("peak", "trough", "range")
 MIN_FRAMES = 3
 # said whenever the figures are given: what they are, and what noise does
 EXTREMES = (
-    "Peak, trough and range are each trial's extremes over all its frames as "
-    "given, every cycle together, not per cycle: noise in a side pushes its "
-    "peak up and its trough down and widens its range (frame noise of SD 2 "
-    "widened ranges by 3 to 6 in simulation, more for smaller motions, enough "
-    "to turn an underread range into an overread one). Filter both sides as "
-    "for the study first."
+    "Peak, trough and range are extremes over the frames as given, of each "
+    "trial (every cycle together) and, with cycles, of each cycle: noise in a "
+    "side pushes its peak up and its trough down and widens its range (frame "
+    "noise of SD 2 widened ranges by 3 to 6 in simulation, more for smaller "
+    "motions, enough to hide an underread range or turn it into an overread "
+    "one). Filter both sides as for the study first: cutting into cycles does "
+    "not undo it."
 )
 # added unless cycles were asked for
-PER_CYCLE = " Give --cycles (cycles= in Python) for per-cycle values."
+PER_CYCLE = " Give --cycles (cycles= in Python) for figures per cycle."
 # a periodic measure whose values come this close to its wrap (as a share of
 # the period from the edge) has no peak to take: 179 and -179 are 2 apart
 NEAR_WRAP = 0.1
@@ -85,6 +86,8 @@ def curve_summary(
     Returns the features, the trials and any warnings."""
     series: dict[tuple[str | None, str | None], list] = {}
     for r in readings:
+        if r.frame is not None and not np.isfinite(r.frame):
+            continue  # no time: not placed in its trial's curve
         key = (r.cluster, r.trial) if named else (None, None)
         series.setdefault(key, []).append(r)
     trials = []
@@ -147,7 +150,8 @@ def features_of(trials: Sequence, resamples: int, seed: int) -> list[CurveFeatur
     """The error of the peak, trough and range across `trials` (anything with
     the `CurveTrial` fields): the bias and mean |error| average each
     subject's mean, so each subject counts once, with intervals resampling
-    subjects; the SD and limits take every trial."""
+    subjects; the SD and the spread of the limits take every trial, the
+    limits centred on the bias."""
     errors = np.array(
         [
             [
@@ -174,14 +178,18 @@ def features_of(trials: Sequence, resamples: int, seed: int) -> list[CurveFeatur
     features = []
     for i, name in enumerate(FEATURES):
         e = errors[:, i]
+        bias = float(per[:, i].mean())
+        lo, hi = ag.repeated_limits(e, subjects)
+        # centred on the bias reported, not on the mean of every trial
+        shift = bias - (lo + hi) / 2
         features.append(
             CurveFeature(
                 name,
                 len(e),
-                float(per[:, i].mean()),
+                bias,
                 bias_ci[i],
                 float(e.std(ddof=1)) if len(e) > 1 else float("nan"),
-                ag.repeated_limits(e, subjects),
+                (lo + shift, hi + shift),
                 float(per[:, len(FEATURES) + i].mean()),
                 mae_ci[i],
             )
