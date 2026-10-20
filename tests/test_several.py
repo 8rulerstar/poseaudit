@@ -115,7 +115,7 @@ def test_several_measures_give_a_table_and_a_list_in_the_json(tmp_path, capsys) 
         ["angle", "0,1,2"], ["tilt", "0,1"], ["angle", "1,2,0"],
     ]  # fmt: skip
     data = json.loads((tmp_path / "r.json").read_text(encoding="utf-8"))
-    assert sorted(data) == ["measures", "poseaudit", "schema", "settings"]
+    assert sorted(data) == ["measures", "numpy", "poseaudit", "schema", "settings"]
     assert [m["measure"]["name"] for m in data["measures"]] == [
         "angle",
         "tilt",
