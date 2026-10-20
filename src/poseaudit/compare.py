@@ -163,6 +163,7 @@ class Comparison:
 
         return {
             "poseaudit": __version__,
+            "numpy": np.__version__,
             "schema": 1,
             "settings": self.settings(),
             "models": {

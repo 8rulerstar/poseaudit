@@ -488,3 +488,28 @@ def test_a_single_pair_is_lined_up_by_the_offset_found(tmp_path):
     result = json.loads(out.read_text())
     assert result["settings"]["time_offset"] == pytest.approx(0.2, abs=0.004)
     assert result["mean_abs_error"] < 0.5
+
+
+def test_opensim_4_path_names_of_translations_are_metres(tmp_path):
+    from poseaudit.io.mot import load_mot
+
+    t = np.arange(0, 1, 0.01)
+    name = "/jointset/ground_pelvis/pelvis_tx/value"
+    _write_mot(tmp_path / "a.mot", t, {name: 0.1 * t, "knee": 10 * t})
+    motion = load_mot(tmp_path / "a.mot")
+    assert motion.unit(name) == "m" and motion.unit("knee") == "deg"
+
+
+def test_a_bare_big_error_over_two_units_is_refused(tmp_path):
+    t = np.arange(0, 2, 0.01)
+    _write_mot(tmp_path / "r.mot", t, {"knee": 10 * np.sin(t), "pelvis_tx": 0.1 * t})
+    base = ["paired", "--pred-mot", str(tmp_path / "r.mot"), "--ref-mot"]
+    base += [str(tmp_path / "r.mot"), "--resamples", "200"]
+    with pytest.raises(SystemExit, match="deg and m"):
+        main([*base, "--big-error", "5"])
+    main([*base, "--big-error", "deg:5,m:0.01"])
+
+
+def test_json_records_the_numpy_version():
+    result = _audit(*_series())
+    assert result.to_dict()["numpy"] == np.__version__

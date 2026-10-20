@@ -337,7 +337,9 @@ a reading either side of the +90 to -90 wrap is not 180° away; the CSV's
   trough and range of each trial are compared, each side taking its own
   extreme over every frame of the trial, all cycles together; noise pushes
   a peak up and a trough down, so unfiltered values overstate the range,
-  a cycle's as much as a trial's
+  a cycle's as much as a trial's. For angles the prediction is taken the
+  short way round from the reference before its extremes, so a side
+  written 0 to 360 against -180 to 180 compares as one
   (frame noise of SD 2 on a 60-frame cycle added about 3 to 6 to it, more
   the smaller the motion: 6.2 at an amplitude (half the swing) of 5, 3.9 at 45, 3.1 at 100;
   enough to reverse an underread range) and the figures assume both sides filtered as

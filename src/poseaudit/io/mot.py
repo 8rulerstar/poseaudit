@@ -16,7 +16,8 @@ from pathlib import Path
 
 import numpy as np
 
-TRANSLATION = re.compile(r"_t[xyz]$")
+# a translation: pelvis_tx, or as OpenSim 4 paths it /jointset/.../pelvis_tx/value
+TRANSLATION = re.compile(r"_t[xyz](/value)?$")
 
 
 @dataclass(frozen=True)
@@ -435,7 +436,7 @@ def _at(times: np.ndarray, values: np.ndarray, at: np.ndarray, period) -> np.nda
         w = np.where(span > 0, (at - times[left]) / span, 0.0)
     out = values[left] * (1 - w) + values[right] * w
     out = np.where(exact, values[right], out)
-    if unwrapped:  # back into the file's own range, e.g. -180 to 180
+    if unwrapped:  # back into one period from the file's lowest value
         above = out - lowest
         # rounding can put a value between two equal samples a hair below the
         # lowest, which the modulo would carry a whole period up

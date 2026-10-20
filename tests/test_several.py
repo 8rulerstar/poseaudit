@@ -54,6 +54,7 @@ SINGLE_KEYS = [
     "median_error",
     "n",
     "not_read",
+    "numpy",
     "offset",
     "p95_abs_error",
     "pearson",

@@ -96,7 +96,9 @@ def curve_summary(
         if len(members) < MIN_FRAMES:
             short += 1
             continue
-        p = np.array([r.predicted for r in members])
+        # the prediction taken the short way round from the reference, so an
+        # angle written 0 to 360 against -180 to 180 is compared as one
+        p = np.array([r.truth + r.error for r in members])
         t = np.array([r.truth for r in members])
         trials.append(
             CurveTrial(
@@ -123,14 +125,14 @@ def curve_summary(
         values = [
             v
             for x in trials
-            for v in (x.pred_peak, x.ref_peak, x.pred_trough, x.ref_trough)
+            for v in (x.ref_peak, x.ref_trough)  # the prediction follows it round
         ]
         if max(abs(v) for v in values) > edge:
             warnings.append(
                 f"Values come within {NEAR_WRAP:.0%} of the period of the wrap "
                 f"(+/-{period / 2:g}), where a peak is not defined: no peak or "
                 "range figures. Express the angle so its motion stays clear of "
-                "the wrap, or give wrap=False if it never crosses."
+                "the wrap, or give --no-wrap (wrap=False) if it never crosses."
             )
             return [], trials, warnings
     if not trials:
@@ -140,9 +142,10 @@ def curve_summary(
 
 
 def subject_means(values: np.ndarray, subjects: np.ndarray) -> np.ndarray:
-    """The mean of `values` (rows) for each subject, in order of first
-    appearance: so a subject with more trials or cycles weighs no more."""
-    labels = list(dict.fromkeys(subjects))
+    """The mean of `values` (rows) for each subject, subjects in sorted order
+    so that the rows' order does not change the resamples: a subject with
+    more trials or cycles weighs no more."""
+    labels = sorted(set(subjects))  # sorted: the same subjects in any row order
     return np.array([values[subjects == s].mean(axis=0) for s in labels])
 
 

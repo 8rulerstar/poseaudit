@@ -370,7 +370,7 @@ class AuditResult:
         from poseaudit._version import __version__
 
         skip = ("measure", "readings")
-        out = {"poseaudit": __version__, "schema": 1}
+        out = {"poseaudit": __version__, "numpy": np.__version__, "schema": 1}
         out |= {k: v for k, v in asdict(self).items() if k not in skip}
         out["measure"] = {
             "name": self.measure.name,

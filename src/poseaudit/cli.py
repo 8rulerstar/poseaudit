@@ -1215,6 +1215,7 @@ def several(results) -> dict:
 
     return {
         "poseaudit": __version__,
+        "numpy": np.__version__,
         "schema": 1,
         "settings": results[0].settings,
         "measures": [r.to_dict() for r in results],
@@ -1443,8 +1444,9 @@ def _run_paired(args):
         for name in names
     }
     _one_unit(args, [quantity(name, unit_of[name]) for name in names], bands)
-    if isinstance(big_error, dict):
-        big_error = _per_measure(big_error, names, unit_of)
+    if not isinstance(big_error, dict):
+        big_error = {"": big_error}
+    big_error = _per_measure(big_error, names, unit_of)
     results = audit_paired(
         table,
         big_error,
@@ -1671,6 +1673,29 @@ def _per_measure(big_error: dict[str, float], names, unit_of) -> dict[str, float
                 f"{name}:VALUE, or a bare value for the rest"
             )
         out[name] = found
+    bare = sorted(
+        {
+            unit_of[n] or "no unit"
+            for n in names
+            if not any(
+                k in big_error
+                for k in (n, unit_of[n], quantity(n, unit_of[n]).unit)
+                if k
+            )
+        }
+    )
+    if len(bare) > 1:
+        raise UsageError(
+            f"--big-error: a bare value would serve measures in {_and(bare)} "
+            "alike (5 as 5 degrees and 5 m); give one per unit, such as "
+            "deg:5,m:0.02"
+        )
+    if bare == ["rad"]:
+        warnings.warn(
+            "--big-error: the bare value is read in radians, the unit of the "
+            "reference; give rad:VALUE to say so",
+            stacklevel=2,
+        )
     return out
 
 

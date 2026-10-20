@@ -296,9 +296,15 @@ A sign or zero convention that differs shows as a slope near -1 or a large
 bias with a given offset; with `--time-offset auto` a flipped sign can
 line up a wrong lag and show a positive slope, so check the bias too, and
 convert such a column first.
-Columns ending `_tx`, `_ty` or `_tz` are translations in metres; the rest are
+Columns ending `_tx`, `_ty` or `_tz` (or, in OpenSim 4's path names, `_tx/value`
+and so on) are translations in metres; the rest are
 angles, in degrees unless the header says `inDegrees=no` (with no inDegrees line at
-all, a warning says the file is read as degrees).
+all, a warning says the file is read as degrees). Each side is converted to
+the reference's unit, so with a reference in radians the figures and
+`--big-error` are in radians (a bare value warns; give `rad:VALUE`). A bare
+`--big-error` over measures of two units, such as angles and translations,
+is refused: give one per unit, `deg:5,m:0.02`. `--unit` does not apply to
+.mot files, which carry their own.
 
 ```bash
 poseaudit paired --pred-mot S01_walk1_pose.mot --ref-mot S01_walk1_mocap.mot \
@@ -365,7 +371,7 @@ subjects, so with fewer than 20 they are too narrow, as the warning says.
 | `--max-lag S` | with `--time-offset auto`: how far to search either way (default 0.5) |
 | `--match PRED=REF` | pair a prediction column with a reference column named otherwise; repeat it for several |
 | `--measure NAME` | audit this measure only; repeat it for several |
-| `--unit NAME=UNIT` | a measure's unit, over the table's `unit` column |
+| `--unit NAME=UNIT` | a measure's unit, over the table's `unit` column (tables only; .mot files carry theirs) |
 | `--no-wrap` | angle differences taken as they are, not the short way round |
 | `--big-error E` or `KEY:E` | required: one number, or by measure name or unit, as in `knee_angle_r:5,deg:10,m:0.02` |
 

@@ -488,3 +488,67 @@ def test_a_string_of_times_is_refused():
     columns, _ = _gait(subjects=1, trials=1)
     with pytest.raises(ValueError, match="list of start times"):
         _audit(columns, {(None, None): "0123"})
+
+
+def test_angles_written_two_ways_compare_the_short_way_round():
+    """Prediction -120 to -80, reference written +80 to +120 a wrap apart:
+    the curve, the cycles and their RMSE agree with the overall error."""
+    f = np.arange(0, 4, 0.01)
+    ref = -100 + 20 * np.sin(2 * np.pi * f)
+    pred = ref + 200  # 200 one way is 160 the other
+    result = pa.audit_values(
+        pred,
+        ref,
+        5,
+        unit="deg",
+        subject=["a"] * len(f),
+        frame=f,
+        cycles={("a", None): [0, 1, 2, 3]},
+        **FAST,
+    )
+    assert result.bias == pytest.approx(-160)
+    assert result.cycle_error.rmse == pytest.approx(160)
+    assert {c.feature: c.bias for c in result.cycle}["peak"] == pytest.approx(-160)
+    assert result.curve[0].bias == pytest.approx(-160)
+
+
+def test_a_prediction_written_0_to_360_against_minus_180_to_180():
+    f = np.arange(0, 4, 0.01)
+    ref = 170 * np.sin(2 * np.pi * f)
+    pred = np.mod(ref + 2, 360)
+    result = pa.audit_values(
+        pred,
+        ref,
+        5,
+        unit="deg",
+        subject=["a"] * len(f),
+        frame=f,
+        cycles={("a", None): [0, 1, 2, 3]},
+        **FAST,
+    )
+    assert all(c.rmse == pytest.approx(2) for c in result.cycles)
+
+
+def test_every_frame_read_twice_keeps_its_cycles():
+    (pred, ref, subject, trial, frame), events = _gait(subjects=1, trials=1)
+    cols = [[v for v in c for _ in (0, 1)] for c in (pred, ref, subject, trial, frame)]
+    assert len(_audit(tuple(cols), events).cycles) == 5
+
+
+def test_one_frame_missing_leaves_its_cycle_out():
+    (pred, ref, subject, trial, frame), events = _gait(subjects=1, trials=1)
+    keep = [i for i in range(len(frame)) if i != 160]  # inside the second cycle
+    cols = [[c[i] for i in keep] for c in (pred, ref, subject, trial, frame)]
+    result = _audit(tuple(cols), events)
+    assert [c.cycle for c in result.cycles] == [1, 3, 4, 5]
+
+
+def test_row_order_does_not_change_the_intervals():
+    (pred, ref, subject, trial, frame), events = _gait(noise=1.0)
+    order = np.random.default_rng(1).permutation(len(pred))
+    shuffled = tuple([c[i] for i in order] for c in (pred, ref, subject, trial, frame))
+    a = _audit((pred, ref, subject, trial, frame), events)
+    b = _audit(shuffled, events)
+    assert [c.bias_ci for c in a.cycle] == [c.bias_ci for c in b.cycle]
+    assert a.cycle_error.rmse_ci == b.cycle_error.rmse_ci
+    assert [c.bias_ci for c in a.curve] == [c.bias_ci for c in b.curve]

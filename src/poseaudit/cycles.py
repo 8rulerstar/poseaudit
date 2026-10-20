@@ -118,7 +118,7 @@ def cycle_summary(
         gaps = np.diff(t)
         gaps = gaps[gaps > 0]  # frames read twice at one time are no gap
         step = float(np.median(gaps)) if len(gaps) else 0.0
-        p = np.array([r.predicted for r in members])
+        p = np.array([r.truth + r.error for r in members])  # the short way
         y = np.array([r.truth for r in members])
         starts = (
             found_starts(t, y) if isinstance(events, str) else starts_for(events, key)
@@ -213,11 +213,7 @@ def cycle_summary(
         )
     if period is not None and cycles:
         edge = period / 2 * (1 - 2 * NEAR_WRAP)
-        values = [
-            v
-            for c in cycles
-            for v in (c.pred_peak, c.ref_peak, c.pred_trough, c.ref_trough)
-        ]
+        values = [v for c in cycles for v in (c.ref_peak, c.ref_trough)]
         if max(abs(v) for v in values) > edge:
             warnings.append(
                 f"Values come within {NEAR_WRAP:.0%} of the period of the wrap "

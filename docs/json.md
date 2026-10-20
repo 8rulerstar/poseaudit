@@ -2,7 +2,8 @@
 
 [README](../README.md) · [index](README.md) · [command line](cli.md) · [Python](python.md) · [statistics](statistics.md) · **JSON, CSV and exit codes**
 
-`--json` writes every figure, with `poseaudit` (the version) and `schema`
+`--json` writes every figure, with `poseaudit` (the version), `numpy` (its
+version, which can move the last digits) and `schema`
 (1) at the top and the settings used. NaN and infinity become `null`.
 `limits` there are the normal limits; the percentile limits the summary
 prints are `percentile_limits` (`empirical_limits` is the same pair under its
@@ -10,7 +11,8 @@ old name),
 both `null` under 10 readings. Warnings, including those raised while
 loading, are in `warnings`. `--csv` writes one row per reading:
 `image, truth_index, predicted_index, class_id, cluster, size, truth,
-predicted, error, mean`. Same inputs and seed, same bytes.
+predicted, error, mean`. Same inputs and seed, same bytes; the rows may
+come in any order, as subjects are resampled in sorted order.
 
 For paired values (`poseaudit paired`, `audit_paired`) the CSV's columns
 are `subject, trial, frame, ref, pred, error, mean`, and `settings.input` is
@@ -43,14 +45,14 @@ The `budget` JSON records `matching` either way. `experimental` lists the
 keys whose method is still being validated (the jitter reference): read
 them apart from the core figures.
 
-With several measures the JSON is `{"poseaudit", "schema", "settings",
+With several measures the JSON is `{"poseaudit", "numpy", "schema", "settings",
 "measures": [...]}`, each entry of `measures` what a single measure's JSON
 would be, and the CSV leads each row with a `measure` column. With one measure
 the JSON is as above, unchanged.
 
 ## Comparing models
 
-Comparing models, the JSON is `{"poseaudit", "schema", "settings", "models":
+Comparing models, the JSON is `{"poseaudit", "numpy", "schema", "settings", "models":
 {name: [one entry per measure]}, "differences": [...], "warnings": [...]}`.
 `settings` are those every model shares; each entry under `models` has its
 own, with `model` (its name) and, from the command line, `pred` (its file).

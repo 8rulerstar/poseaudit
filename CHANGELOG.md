@@ -78,6 +78,17 @@
 
 ### Fixed
 
+- The peak, trough, range and cycle figures of angles compare the
+  prediction the short way round from the reference, as the other figures
+  do: a prediction written 0 to 360 against a reference in -180 to 180, or
+  a wrap apart, no longer gives errors near 360 in them.
+- OpenSim 4 path names of translations (`.../pelvis_tx/value`) are read as
+  metres, not degrees.
+- `paired`: a bare `--big-error` over measures of two units is refused
+  (it served 5 as 5 degrees and 5 m alike), and a bare value in radians
+  warns.
+- The intervals of the curve and cycle figures no longer depend on the
+  order of the rows; the JSON records the NumPy version.
 - A flat angle column in a reference `.mot` (a locked coordinate) could be
   read a whole period up (-7.35 as 352.65) where it was interpolated
   between equal samples, which pushed ICC, r and the slope to 1 and voided
