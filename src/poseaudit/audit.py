@@ -11,6 +11,7 @@ import numpy as np
 from poseaudit import agreement as ag
 from poseaudit.confidence import clustered_bootstrap, wilson
 from poseaudit.curve import CurveFeature, CurveTrial
+from poseaudit.cycles import CurveCycle, CycleError
 from poseaudit.measures import Measure, Ratio, Tilt
 from poseaudit.pairing import Pairing
 from poseaudit.reference import (
@@ -202,6 +203,9 @@ class AuditResult:
     - `curve`, `curve_trials`: for paired time series, the peak, trough and
       range of motion of each trial on both sides, and their errors across
       trials (`poseaudit.curve`).
+    - `cycle`, `cycles`, `cycle_error`: with cycles given, the same figures
+      per cycle, and the error over each cycle stretched to 0 to 100%
+      (`poseaudit.cycles`).
     - experimental (`EXPERIMENTAL`): `jitter_gain`, `gain_gap`, `jitter_p`:
       the slope that keypoint jitter alone gives, the gap to it, and the
       one-sided p of the gap.
@@ -265,6 +269,9 @@ class AuditResult:
     by_trial: list[GroupSummary] = field(default_factory=list)
     curve: list[CurveFeature] = field(default_factory=list)
     curve_trials: list[CurveTrial] = field(default_factory=list)
+    cycle: list[CurveFeature] = field(default_factory=list)
+    cycles: list[CurveCycle] = field(default_factory=list)
+    cycle_error: CycleError | None = None
     warnings: list[str] = field(default_factory=list)
     settings: dict = field(default_factory=dict)
 

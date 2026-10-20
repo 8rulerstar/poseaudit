@@ -235,7 +235,7 @@ knee_angle_r   720  +0.55° [-1.25 to +2.18]  -7.57° to +9.15°  3.51° [3.19 t
 hip_flexion_r  720  -0.05° [-0.91 to +0.75]  -5.15° to +5.34°  2.15° [1.96 to 2.33]  2.67°  6.8% [4.6% to 9.3%]     1.002  0.988*
   ! every measure: Only 6 subjects: bootstrap intervals are too narrow with this few.
   ! every measure: ICC, CCC and r (marked *) pool the frames of each recording, so the range of motion alone pushes them towards 1: they do not show agreement frame by frame. Judge that by the bias, the limits and the mean |error|.
-  ! every measure: Peak, trough and range are each trial's extremes over all its frames as given, every cycle together, not per cycle: noise in a side pushes its peak up and its trough down and widens its range (frame noise of SD 2 widened ranges by 3 to 6 in simulation, more for smaller motions, enough to turn an underread range into an overread one). Filter both sides as for the study first, and cut trials into cycles for per-cycle values.
+  ! every measure: Peak, trough and range are each trial's extremes over all its frames as given, every cycle together, not per cycle: noise in a side pushes its peak up and its trough down and widens its range (frame noise of SD 2 widened ranges by 3 to 6 in simulation, more for smaller motions, enough to turn an underread range into an overread one). Filter both sides as for the study first, and give --cycles (cycles= in Python) for per-cycle values.
 ```
 
 **A long-format table** (`--table`, a CSV; in Python also a DataFrame or a
@@ -314,12 +314,34 @@ angles that come near the wrap get none. These are each trial's extremes
 over all its frames as given, every cycle together: noise pushes a peak up
 and a trough down and widens the range, so filter both sides as for the
 study first (unfiltered, frame noise of SD 2 widened ranges by 3 to 6 in
-simulation, more for smaller motions) and cut trials into cycles for per-cycle values. They are in the summary,
+simulation, more for smaller motions) and give `--cycles` for per-cycle
+values (below). They are in the summary,
 the Markdown report and the JSON of each measure; the table of several
 measures leaves them out. Their intervals
 resample subjects, and like the others are too narrow with few of them (95%
 intervals held the true bias about 80% of the time with 5 subjects, 90% with
-10). Every interval resamples whole
+10).
+
+`--cycles FILE` cuts each trial into cycles (gait strides, repetitions) at
+the start times in a CSV: a column `time` on the reference's clock (the
+times of the `.mot` reference, or the table's `frame` column), and
+optionally `subject` and `trial`; times without a trial apply to every
+trial of their subject, and times with neither to every trial. With
+`--mot-pairs` and no trial column the trial is the prediction's file name.
+Each cycle runs from one start to the next, so the last start only ends
+the cycle before it. `--cycles auto` finds them instead where the reference
+curve repeats: its cycle length is where it correlates with itself again
+(0.5 or more), and each cycle starts at its trough about one length after
+the last, which is not a gait event such as a heel strike (a warning says
+so). For every cycle the summary, the Markdown and the JSON give the peak,
+trough and range of both sides, their errors across cycles as for trials,
+and the RMSE over the cycle stretched to 0 to 100% (101 points), its mean
+over the cycles with an interval resampling subjects; the JSON adds the
+mean error and its SD at each of the 101 points (`cycle_error.bias_curve`,
+`sd_curve`), where an error that comes at one phase shows. Cycles shorter
+than half or longer than 1.5 times their trial's median (a missed or extra
+event) and cycles of under 5 frames are left out with a warning, and
+angles near the wrap get no cycle figures. Every interval resamples whole
 subjects, so with fewer than 20 they are too narrow, as the warning says.
 
 | option | what it does |

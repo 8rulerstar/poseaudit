@@ -28,7 +28,7 @@ EXTREMES = (
     "widened ranges by 3 to 6 in simulation, more for smaller motions, enough "
     "to turn an underread "
     "range into an overread one). Filter both sides as for the study first, "
-    "and cut trials into cycles for per-cycle values."
+    "and give --cycles (cycles= in Python) for per-cycle values."
 )
 # a periodic measure whose values come this close to its wrap (as a share of
 # the period from the edge) has no peak to take: 179 and -179 are 2 apart
@@ -130,6 +130,13 @@ def curve_summary(
             return [], trials, warnings
     if not trials:
         return [], [], warnings
+    warnings.append(EXTREMES)
+    return features_of(trials, resamples, seed), trials, warnings
+
+
+def features_of(trials: Sequence, resamples: int, seed: int) -> list[CurveFeature]:
+    """The error of the peak, trough and range across `trials` (anything with
+    the `CurveTrial` fields), intervals resampling whole subjects."""
     errors = np.array(
         [
             [
@@ -154,7 +161,6 @@ def curve_summary(
         k = len(FEATURES)
         bias_ci = [(float(low[i]), float(high[i])) for i in range(k)]
         mae_ci = [(float(low[k + i]), float(high[k + i])) for i in range(k)]
-    warnings.append(EXTREMES)
     features = []
     for i, name in enumerate(FEATURES):
         e = errors[:, i]
@@ -170,4 +176,4 @@ def curve_summary(
                 mae_ci[i],
             )
         )
-    return features, trials, warnings
+    return features

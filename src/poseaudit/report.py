@@ -239,6 +239,7 @@ def _summary(result: "AuditResult", full: bool = False) -> str:
         f"{_ci(result.icc_ci, '.3f')}",
     ]
     lines += _curve_lines(result, f2, u, d)
+    lines += _cycle_lines(result, f2, u, d)
     if full:
         lines += _full(result)
     lines += [_decision(th, u, d) for th in result.thresholds]
@@ -260,6 +261,28 @@ def _curve_lines(result: "AuditResult", f2: str, u: str, d: int) -> list[str]:
             f"{_range(lo, hi, f2, u)}, mean |error| {c.mean_abs_error:.{d}f}{u}"
         )
     out[0] += f" ({trials} trial{'s' if trials != 1 else ''})"
+    return out
+
+
+def _cycle_lines(result: "AuditResult", f2: str, u: str, d: int) -> list[str]:
+    """The peak, trough and range per cycle, and the RMSE over the cycle
+    stretched to 0 to 100%."""
+    if not result.cycle or result.cycle_error is None:
+        return []
+    out = []
+    for c in result.cycle:
+        lo, hi = c.limits
+        out.append(
+            f"  cycle {c.feature:<6} bias {_f(c.bias, f2)}{u} {_ci(c.bias_ci, f2)}, "
+            f"limits {_range(lo, hi, f2, u)}, mean |error| "
+            f"{c.mean_abs_error:.{d}f}{u}"
+        )
+    e = result.cycle_error
+    out[0] += f" ({e.n} cycle{'s' if e.n != 1 else ''})"
+    out.append(
+        f"  cycle RMSE   {e.rmse:.{d}f}{u} {_ci(e.rmse_ci, f'.{d}f')} "
+        "(each cycle stretched to 0 to 100%)"
+    )
     return out
 
 
@@ -664,6 +687,7 @@ def _markdown(result: "AuditResult", worst: int = 10) -> str:
         ]
     out += _group_tables(result, u, d)
     out += _curve_tables(result, u, d)
+    out += _cycle_tables(result, u, d)
     if result.size_bands:
         out += [
             "",
@@ -786,6 +810,60 @@ def _curve_tables(result: "AuditResult", u: str, d: int) -> list[str]:
         ]
         out.append(
             f"| {_cell(x.subject)} | {_cell(x.trial)} | {x.frames} | "
+            + " | ".join(f"{v:.{d}f}{u}" for v in cells)
+            + " |"
+        )
+    return out
+
+
+def _cycle_tables(result: "AuditResult", u: str, d: int) -> list[str]:
+    """The peak, trough and range across cycles, the RMSE, then each cycle."""
+    if not result.cycles:
+        return []
+    out: list[str] = []
+    e = result.cycle_error
+    if result.cycle and e is not None:
+        out += [
+            "",
+            "## Peak, trough and range of motion per cycle",
+            "",
+            "| feature | cycles | bias | 95% CI | limits | mean abs error |",
+            "|---|---:|---:|---|---|---:|",
+        ]
+        for c in result.cycle:
+            lo, hi = c.limits
+            out.append(
+                f"| {c.feature} | {c.n} | {_f(c.bias, f'+.{d}f')}{u} | "
+                f"{_ci(c.bias_ci, f'+.{d}f')} | {_range(lo, hi, f'+.{d}f', u)} | "
+                f"{c.mean_abs_error:.{d}f}{u} |"
+            )
+        out += [
+            "",
+            f"RMSE over each cycle stretched to 0 to 100%: mean {e.rmse:.{d}f}{u} "
+            f"{_ci(e.rmse_ci, f'.{d}f')} over {e.n} cycles. The mean error at "
+            "each point of the cycle is in the JSON (`cycle_error.bias_curve`).",
+        ]
+    out += [
+        "",
+        "## Each cycle",
+        "",
+        "| subject | trial | cycle | start | end | frames | peak ref | peak pred | "
+        "trough ref | trough pred | range ref | range pred | RMSE |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for x in result.cycles:
+        cells = [
+            x.ref_peak,
+            x.pred_peak,
+            x.ref_trough,
+            x.pred_trough,
+            x.ref_range,
+            x.pred_range,
+            x.rmse,
+        ]
+        out.append(
+            f"| {_cell(x.subject)} | {_cell(x.trial)} | {x.cycle} | {x.start:g} | "
+            f"{x.end:g} | {x.frames} | "
             + " | ".join(f"{v:.{d}f}{u}" for v in cells)
             + " |"
         )

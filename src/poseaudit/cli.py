@@ -874,7 +874,7 @@ def _paired_parser(sub) -> None:
         metavar="S",
         help="seconds added to the prediction's times to put them on the "
         "reference's clock (.mot), or 'auto' to find them: the lag where the "
-        "curves correlate best, the median over the pairs with --mot-pairs",
+        "curves correlate best, each pair its own with --mot-pairs",
     )
     data.add_argument(
         "--max-lag",
@@ -902,6 +902,14 @@ def _paired_parser(sub) -> None:
         "--no-wrap",
         action="store_true",
         help="take angle differences as they are, not the short way round",
+    )
+    data.add_argument(
+        "--cycles",
+        metavar="FILE|auto",
+        help="cut each trial into cycles for figures per cycle: a CSV of start "
+        "times (column time, on the reference's clock; optionally subject and "
+        "trial, else they apply to every trial or subject), or 'auto' to find "
+        "them where the reference curve repeats",
     )
     how = run.add_argument_group("analysis")
     how.add_argument(
@@ -1451,9 +1459,11 @@ def _run_paired(args):
         noise_ratio=args.noise_ratio,
         resamples=args.resamples,
         seed=args.seed,
+        cycles=_cycles(args.cycles),
         settings={
             "table": args.table,
             "pred_mot": args.pred_mot,
+            **({"cycles": args.cycles} if args.cycles else {}),
             "ref_mot": args.ref_mot,
             "mot_pairs": args.mot_pairs,
             "time_offset": args.time_offset,
@@ -1462,6 +1472,35 @@ def _run_paired(args):
             **({"match": match} if match else {}),
         },
     )
+
+
+def _cycles(given: str | None):
+    """--cycles: None, "auto", or the start times of a CSV by subject and
+    trial (None where the file leaves them out or blank)."""
+    if given is None:
+        return None
+    if given.strip().lower() == "auto":
+        return "auto"
+    from poseaudit.paired import _read_csv
+
+    columns = {k.strip().lower(): v for k, v in _read_csv(Path(given)).items()}
+    if "time" not in columns:
+        raise UsageError(
+            f"--cycles: {given} needs a column time (and optionally subject and trial)"
+        )
+    events: dict = {}
+    for i, time in enumerate(columns["time"]):
+        key = tuple(
+            (str(columns[c][i]).strip() or None) if c in columns else None
+            for c in ("subject", "trial")
+        )
+        try:
+            events.setdefault(key, []).append(float(time))
+        except ValueError:
+            raise UsageError(
+                f"--cycles: row {i + 2} of {given} has time {time!r}, not seconds"
+            ) from None
+    return events
 
 
 def _offset(text: str) -> "float | str":

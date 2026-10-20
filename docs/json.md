@@ -26,6 +26,13 @@ so the range of motion inflates them; the text and Markdown mark them with
 `limits`, `mean_abs_error`, `mean_abs_error_ci`), and `curve_trials`, one
 per trial (`subject, trial, frames, pred_peak, ref_peak, pred_trough,
 ref_trough, pred_range, ref_range`); both are empty lists otherwise. With
+`--cycles`, `cycle` holds the same features across cycles, `cycles` one
+entry per cycle (`subject, trial, cycle, start, end, frames`, the six
+values as for a trial, and `rmse`), and `cycle_error` the error over the
+stretched cycle (`n, rmse, rmse_ci, bias_curve, sd_curve`, the curves 101
+values from 0 to 100% of the cycle); without, `cycle` and `cycles` are
+empty and `cycle_error` is null. `settings.cycles` records the file or
+`auto`. With
 `--time-offset auto`, `settings.time_offset` is the offset taken (`"auto"`
 with `--mot-pairs`, each pair taking its own) and
 `settings.time_offset_auto` holds `max_lag` and `per_pair` (each pair's
@@ -77,6 +84,7 @@ after the flag `--big-error`. The same figure in each:
 | limit CIs (`--full`): percentile, normal, then exact | `empirical_lower_ci`, `empirical_upper_ci`, `lower_limit_ci`, `upper_limit_ci`, `lower_limit_exact_ci`, `upper_limit_exact_ci` | the same | |
 | by subject | `by_subject`, `by_trial` | the same | |
 | peak, trough, range (time series) | `curve`, `curve_trials` | the same | |
+| the same per cycle, RMSE over the cycle | `cycle`, `cycles`, `cycle_error` | the same | |
 | \|error\| mean, median, 95th pct | `mean_abs_error`, `mean_abs_error_ci`, `median_abs_error`, `p95_abs_error` | the same | `mean_abs_error`, `mean_abs_error_ci_low`, `mean_abs_error_ci_high` |
 | RMSE | `rmse`, `rmse_ci` | the same | `rmse` |
 | `>= 15°` (in a table of measures that differ in it, `large if` and `large errors`) | `big_error_rate`, `big_error_rate_ci`; the threshold `big_error` | the same | `big_error`, `big_error_rate`, `big_error_rate_ci_low`, `big_error_rate_ci_high` |

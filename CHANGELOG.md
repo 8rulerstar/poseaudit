@@ -4,6 +4,16 @@
 
 ### Added
 
+- Cycles: `paired --cycles FILE` (`cycles=` in `audit_values` and
+  `audit_paired`) cuts each trial into cycles at given start times, such as
+  heel strikes, by subject and trial; `--cycles auto` finds them where the
+  reference curve repeats, at its troughs, with a warning that these are
+  not gait events. Each cycle gets the peak, trough and range of both sides
+  (`cycles`, a `CurveCycle` each) and their errors across cycles (`cycle`),
+  and the RMSE over the cycle stretched to 0 to 100%, with its mean,
+  interval and the mean error and SD at each of 101 points (`cycle_error`,
+  a `CycleError`). Cycles far shorter or longer than their trial's median,
+  or of under 5 frames, are left out with a warning.
 - Paired time series compare each trial's curve: the peak, the trough and
   the range of motion of the prediction against the reference's, each side
   its own (`curve_trials`, a `CurveTrial` each), and their bias, interval,

@@ -340,7 +340,13 @@ a reading either side of the +90 to -90 wrap is not 180° away; the CSV's
   (frame noise of SD 2 on a 60-frame cycle added about 3 to 6 to it, more
   the smaller the motion: 6.2 at an amplitude of 5, 3.9 at 45, 3.1 at 100;
   enough to reverse an underread range) and the figures assume both sides filtered as
-  for the study. The time offset is the lag of best correlation within
+  for the study. Cut into cycles (`--cycles`), each cycle takes its own
+  extremes and is stretched to 101 points by linear interpolation between
+  frames; the bias averages cycles, so a subject with more cycles weighs
+  more, and the intervals resample subjects. Cycles found with `auto`
+  start at a trough of the reference, where its curve repeats, and were
+  checked only on synthetic curves (cycles of 0.8 to 1.6 s found to 0.02 s,
+  per-cycle biases within 0.5 of those from the true starts). The time offset is the lag of best correlation within
   `--max-lag`: a repeating motion correlates again a cycle away, so with a
   search wider than half a cycle it may land a cycle off (a warning names
   the rival lag). Lags within 0.001 of the best correlation count as tied

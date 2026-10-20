@@ -5,6 +5,7 @@ from poseaudit.audit import AuditResult, Band, GroupSummary, NotRead, Reading, a
 from poseaudit.budget import BudgetGroup, BudgetResult
 from poseaudit.compare import Comparison, Difference, compare
 from poseaudit.curve import CurveFeature, CurveTrial
+from poseaudit.cycles import CurveCycle, CycleError
 from poseaudit.io import (
     Motion,
     Offset,
@@ -28,8 +29,10 @@ __all__ = [
     "BudgetGroup",
     "BudgetResult",
     "Comparison",
+    "CurveCycle",
     "CurveFeature",
     "CurveTrial",
+    "CycleError",
     "Dataset",
     "Difference",
     "GroupSummary",

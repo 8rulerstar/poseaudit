@@ -124,6 +124,13 @@ For a time series, `curve_trials` holds a `CurveTrial` per trial (the peak,
 trough and range of motion of each side, over the frames read on both) and
 `curve` a `CurveFeature` per feature: the bias, its interval, the SD, the
 limits and the mean |error| of predicted minus reference across trials.
+With `cycles=` (start times by `(subject, trial)`, `(subject, None)` for
+every trial of a subject or `(None, None)` for all, or `"auto"`) the same
+figures come per cycle: `cycles` holds a `CurveCycle` each (with its
+`start`, `end` and `rmse` over the cycle stretched to 0 to 100%), `cycle` a
+`CurveFeature` per feature across cycles, and `cycle_error` a `CycleError`:
+the mean RMSE and its interval, and the mean error and SD at each of 101
+points of the cycle (`bias_curve`, `sd_curve`).
 
 ## Compare models
 
@@ -274,7 +281,8 @@ worse. A plain mean over each set would call that a 2° improvement.
   `GroupSummary` per subject (or cluster), and for paired values with trials
   `by_trial` one per subject and trial. A time series also gets `curve`
   (a `CurveFeature` each for the peak, trough and range of motion) and
-  `curve_trials` (a `CurveTrial` each).
+  `curve_trials` (a `CurveTrial` each), and with `cycles=` the same per
+  cycle (`cycle`, `cycles`, `cycle_error`).
 - `pa.__version__` is the installed version; the JSON and the report record
   it, with every setting and the `seed`, for a methods section.
 - What the outputs reveal (paths, image names) and how far they agree from

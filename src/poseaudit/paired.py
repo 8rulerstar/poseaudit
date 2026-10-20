@@ -31,6 +31,7 @@ from poseaudit.audit import (
     score,
 )
 from poseaudit.curve import curve_summary
+from poseaudit.cycles import cycle_summary
 from poseaudit.measures import Quantity
 from poseaudit.thresholds import Side
 
@@ -79,6 +80,7 @@ def audit_values(
     resamples: int = 2000,
     seed: int = 0,
     settings: Mapping | None = None,
+    cycles: "Mapping[tuple, Sequence[float]] | str | None" = None,
 ) -> AuditResult:
     """Describe how far the predicted values `pred` are from the reference
     `ref`, two arrays of one measure, paired by position.
@@ -89,6 +91,10 @@ def audit_values(
         which frames of one recording are not.
     trial: each value's trial within its subject, for a summary per trial.
     frame: each value's frame or time, kept for the CSV and the worst errors.
+    cycles: cut each trial into cycles for figures per cycle: start times on
+        the frame's clock by (subject, trial), (subject, None) for every
+        trial of a subject or (None, None) for all, or "auto" to find them
+        where the reference repeats. Needs `frame`.
     unit: "deg" (or "degrees") and "rad" make differences wrap, so 179
         against -179 is 2 apart; `wrap=False` turns that off.
     A value missing (NaN) on the reference is not counted; one missing on the
@@ -198,6 +204,16 @@ def audit_values(
             readings, named, measure.period, resamples, seed
         )
         result.warnings += curve_warnings
+    if cycles is not None:
+        if frames is None:
+            raise ValueError("cycles need each value's frame or time")
+        (
+            result.cycle,
+            result.cycles,
+            result.cycle_error,
+            cycle_warnings,
+        ) = cycle_summary(readings, named, measure.period, cycles, resamples, seed)
+        result.warnings += cycle_warnings
     return result
 
 
