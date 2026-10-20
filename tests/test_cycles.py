@@ -549,6 +549,8 @@ def test_row_order_does_not_change_the_intervals():
     shuffled = tuple([c[i] for i in order] for c in (pred, ref, subject, trial, frame))
     a = _audit((pred, ref, subject, trial, frame), events)
     b = _audit(shuffled, events)
-    assert [c.bias_ci for c in a.cycle] == [c.bias_ci for c in b.cycle]
-    assert a.cycle_error.rmse_ci == b.cycle_error.rmse_ci
-    assert [c.bias_ci for c in a.curve] == [c.bias_ci for c in b.curve]
+    # the same resamples; only the order of adding differs, in the last digit
+    same = {"rel": 1e-12}
+    for x, y in zip(a.cycle + a.curve, b.cycle + b.curve, strict=True):
+        assert x.bias_ci == pytest.approx(y.bias_ci, **same)
+    assert a.cycle_error.rmse_ci == pytest.approx(b.cycle_error.rmse_ci, **same)
