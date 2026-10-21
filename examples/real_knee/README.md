@@ -3,7 +3,8 @@
 Knee flexion of a side-view YOLOv8, read in 2D from the image, against the
 3D angle from marker motion capture, over 31 walking and jogging trials of
 17 subjects on a treadmill. The speeds, 2, 5 and 8 km/h, are the file
-names'; the pelvis stays within 0.2 m over the two minutes of a trial. At
+names'; the pelvis stays within 0.35 m over the two minutes of a trial,
+where 8 km/h would cover 270 m. At
 8 km/h some subjects ran. `summary.txt` is what the audit prints.
 
 ```bash
@@ -29,8 +30,9 @@ trial in the marker files, and some trials have only one side.
 - The subjects differ more than any figure across them shows: S02 to S10
   are read 13 to 40° low at the peak, S11 to S21 0.5 to 21°, mostly under
   15°. Why is not known. The thigh spans 2 to 2.6 times as many pixels in
-  S02 and S03 as in the others, recorded at 60 frames a second against 30,
-  so the camera's distance or setup changed at least once; the dataset
+  S02 and S03 as in the others (three of their trials are also the only
+  ones at 60 frames a second), so the camera's distance or setup changed
+  at least once; the dataset
   does not describe it.
 - `--offset-shifts 0.1`: moving the time offset 0.1 s either way moves the
   RMSE by 7.2° and the peak bias by 0.05°. The peak and range per stride

@@ -58,7 +58,7 @@ def main(folder: str) -> None:
             print(f"downloading {name}")  # resumes a part left by an earlier run
             fetch(f"{RECORD}/{name}/content", path)
         if md5(path) != expected:
-            sys.exit(f"{name}: MD5 does not match; delete it and run again")
+            sys.exit(f"{name}: MD5 does not match yet; run again to resume or refetch")
         with zipfile.ZipFile(path) as archive:
             archive.extractall(out)
         print(f"{name}: checked and unpacked")
