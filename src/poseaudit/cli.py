@@ -885,6 +885,14 @@ def _paired_parser(sub) -> None:
         f"(default {MAX_LAG:g})",
     )
     data.add_argument(
+        "--offset-shifts",
+        type=_shifts,
+        default=[],
+        metavar="S,S",
+        help="(.mot) audit again with the time offset moved by each of these "
+        "seconds either way, as 0.1,0.25, and show which figures move",
+    )
+    data.add_argument(
         "--measure",
         action="append",
         metavar="NAME",
@@ -1029,6 +1037,7 @@ def main(argv: list[str] | None = None) -> None:
         text = "\n\n".join(r.summary(full=True) for r in results)
     else:
         text = table(results, _degree(sys.stdout), _columns(sys.stdout))
+        text += "".join(_shift_text(r) for r in results)
     print(_console(text, sys.stdout))
     # in the JSON too, but printed once: stderr above, not again in the summary
     for r in results:
@@ -1372,6 +1381,11 @@ def _run_paired(args):
         raise UsageError("--column names the columns of --table")
     if args.match and args.table:
         raise UsageError("--match pairs the columns of .mot files")
+    if args.offset_shifts and args.table:
+        raise UsageError(
+            "--offset-shifts moves the time offset of .mot files; a table's rows "
+            "are already paired"
+        )
     roles = _pairs(args.column, "--column", "ROLE=NAME")
     match = _pairs(args.match, "--match", "PRED=REF")
     big_error = _paired_big_errors(args.big_error)
@@ -1391,22 +1405,23 @@ def _run_paired(args):
         )
         offsets, offset_settings = _auto_offset(pairs, columns, args.max_lag, match)
         args.time_offset = offsets[0] if args.pred_mot else "auto"
-    if args.table:
-        table = read_table(args.table, roles)
-    elif args.pred_mot:
-        table = read_table(
-            pair_mot(
-                args.pred_mot,
-                args.ref_mot,
-                subject=args.subject,
-                trial=args.trial,
-                columns=columns,
-                time_offset=args.time_offset,
-                match=match,
+
+    def paired_table(shift: float = 0.0):
+        if args.table:
+            return read_table(args.table, roles)
+        if args.pred_mot:
+            return read_table(
+                pair_mot(
+                    args.pred_mot,
+                    args.ref_mot,
+                    subject=args.subject,
+                    trial=args.trial,
+                    columns=columns,
+                    time_offset=args.time_offset + shift,
+                    match=match,
+                )
             )
-        )
-    else:
-        table = read_table(
+        return read_table(
             _pair_each(
                 [
                     dict(
@@ -1423,7 +1438,8 @@ def _run_paired(args):
                             offsets[i]
                             if args.time_offset == "auto"
                             else args.time_offset
-                        ),
+                        )
+                        + shift,
                         match=match,
                     )
                     for i, (subject, trial, pred, ref) in enumerate(
@@ -1433,6 +1449,8 @@ def _run_paired(args):
                 pair_mot,
             )
         )
+
+    table = paired_table()
     names = args.measure or list(dict.fromkeys(table["measure"]))
     if args.plot and len(names) > 1:
         raise UsageError(
@@ -1488,7 +1506,60 @@ def _run_paired(args):
             "--cycles: no cycle could be cut"
             + (": " + " ".join(reasons) if reasons else "")
         )
+    if args.offset_shifts:
+        cycles = _cycles(args.cycles)
+        moved = {}
+        for shift in [-x for x in reversed(args.offset_shifts)] + args.offset_shifts:
+            # the figures only: intervals at every shift would cost a bootstrap
+            # each, and the warnings repeat the ones given at the offset found
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                moved[shift] = audit_paired(
+                    paired_table(shift),
+                    big_error,
+                    measures=names,
+                    units=units,
+                    wrap=False if args.no_wrap else None,
+                    resamples=50,
+                    seed=args.seed,
+                    cycles=cycles,
+                )
+        for k, result in enumerate(results):
+            result.offset_shifts = sorted(
+                [_shift_row(0.0, result)]
+                + [_shift_row(shift, rs[k]) for shift, rs in moved.items()],
+                key=lambda row: row["shift"],
+            )
     return results
+
+
+def _shift_text(result) -> str:
+    """--offset-shifts under the table of several measures, one block each."""
+    from poseaudit.report import _digits, _shift_lines, _unit
+
+    lines = _shift_lines(result, _unit(result), _digits(result))
+    return f"\n{result.measure.name}:\n" + "\n".join(lines) if lines else ""
+
+
+def _shift_row(shift: float, r) -> dict:
+    """The figures --offset-shifts compares across shifts."""
+    cycle = {c.feature: c.bias for c in r.cycle}
+    return {
+        "shift": shift,
+        "n": r.n,
+        "bias": r.bias,
+        "mean_abs_error": r.mean_abs_error,
+        "rmse": r.rmse,
+        **(
+            {
+                "cycle_peak_bias": cycle.get("peak", float("nan")),
+                "cycle_range_bias": cycle.get("range", float("nan")),
+                "cycle_rmse": r.cycle_error.rmse,
+            }
+            if r.cycle_error is not None
+            else {}
+        ),
+    }
 
 
 def _cycles(given: str | None):
@@ -1518,6 +1589,21 @@ def _cycles(given: str | None):
                 f"--cycles: row {i + 2} of {given} has time {time!r}, not seconds"
             ) from None
     return events
+
+
+def _shifts(text: str) -> list[float]:
+    """--offset-shifts: positive seconds, comma-separated."""
+    try:
+        shifts = sorted({float(x) for x in text.split(",") if x.strip()})
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"seconds separated by commas, got {text!r}"
+        ) from None
+    if not shifts or not all(np.isfinite(x) and x > 0 for x in shifts):
+        raise argparse.ArgumentTypeError(
+            f"positive seconds separated by commas, got {text!r}"
+        )
+    return shifts
 
 
 def _offset(text: str) -> "float | str":

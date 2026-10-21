@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `paired --offset-shifts S,S` (.mot files): the bias, mean |error|, RMSE
+  and, with cycles, the peak and range bias per cycle and the RMSE over the
+  cycle, again with the time offset moved by each shift either way, to show
+  which figures rest on the offset (`offset_shifts` in the result and the
+  JSON, a table in the Markdown, one line per shift in the summary).
+
 ## 0.6.0
 
 ### Added

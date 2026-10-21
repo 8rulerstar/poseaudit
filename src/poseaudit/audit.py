@@ -206,6 +206,9 @@ class AuditResult:
     - `cycle`, `cycles`, `cycle_error`: with cycles given, the same figures
       per cycle, and the error over each cycle stretched to 0 to 100%
       (`poseaudit.cycles`).
+    - `offset_shifts`: for .mot files with `--offset-shifts`, the figures again
+      with the time offset moved by each shift, to show which of them hang on
+      the offset found.
     - experimental (`EXPERIMENTAL`): `jitter_gain`, `gain_gap`, `jitter_p`:
       the slope that keypoint jitter alone gives, the gap to it, and the
       one-sided p of the gap.
@@ -272,6 +275,7 @@ class AuditResult:
     cycle: list[CurveFeature] = field(default_factory=list)
     cycles: list[CurveCycle] = field(default_factory=list)
     cycle_error: CycleError | None = None
+    offset_shifts: list[dict] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     settings: dict = field(default_factory=dict)
 
@@ -372,6 +376,8 @@ class AuditResult:
         skip = ("measure", "readings")
         out = {"poseaudit": __version__, "numpy": np.__version__, "schema": 1}
         out |= {k: v for k, v in asdict(self).items() if k not in skip}
+        if not self.offset_shifts:  # only with --offset-shifts
+            del out["offset_shifts"]
         out["measure"] = {
             "name": self.measure.name,
             "points": list(self.measure.points),

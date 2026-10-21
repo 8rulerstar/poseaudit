@@ -296,6 +296,15 @@ A sign or zero convention that differs shows as a slope near -1 or a large
 bias with a given offset; with `--time-offset auto` a flipped sign can
 line up a wrong lag and show a positive slope, so check the bias too, and
 convert such a column first.
+`--offset-shifts 0.1,0.25` audits again with every pair's offset (given or
+found) moved by each shift either way, and says how far the bias, the mean
+|error|, the RMSE and, with cycles, the peak and range bias per cycle and
+the RMSE over the cycle move: a figure that moves a lot rests on the offset,
+one that hardly moves does not. The Markdown gives every figure at every
+shift and the JSON lists them under `offset_shifts`. The cycles stay where
+`--cycles` puts them on the reference's clock. Only the figures are
+recomputed, not their intervals, and frames moved past either end of the
+reference drop out, as the readings column shows.
 Columns ending `_tx`, `_ty` or `_tz` (or, in OpenSim 4's path names, `_tx/value`
 and so on) are translations in metres; the rest are
 angles, in degrees unless the header says `inDegrees=no` (with no inDegrees line at
@@ -369,6 +378,7 @@ subjects, so with fewer than 20 they are too narrow, as the warning says.
 | `--subject NAME`, `--trial NAME` | with `--pred-mot`: whose files they are |
 | `--time-offset S` | seconds added to the prediction's times (default 0), or `auto` to find them |
 | `--max-lag S` | with `--time-offset auto`: how far to search either way (default 0.5) |
+| `--offset-shifts S,S` | (.mot) audit again with the time offset moved by each of these seconds either way, and show how far each figure moves |
 | `--match PRED=REF` | pair a prediction column with a reference column named otherwise; repeat it for several |
 | `--measure NAME` | audit this measure only; repeat it for several |
 | `--unit NAME=UNIT` | a measure's unit, over the table's `unit` column (tables only; .mot files carry theirs) |

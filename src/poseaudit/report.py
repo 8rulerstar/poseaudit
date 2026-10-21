@@ -240,6 +240,7 @@ def _summary(result: "AuditResult", full: bool = False) -> str:
     ]
     lines += _curve_lines(result, f2, u, d)
     lines += _cycle_lines(result, f2, u, d)
+    lines += _shift_lines(result, u, d)
     if full:
         lines += _full(result)
     lines += [_decision(th, u, d) for th in result.thresholds]
@@ -283,6 +284,83 @@ def _cycle_lines(result: "AuditResult", f2: str, u: str, d: int) -> list[str]:
         f"  cycle RMSE   {e.rmse:.{d}f}{u} {_ci(e.rmse_ci, f'.{d}f')} "
         "(each cycle stretched to 0 to 100%)"
     )
+    return out
+
+
+_SHIFTED = {
+    "bias": "bias",
+    "mean_abs_error": "mean |error|",
+    "rmse": "RMSE",
+    "cycle_peak_bias": "cycle peak",
+    "cycle_range_bias": "cycle range",
+    "cycle_rmse": "cycle RMSE",
+}
+
+
+def _shift_moves(result: "AuditResult") -> list[tuple[float, dict[str, float]]]:
+    """For each shift either way, how far each figure moves from the offset
+    found, the larger of the two directions."""
+    rows = {row["shift"]: row for row in result.offset_shifts}
+    base = rows.get(0.0)
+    if base is None:
+        return []
+    out = []
+    for shift in sorted({abs(x) for x in rows if x}):
+        moves = {}
+        for key in _SHIFTED:
+            if key not in base:
+                continue
+            gaps = [
+                abs(rows[x][key] - base[key])
+                for x in (-shift, shift)
+                if x in rows and np.isfinite(rows[x][key]) and np.isfinite(base[key])
+            ]
+            if gaps:
+                moves[key] = max(gaps)
+        out.append((shift, moves))
+    return out
+
+
+def _shift_lines(result: "AuditResult", u: str, d: int) -> list[str]:
+    """How far each figure moves when the time offset is moved either way."""
+    out = []
+    for shift, moves in _shift_moves(result):
+        out.append(
+            f"  offset +/-{shift:g} s moves "
+            + ", ".join(f"{_SHIFTED[k]} {v:.{d}f}{u}" for k, v in moves.items())
+        )
+    if out:
+        out.append(
+            "  (figures that move a lot rest on the time offset; those that hardly "
+            "move do not)"
+        )
+    return out
+
+
+def _shift_table(result: "AuditResult", u: str, d: int) -> list[str]:
+    """Every figure at every shift of the time offset."""
+    if not result.offset_shifts:
+        return []
+    keys = [k for k in _SHIFTED if k in result.offset_shifts[0]]
+    out = [
+        "",
+        "## Moving the time offset",
+        "",
+        "Each row audits again with the prediction moved by the shift on top of "
+        "the time offset used (0). Figures that change a lot rest on that "
+        "offset; figures that hardly change do not.",
+        "",
+        "| shift (s) | readings | "
+        + " | ".join(_SHIFTED[k].replace("|error|", "abs error") for k in keys)
+        + " |",
+        "|---:|---:|" + "---:|" * len(keys),
+    ]
+    for row in result.offset_shifts:
+        out.append(
+            f"| {row['shift']:+g} | {row['n']} | "
+            + " | ".join(f"{_f(row[k], f'.{d}f')}{u}" for k in keys)
+            + " |"
+        )
     return out
 
 
@@ -688,6 +766,7 @@ def _markdown(result: "AuditResult", worst: int = 10) -> str:
     out += _group_tables(result, u, d)
     out += _curve_tables(result, u, d)
     out += _cycle_tables(result, u, d)
+    out += _shift_table(result, u, d)
     if result.size_bands:
         out += [
             "",
