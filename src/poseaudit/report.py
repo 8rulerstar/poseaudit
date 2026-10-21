@@ -332,7 +332,20 @@ def _shift_lines(result: "AuditResult", u: str, d: int) -> list[str]:
     if out:
         out.append(
             "  (figures that move a lot rest on the time offset; those that hardly "
-            "move do not)"
+            "move do not, for shifts this small)"
+        )
+    base = next((r for r in result.offset_shifts if r["shift"] == 0), None)
+    better = [
+        r
+        for r in result.offset_shifts
+        if base is not None and r["shift"] and r["rmse"] < base["rmse"]
+    ]
+    if better:
+        best = min(better, key=lambda r: r["rmse"])
+        out.append(
+            f"  ! moving the time offset by {best['shift']:+g} s lowers the RMSE "
+            f"from {base['rmse']:.{d}f}{u} to {best['rmse']:.{d}f}{u}: the offset "
+            "used may be off"
         )
     return out
 

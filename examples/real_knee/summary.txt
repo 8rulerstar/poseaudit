@@ -19,7 +19,7 @@ knee_flexion: read 123024 of 123024 reference values
   cycle range  bias -14.70° [-20.11 to -10.17], limits -41.07° to +11.67°, mean |error| 15.00°
   cycle RMSE   11.40° [9.14 to 13.75] (each cycle stretched to 0 to 100%)
   offset +/-0.1 s moves bias 0.01°, mean |error| 5.82°, RMSE 7.23°, cycle peak 0.05°, cycle range 0.05°, cycle RMSE 8.87°
-  (figures that move a lot rest on the time offset; those that hardly move do not)
+  (figures that move a lot rest on the time offset; those that hardly move do not, for shifts this small)
   ! Only 17 subjects: bootstrap intervals are too narrow with this few.
   ! 4.0% of errors fall below the normal limits (bias +/- 1.96 SD) and 1.5% above them, against 2.5% each for a normal error, more than chance explains: use the percentile limits.
   ! ICC, CCC and r (marked *) pool the frames of each recording, so the range of motion alone pushes them towards 1: they do not show agreement frame by frame. Judge that by the bias, the limits and the mean |error|.

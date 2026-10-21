@@ -111,3 +111,16 @@ def test_shifts_must_be_positive_seconds(given, tmp_path):
                 f"--offset-shifts={given}",
             ]
         )
+
+
+def test_a_shift_that_lowers_the_rmse_is_flagged(tmp_path, capsys):
+    """The prediction runs 0.1 s ahead but the offset is left at 0: moving it
+    lowers the RMSE, which says the offset used is off."""
+    _run(tmp_path, 0.1)
+    printed = capsys.readouterr().out
+    assert "lowers the RMSE" in printed and "the offset used may be off" in printed
+
+
+def test_no_flag_when_the_offset_is_right(tmp_path, capsys):
+    _run(tmp_path)
+    assert "lowers the RMSE" not in capsys.readouterr().out

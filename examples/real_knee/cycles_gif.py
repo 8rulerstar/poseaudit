@@ -73,12 +73,13 @@ def main(folder: str, out: str) -> None:
             else:
                 lo, hi = peak["bias_ci"]
                 head = (
-                    f"Peak per stride read {peak['bias']:+.1f}° "
-                    f"[{lo:+.1f} to {hi:+.1f}], low in {low} of {len(peaks)} subjects"
+                    f"YOLOv8 2D vs markers 3D: peak per stride {peak['bias']:+.1f}° "
+                    f"[{lo:+.1f} to {hi:+.1f}]"
                 )
                 line = (
-                    f"mean error ± SD, {error['n']} strides; time offset ±0.1 s "
-                    f"moves the RMSE {moved:.1f}°, the peak {moved_peak:.2f}°"
+                    f"low in {low}/{len(peaks)} subjects; mixes model, 2D vs 3D, "
+                    f"camera, hip; offset ±0.1 s: RMSE {moved:.1f}°, "
+                    f"peak {moved_peak:.2f}°"
                 )
             fig.text(0.03, 0.94, head, fontsize=14, fontweight="bold")
             fig.text(0.03, 0.875, line, fontsize=11, color=plot.MUTED)
@@ -88,6 +89,9 @@ def main(folder: str, out: str) -> None:
                 for p, r in curves[s]:
                     top.plot(x, r, color=plot.MUTED, lw=0.8, alpha=0.5)
                     top.plot(x, p, color=plot.POINTS, lw=0.8, alpha=0.5)
+            top.plot([], [], color=plot.POINTS, lw=2, label="YOLOv8, 2D")
+            top.plot([], [], color=plot.MUTED, lw=2, label="markers, 3D")
+            top.legend(loc="upper left", frameon=False, ncol=2)
             top.set_xlim(0, 100)
             top.set_ylim(-10, 100)
             top.set_ylabel("angle (°)")
@@ -103,7 +107,7 @@ def main(folder: str, out: str) -> None:
             bottom.set_xlim(0, 100)
             bottom.set_ylim(-45, 15)
             bottom.set_ylabel("error (°)")
-            bottom.set_xlabel("stride (%)")
+            bottom.set_xlabel("stride (%), from the lowest point of the heel marker")
             for ax in (top, bottom):
                 ax.grid(color=plot.GRID, lw=0.8)
                 ax.set_axisbelow(True)

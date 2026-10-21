@@ -8,7 +8,8 @@
   and, with cycles, the peak and range bias per cycle and the RMSE over the
   cycle, again with the time offset moved by each shift either way, to show
   which figures rest on the offset (`offset_shifts` in the result and the
-  JSON, a table in the Markdown, one line per shift in the summary).
+  JSON, a table in the Markdown, one line per shift in the summary); when a
+  shift lowers the RMSE, the summary says the offset used may be off.
 - `examples/real_knee`: knee flexion per stride of a side-view YOLOv8 against
   marker motion capture on a public dataset (Zenodo 10.5281/zenodo.19720803,
   CC BY 4.0, downloaded by `download.py`); the README's cycles GIF now draws

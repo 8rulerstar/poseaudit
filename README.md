@@ -105,14 +105,15 @@ at one phase shows ([cycles](https://github.com/8rulerstar/poseaudit/blob/main/d
 
 On a public treadmill dataset (17 subjects, 3,674 strides), the knee flexion a side-view
 YOLOv8 gives in 2D sits 6.2° below the 3D marker angle over all frames, but 17.3° below
-[12.8 to 22.2] at each stride's peak, and lower in every subject. The gap mixes the model,
+[12.8 to 22.2] at each stride's peak (an interval likely too narrow with 17 subjects),
+and lower at the peak in every subject. The gap mixes the model,
 a 2D angle against a 3D one, the camera's placement and how the hip is defined; the audit
 shows how large it is and where in the stride it comes, not which of these makes it.
 `--offset-shifts 0.1` shows what rests on lining the recordings up: moving the time offset
 0.1 s moves the RMSE by 7.2° and the peak by 0.05°
 ([examples/real_knee](https://github.com/8rulerstar/poseaudit/blob/main/examples/real_knee/README.md)).
 
-![Knee strides of a side-view YOLOv8 and marker motion capture stretched to 0 to 100%, then the mean error and its SD over the stride, lowest near the peak](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/cycles.gif)
+![Knee strides of a side-view YOLOv8 and marker motion capture stretched to 0 to 100%, then the mean error and its SD over the stride, most negative near the peak](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/cycles.gif)
 
 <details>
 <summary><b>For a validation paper</b></summary>

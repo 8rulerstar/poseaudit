@@ -296,15 +296,21 @@ A sign or zero convention that differs shows as a slope near -1 or a large
 bias with a given offset; with `--time-offset auto` a flipped sign can
 line up a wrong lag and show a positive slope, so check the bias too, and
 convert such a column first.
+
 `--offset-shifts 0.1,0.25` audits again with every pair's offset (given or
 found) moved by each shift either way, and says how far the bias, the mean
 |error|, the RMSE and, with cycles, the peak and range bias per cycle and
 the RMSE over the cycle move: a figure that moves a lot rests on the offset,
-one that hardly moves does not. The Markdown gives every figure at every
-shift and the JSON lists them under `offset_shifts`. The cycles stay where
-`--cycles` puts them on the reference's clock. Only the figures are
-recomputed, not their intervals, and frames moved past either end of the
-reference drop out, as the readings column shows.
+one that hardly moves does not, for shifts that small (a whole cycle away
+lines up again, and the bias and the peak, trough and range of a cycle
+hardly see the offset, unless a short recording loses frames at its ends).
+When a shift lowers the RMSE the summary says so: the offset used may be
+off. The Markdown gives every figure at every shift and the JSON lists them
+under `offset_shifts`. The cycles stay where `--cycles` puts them on the
+reference's clock. Only the figures are recomputed, not their intervals, and
+frames moved past either end of the reference drop out, as the readings
+column shows.
+
 Columns ending `_tx`, `_ty` or `_tz` (or, in OpenSim 4's path names, `_tx/value`
 and so on) are translations in metres; the rest are
 angles, in degrees unless the header says `inDegrees=no` (with no inDegrees line at

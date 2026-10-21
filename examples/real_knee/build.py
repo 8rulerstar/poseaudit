@@ -23,9 +23,13 @@ subjects). How the two sides are made comparable, fixed in this file:
 - YOLO frame rate: 60 when the frames outnumber the marker duration by 45
   a second, else 30.
 
+- strides: they start where the heel marker of that leg is lowest, which
+  is not initial contact (a few percent of the stride after it in walking,
+  at mid-stance in some running strides).
+
 Writes, in `out`: one .mot pair per trial in `mot/` with the prediction on
-the marker clock and `pairs.csv` listing them; `events.csv`, the marker heel
-strikes of that leg; `trials.csv`, what was decided per trial.
+the marker clock and `pairs.csv` listing them; `events.csv`, the stride
+starts; `trials.csv`, what was decided per trial.
 Needs pandas and scipy."""
 
 import csv
@@ -83,7 +87,7 @@ def hip_centres(m) -> dict[str, np.ndarray]:
     return {"R": centre + out, "L": centre - out}
 
 
-def heel_strikes(time, heel_height) -> np.ndarray:
+def lowest_heel(time, heel_height) -> np.ndarray:
     h = pd.Series(heel_height).interpolate(limit_direction="both").to_numpy()
     lows, _ = find_peaks(
         -h, distance=int(0.45 * MARKER_RATE), prominence=np.nanstd(h) * 0.5
@@ -107,7 +111,7 @@ def write_mot(path: Path, time, knee) -> None:
     head = [path.stem, "version=1", f"nRows={ok.sum()}", "nColumns=2"]
     head += ["inDegrees=yes", "endheader", "time\tknee_flexion"]
     body = [f"{t:.5f}\t{k:.4f}" for t, k in zip(time[ok], knee[ok], strict=True)]
-    path.write_text("\n".join(head + body) + "\n")
+    path.write_text("\n".join(head + body) + "\n", encoding="ascii", newline="")
 
 
 def trial(data: Path, subject: str, name: str, out: Path):
@@ -140,7 +144,7 @@ def trial(data: Path, subject: str, name: str, out: Path):
     stem = f"{subject}_{name}"
     write_mot(out / "mot" / f"{stem}_yolo.mot", t_pred + lag, pred)
     write_mot(out / "mot" / f"{stem}_marker.mot", time, ref)
-    strikes = heel_strikes(time, m[f"{leg}HEE"][:, 1])  # Y is up in these files
+    strikes = lowest_heel(time, m[f"{leg}HEE"][:, 1])  # Y is up in these files
     return stem, leg, fps, lag, gap_r, strikes
 
 
