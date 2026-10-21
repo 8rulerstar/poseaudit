@@ -4,14 +4,10 @@
 
 **How far off are the joint angles, tilts and lengths you read from a pose model?**
 OKS and mAP say whether the points land near the right place; poseaudit says whether the
-angle you compute from them is good enough to use. It judges your model against your labels
-as a scale is validated: bias (the mean offset), limits of agreement (where 95% of the
-differences fall), ICC (agreement, 1 at best) and how often it is off by too much.
-
-**Joint angles already computed** (Pose2Sim, Sports2D, OpenSim, your own code) against motion
-capture or a goniometer? `poseaudit paired --table angles.csv --big-error 5` reads a long CSV
-(`subject, trial, frame, measure, pred, ref, unit`; `--column ref=Goniometer` for other
-names), and `--pred-mot`/`--ref-mot` read OpenSim `.mot` files, with intervals by subject ([paired values](https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#paired-values)).
+angle computed from them is good enough to use, with the statistics used to validate a
+measuring device: bias, limits of agreement, ICC and the rate of large errors. Angles
+already computed (Pose2Sim, OpenSim, your own code) go in as a CSV or `.mot` files with
+`poseaudit paired` ([paired values](https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#paired-values)).
 
 ![poseaudit run on the demo data in a terminal, and the summary it prints](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/demo.gif)
 
@@ -59,14 +55,28 @@ cd poseaudit/examples/coco_elbow
 poseaudit audit --format coco --gt gt_200.json --pred pred_yolo11n.json --angle 5,7,9 --big-error 15 --size-bands 30,60
 ```
 
-This prints the summary in the GIF above: the left elbow angle of `yolo11n-pose` against
-COCO's labels on 200 val2017 images. Keypoints count from 0 in COCO's order (5, 7, 9: left
-shoulder, elbow, wrist; 11, 13, 15: left hip, knee, ankle; each right-side point is one
-higher). `--big-error` is required: the error that counts as large, in the measure's unit.
-Add `--report report.md` for a report that explains every line, `--full` for every statistic
-and `--plot panels.png` for [this figure](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/panels.png) (with `[plot]`). If `poseaudit` is not found, use `python -m poseaudit`.
+```text
+angle (5, 7, 9): read 322 of 380 labelled instances
+  not read     no matching prediction 35, prediction lacked a point 23, unmeasurable 0
+  not counted  206 with a point unlabelled in the truth, 79 unmatched predictions
+  bias         +2.27° [-1.21 to +6.15], median +0.52°
+  limits       -50.90° to +79.99° (percentile, 2.5th to 97.5th; JSON percentile_limits)
+  |error|      mean 19.48° [17.05 to 22.13], median 12.59°, 95th pct 68.99°
+  RMSE         29.57° [25.30 to 33.94]
+  >= 15°       43.2% [37.9% to 48.6%]
+  by size      0-30 px 58% (n 134), 30-60 px 37% (n 112), 60+ px 26% (n 76)
+  slope        0.731 [0.639 to 0.814] (pred on truth, 1 is ideal); Theil-Sen 0.786
+  ICC(A,1)     0.762 [0.677 to 0.827]
+```
 
-The same audit from Python, in the same folder:
+Two warnings follow it, as in the GIF above. That is the left elbow angle of `yolo11n-pose` against COCO's labels on 200 val2017 images.
+Keypoints count from 0 in COCO's order (5, 7, 9: left shoulder, elbow, wrist; each right-side
+point is one higher). `--big-error` is required: the error that counts as large, in the
+measure's unit. Add `--report report.md` for a report that explains every line, `--full` for
+every statistic and `--plot panels.png` for [this figure](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/panels.png) (with `[plot]`). If `poseaudit` is not found, use `python -m poseaudit`.
+
+<details>
+<summary><b>The same audit from Python</b></summary>
 
 ```python
 import poseaudit as pa
@@ -82,7 +92,22 @@ print(result.summary())
 Your own arrays, YOLO labels and `result.to_markdown()` / `to_csv()` / `plot()` are in
 [Python](https://github.com/8rulerstar/poseaudit/blob/main/docs/python.md).
 
-## For a validation paper
+</details>
+
+## Per cycle
+
+Gait and rehabilitation studies report figures per stride or repetition, not per trial.
+`poseaudit paired --table angles.csv --big-error 5 --cycles events.csv` cuts each trial at
+the start times in your CSV of events (or `--cycles auto` finds them where the reference repeats),
+stretches each cycle to 0 to 100% and gives the peak, trough and range of every cycle, the
+RMSE over the cycle and the mean error with its SD at each point, where an error that comes
+at one phase shows. The GIF draws the knee strides of the synthetic data in
+`examples/paired` (`cycles_gif.py`) ([cycles](https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#paired-values)).
+
+![Knee cycles of a prediction and motion capture stretched to 0 to 100%, then the mean error and its SD over the cycle](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/cycles.gif)
+
+<details>
+<summary><b>For a validation paper</b></summary>
 
 ```bash
 poseaudit audit --format coco --gt labels.json --pred results.json --angle 5,7,9 --big-error 15 --full --json figures.json --report report.md --plot panels.png
@@ -95,6 +120,8 @@ agreement, the mean absolute error, ICC and the large-error rate, each with its 
 words this for the demo. Frames of one video are not independent: if image names carry the
 clip or participant, as `clip3_000123.jpg` does, add `--cluster "^(clip\d+)_"` (its first
 group names the cluster), or the intervals come out far too narrow.
+
+</details>
 
 ## As a CI gate
 
@@ -119,19 +146,25 @@ all 16 elbow groups, 11 of which gave a size (the others never get below 20%), a
 knee groups; one elbow group passed in only 10 of 20 redraws of the data (`--redraw`)
 ([budget](https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#how-large-must-a-limb-be)).
 
-## Caveats
+<details>
+<summary><b>Caveats</b></summary>
 
 - The figures are agreement with one human label, not error against the world ([demo](https://github.com/8rulerstar/poseaudit/blob/main/docs/statistics.md#reading-the-demo)).
 - 2D angles read off an image are not 3D joint angles.
 - Name the subject (`subject` column, `--cluster`), or every frame counts as independent.
 - The jitter check in `--full` is experimental and assumes labels much cleaner than the model.
 
-## What is new versus OKS, PCK and pycocotools
+</details>
+
+<details>
+<summary><b>What is new versus OKS, PCK and pycocotools</b></summary>
 
 They score where the points land, yet points scattered by the label spread OKS is built on,
 as independent isotropic noise, turn these elbow angles by 11 to 16° on average. poseaudit
 scores the angle itself, with the statistics clinicians use to compare two measuring
 devices, from COCO, YOLO or supervision.
+
+</details>
 
 ## More
 

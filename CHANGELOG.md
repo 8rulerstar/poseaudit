@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0
 
 ### Added
 
@@ -35,8 +35,9 @@
   A repeating motion lines up again a cycle away, so a second lag that
   correlates within 0.05 of the best is named (`rival`) with a warning that
   the offset may be a whole cycle off; keep `--max-lag` under half a cycle.
-  Tied lags go to the one nearest 0, so the offset is right only when the
-  true one and `--max-lag` are under half a cycle; beyond that, line up by
+  Lags whose correlation is within 0.001 of the best go to the one
+  nearest 0, so the offset is right only when the true one and
+  `--max-lag` are under half a cycle; beyond that, line up by
   a sync event and give `--time-offset S`. A pair whose offset lies more
   than two frames from the median is named. `--unit` with .mot files is
   refused (they carry their own units), and a `--measure` missing from
@@ -48,8 +49,9 @@
 - Every result with the curve figures says that they are each trial's raw
   extremes over all its cycles, which noise widens: filter both sides first.
 - `--matching optimal` (`matching="optimal"` in `pair`, `audit` and
-  `compare`) pairs people with labels by the assignment of largest total
-  overlap (Hungarian method, in NumPy) instead of the most similar pair
+  `compare`) pairs people with labels by the assignment of largest summed
+  rank, (IoU+OKS)/2 when keypoints are given (Hungarian method, in
+  NumPy), instead of the most similar pair
   first. The summary and `settings.matching_changed` say how many truths it
   paired differently. Greedy stays the default, and its output is unchanged.
   The `budget` JSON records `matching`.
