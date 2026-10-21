@@ -101,10 +101,18 @@ Gait and rehabilitation studies report figures per stride or repetition, not per
 the start times in your CSV of events (or `--cycles auto` finds them where the reference repeats),
 stretches each cycle to 0 to 100% and gives the peak, trough and range of every cycle, the
 RMSE over the cycle and the mean error with its SD at each point, where an error that comes
-at one phase shows. The GIF draws the knee strides of the synthetic data in
-`examples/paired` (`cycles_gif.py`) ([cycles](https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#paired-values)).
+at one phase shows ([cycles](https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#paired-values)).
 
-![Knee cycles of a prediction and motion capture stretched to 0 to 100%, then the mean error and its SD over the cycle](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/cycles.gif)
+On a public treadmill dataset (17 subjects, 3,674 strides), the knee flexion a side-view
+YOLOv8 gives in 2D sits 6.2° below the 3D marker angle over all frames, but 17.3° below
+[12.8 to 22.2] at each stride's peak, and lower in every subject. The gap mixes the model,
+a 2D angle against a 3D one, the camera's placement and how the hip is defined; the audit
+shows how large it is and where in the stride it comes, not which of these makes it.
+`--offset-shifts 0.1` shows what rests on lining the recordings up: moving the time offset
+0.1 s moves the RMSE by 7.2° and the peak by 0.05°
+([examples/real_knee](https://github.com/8rulerstar/poseaudit/blob/main/examples/real_knee/README.md)).
+
+![Knee strides of a side-view YOLOv8 and marker motion capture stretched to 0 to 100%, then the mean error and its SD over the stride, lowest near the peak](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/cycles.gif)
 
 <details>
 <summary><b>For a validation paper</b></summary>
@@ -174,3 +182,9 @@ Python API, the statistics, the JSON output, the [limitations](https://github.co
 Code: MIT. Demo data: a subset of [COCO](https://cocodataset.org)'s 2017 keypoint labels
 (© COCO Consortium, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)) and predictions
 from Ultralytics `yolo11n-pose` (AGPL-3.0), which poseaudit does not depend on or include.
+Knee strides: derived from "A Synchronized Dual-System Marker-based and Markerless Motion
+Capture Dataset for Gait and Fundamental Fitness Activities", Capital University of Physical
+Education and Sports (2026), [10.5281/zenodo.19720803](https://doi.org/10.5281/zenodo.19720803),
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); knee angles computed from its markers
+and its authors' YOLOv8 keypoints, lined up and cut into strides. The data is downloaded, not
+included.

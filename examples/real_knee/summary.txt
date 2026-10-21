@@ -1,0 +1,28 @@
+poseaudit: warning: 532 of the predicted frames lie outside their reference's span and are left out, in 30 of 31 pairs (119947 frames in those pairs)
+knee_flexion: read 123024 of 123024 reference values
+  not read     no predicted value 0
+  not counted  0 with no reference value
+  bias         -6.17° [-8.27 to -3.99], median -5.43°
+  limits       -33.35° to +14.53° (percentile, 2.5th to 97.5th; JSON percentile_limits)
+  repeated     -28.99° to +16.66° (subjects)
+  by subject   17 subjects: bias -15.20° to +3.44°, mean |error| 3.96° to 15.61°
+  |error|      mean 9.94° [8.22 to 11.49], median 7.75°, 95th pct 26.87°
+  RMSE         13.11° [10.82 to 15.14]
+  >= 5°        67.0% [59.3% to 73.3%]
+  slope        0.656 [0.546 to 0.774] (pred on reference, 1 is ideal); Theil-Sen 0.696
+  ICC(A,1)     0.758* [0.669 to 0.840]
+  peak         bias -17.97° [-22.71 to -13.31], limits -43.35° to +7.41°, mean |error| 17.97° (31 trials)
+  trough       bias -4.41° [-6.67 to -2.32], limits -17.55° to +8.73°, mean |error| 5.93°
+  range        bias -13.56° [-18.35 to -9.05], limits -42.36° to +15.24°, mean |error| 14.26°
+  cycle peak   bias -17.34° [-22.25 to -12.75], limits -40.38° to +5.70°, mean |error| 17.41° (3674 cycles)
+  cycle trough bias -2.64° [-5.12 to -0.12], limits -16.83° to +11.56°, mean |error| 6.34°
+  cycle range  bias -14.70° [-20.11 to -10.17], limits -41.07° to +11.67°, mean |error| 15.00°
+  cycle RMSE   11.40° [9.14 to 13.75] (each cycle stretched to 0 to 100%)
+  offset +/-0.1 s moves bias 0.01°, mean |error| 5.82°, RMSE 7.23°, cycle peak 0.05°, cycle range 0.05°, cycle RMSE 8.87°
+  (figures that move a lot rest on the time offset; those that hardly move do not)
+  ! Only 17 subjects: bootstrap intervals are too narrow with this few.
+  ! 4.0% of errors fall below the normal limits (bias +/- 1.96 SD) and 1.5% above them, against 2.5% each for a normal error, more than chance explains: use the percentile limits.
+  ! ICC, CCC and r (marked *) pool the frames of each recording, so the range of motion alone pushes them towards 1: they do not show agreement frame by frame. Judge that by the bias, the limits and the mean |error|.
+  ! Peak, trough and range are extremes over the frames as given, of each trial (every cycle together) and, with cycles, of each cycle: noise in a side pushes its peak up and its trough down and widens its range (frame noise of SD 2 widened ranges by 3 to 6 in simulation, more for smaller motions, enough to hide an underread range or turn it into an overread one). Filter both sides as for the study first: cutting into cycles does not undo it.
+  ! 68 cycles are not covered to both ends (the recording starts or ends inside them, or frames are missing there) and are left out.
+  ! 4 cycles have under 5 frames read on both sides and are left out.

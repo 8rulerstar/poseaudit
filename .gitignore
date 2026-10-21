@@ -6,3 +6,5 @@ dist/
 .ruff_cache/
 examples/coco_elbow/data/
 .hypothesis/
+examples/real_knee/data/
+examples/real_knee/out/

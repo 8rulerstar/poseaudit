@@ -167,3 +167,37 @@ def test_the_score_filter_comparison_is_what_the_demo_prints(capsys, monkeypatch
     for figure in ("19.48°", "17.32°", "-0.06° [-0.20 to +0.00]", "254 people"):
         assert figure in readme
     assert "dropped 68 people" in readme
+
+
+def test_the_real_knee_figures_are_what_its_audit_printed() -> None:
+    """The real knee data is downloaded, not stored: its README figures are
+    checked against summary.txt, the audit's own output kept with it."""
+    summary = doc("examples/real_knee/summary.txt")
+    bias = re.search(r"  bias +([-+\d.]+)°", summary)
+    peak = re.search(
+        r"cycle peak +bias ([-\d.]+)° \[([-\d.]+) to ([-\d.]+)\].*\((\d+) cycles\)",
+        summary,
+    )
+    trough = re.search(r"cycle trough bias ([-\d.]+)°", summary)
+    span = re.search(r"cycle range +bias ([-\d.]+)°", summary)
+    shift = re.search(
+        r"offset \+/-0\.1 s moves .*?RMSE ([\d.]+)°, cycle peak ([\d.]+)°", summary
+    )
+    assert bias and peak and trough and span and shift
+    value, lo, hi, cycles = peak.groups()
+    peak_text = f"{-float(value):.1f}° below\n[{-float(hi):.1f} to {-float(lo):.1f}]"
+    readme = doc("README.md")
+    assert f"{int(cycles):,} strides" in readme
+    assert f"{-float(bias.group(1)):.1f}° below the 3D" in readme
+    assert peak_text in readme
+    moves = f"RMSE by {float(shift.group(1)):.1f}° and the peak by {shift.group(2)}°"
+    assert moves in readme
+    example = doc("examples/real_knee/README.md")
+    assert (
+        f"read {-float(value):.1f}° lower [{-float(hi):.1f} to {-float(lo):.1f}]"
+        in example
+    )
+    assert f"trough is read {-float(trough.group(1)):.1f}° lower" in example
+    assert f"by {-float(span.group(1)):.1f}°" in example
+    assert f"bias is {float(bias.group(1)):.1f}°" in example
+    assert f"RMSE by {float(shift.group(1)):.1f}°" in example
