@@ -8,7 +8,26 @@ import numpy as np
 import pytest
 
 from poseaudit.cli import main
-from tests.test_curve_and_offset import _sines, _write_mot
+
+
+def _sines(t, lag=0.0):
+    x = t + lag
+    return {
+        "knee": 40
+        + 30 * np.sin(2 * np.pi * 0.8 * x)
+        + 10 * np.sin(2 * np.pi * 2.1 * x),
+        "hip": 20 + 15 * np.sin(2 * np.pi * 0.8 * x + 1),
+    }
+
+
+def _write_mot(path, t, columns):
+    names = list(columns)
+    lines = ["demo", "inDegrees=yes", "endheader", "time\t" + "\t".join(names)]
+    lines += [
+        "\t".join([f"{t[i]:.4f}"] + [f"{columns[n][i]:.4f}" for n in names])
+        for i in range(len(t))
+    ]
+    path.write_text("\n".join(lines) + "\n")
 
 
 def _pair(tmp_path, lag=0.0, bias=3.0):

@@ -340,7 +340,7 @@ def _shift_lines(result: "AuditResult", u: str, d: int) -> list[str]:
         for r in result.offset_shifts
         if base is not None and r["shift"] and r["rmse"] < base["rmse"]
     ]
-    if better:
+    if better and base is not None:
         best = min(better, key=lambda r: r["rmse"])
         out.append(
             f"  ! moving the time offset by {best['shift']:+g} s lowers the RMSE "
