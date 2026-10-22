@@ -11,6 +11,10 @@
   0.746 instead of 1.0 in the example that showed it). A reference covering
   over three quarters of the circle is warned about. The errors, bias and
   limits were right and do not change.
+- Docs: the intervals over subjects run a little short of 95% even past 20
+  subjects (92 to 94% at 17 to 50 in simulation), now said in `docs/cli.md`;
+  the share of normal samples that 4% alone flags is 12 to 50% at 30 to 60
+  errors, in the docstring and `docs/statistics.md` alike.
 
 ## 0.7.0
 

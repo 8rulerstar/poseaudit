@@ -373,7 +373,11 @@ frames, which trims a faster reference's peaks a little
 ([statistics](statistics.md)). Per-cycle peaks and ranges are extremes
 too, so frame noise widens them as it does a trial's: filter first. Near
 the wrap the cycle table is kept but the figures across cycles are not. Every interval resamples whole
-subjects, so with fewer than 20 they are too narrow, as the warning says.
+subjects, so with fewer than 20 they are too narrow, as the warning says,
+and above that they still run a little short of 95%: with 20 readings a
+subject and normal errors, the intervals of the bias and the RMSE held the
+true value 90% and 84% of the time with 10 subjects, 92 to 94% with 17, 30
+and 50 (simulated, 400 samples each).
 
 | option | what it does |
 |---|---|

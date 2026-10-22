@@ -246,7 +246,7 @@ The summary prints the percentile limits, and the normal ones beside them
 unless more errors fall past one normal limit than chance explains: above
 4% (against 2.5%) and a one-sided binomial p under 0.05. Then a warning says
 to use the percentile limits. The share alone is a poor guide in small
-samples: with 30 to 60 normal errors it passed 4% in about 11 to 49% of
+samples: with 30 to 60 normal errors it passed 4% in about 12 to 50% of
 samples, rising and falling with the size, while the test flagged at most about 2% at any size from 30 to
 1000 (1.6 to 2% at 300; simulated, 8000 samples each; the binomial cut is
 discrete, so the rate rises and falls with the size). It mostly catches skew; a symmetric heavy tail widens

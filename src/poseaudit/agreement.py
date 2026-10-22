@@ -238,7 +238,7 @@ def tails_off(n: int, tail_shares: tuple[float, float]) -> bool:
     error would put there: above 4% (against 2.5%) and, by a one-sided
     binomial test, more than chance gives (p under 0.05). Small samples
     scatter well past 4% by chance: with 30 to 60 normal errors the share
-    alone flagged 19 to 39% of samples; with the test, at most about 2% at
+    alone flagged 12 to 50% of samples; with the test, at most about 2% at
     any size (simulated, 8000 samples each from 30 to 1000)."""
     if n < 30 or not all(np.isfinite(tail_shares)):
         return False
