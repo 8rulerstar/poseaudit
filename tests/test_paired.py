@@ -58,8 +58,12 @@ def test_wrapping_is_used_in_every_figure() -> None:
     r = pa.audit_values(pred, ref, big_error=5, unit="deg", **FAST)
     assert max(abs(x.error) for x in r.readings) == pytest.approx(2.0)
     assert r.big_error_rate == 0 and r.mean_abs_error < 2
-    # the slope and ICC are taken on truth plus error, not across the wrap
-    assert r.gain == pytest.approx(1.0, abs=0.05) and r.icc > 0.99
+    # the slope and ICC are those of the same readings away from the wrap,
+    # not inflated by the two sides sitting 360 apart
+    away = pa.audit_values(
+        pred - np.sign(pred) * 180, ref - np.sign(ref) * 180, 5, unit="deg", **FAST
+    )
+    assert r.gain == pytest.approx(away.gain) and r.icc == pytest.approx(away.icc)
 
 
 def test_radians_wrap_at_pi_and_wrap_can_be_turned_off() -> None:

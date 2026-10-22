@@ -218,7 +218,13 @@ tilt's axis wraps at +/-90 (89° against -89° is 2° off), a paired value in
 degrees at +/-180 (179° against -179° is 2° off) and in radians at +/-pi,
 and the reference of a .mot file is unwrapped before it is interpolated.
 The slopes, ICC and CCC take the prediction as reference plus error, so a
-reading either side of the wrap is not 360° from its reference. An interior
+reading either side of the wrap is not 360° from its reference. For paired
+values the reference itself is first laid out within half a period of its
+circular mean, so references of 179° and -179° (or 359° and 1°) sit 2° apart
+in the fits too, not 358°; when the references still cover more than three
+quarters of the circle, a warning says the fits depend on where it is cut.
+Before 0.7.1 they did not, and a reference across the wrap pushed the slope,
+ICC and CCC towards 1. An interior
 angle (`angle(a, b, c)`, 0 to 180°) cannot wrap. `--no-wrap` (`wrap=False`)
 turns wrapping off for paired values.
 

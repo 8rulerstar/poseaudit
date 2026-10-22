@@ -882,6 +882,16 @@ def _base(baseline, values: np.ndarray, measure: Measure, use_abs: bool) -> floa
     return measure.shift(float(baseline(around)), -centre)
 
 
+def _around_mean(values: np.ndarray, period: float) -> np.ndarray:
+    """Values on a circle laid out within half a period of their circular
+    mean, so a run across the wrap stays one run."""
+    angle = 2 * np.pi * values / period
+    centre = (
+        np.arctan2(np.sin(angle).mean(), np.cos(angle).mean()) * period / (2 * np.pi)
+    )
+    return centre + ((values - centre + period / 2) % period - period / 2)
+
+
 def _fill(result, bands, size_bands, noise_ratio, resamples, seed, jitter) -> None:
     rs = result.readings
     t = np.array([r.truth for r in rs])
@@ -889,6 +899,13 @@ def _fill(result, bands, size_bands, noise_ratio, resamples, seed, jitter) -> No
     p = t + e  # unwrapped for a tilt, so a fit is not cut at +/-90
     sizes = np.array([r.size for r in rs])
     level = {"truth": t, "mean": t + e / 2, "predicted": p}[result.band_by]
+    period = getattr(result.measure, "period", None)
+    if period:
+        # Truth either side of the wrap (179 and -179) would sit a period apart
+        # in the fits and make them look far too good: lay it out around its
+        # circular mean, and each prediction at its error from it.
+        t = _around_mean(t, period)
+        p = t + e
     clusters = np.array([r.cluster for r in rs])
     result.clusters = len(np.unique(clusters))
     absolute = np.abs(e)
@@ -1306,6 +1323,17 @@ def _warnings(
                 "as far apart, so the bands, slopes, ICC, CCC and r are unreliable "
                 "and can look far too good. The errors are taken the short way "
                 "round and are not affected."
+            )
+    period = getattr(result.measure, "period", None)
+    if period and result.n:
+        laid = _around_mean(np.array([x.truth for x in rs]), period)
+        if np.ptp(laid) > 0.75 * period:
+            notes.append(
+                f"The reference values cover {np.ptp(laid) / period:.0%} of the "
+                "circle: laid out around their circular mean they still run from "
+                "one side of the wrap to the other, so the slopes, ICC, CCC and r "
+                "depend on where the circle is cut. The errors are taken the "
+                "short way round and are not affected."
             )
     below, above = result.tail_shares
     if ag.tails_off(result.n, result.tail_shares):

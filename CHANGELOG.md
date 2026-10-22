@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Paired angles whose reference runs across the wrap (179° and -179°, 359°
+  and 1°, or the same in radians) no longer push the slope, Theil-Sen, ICC,
+  CCC and r towards 1: the reference is laid out around its circular mean
+  before the fits, so they match the same readings away from the wrap (ICC
+  0.746 instead of 1.0 in the example that showed it). A reference covering
+  over three quarters of the circle is warned about. The errors, bias and
+  limits were right and do not change.
+
 ## 0.7.0
 
 ### Added
