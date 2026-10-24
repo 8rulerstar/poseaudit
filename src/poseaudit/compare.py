@@ -159,12 +159,12 @@ class Comparison:
                 if k not in own}  # fmt: skip
 
     def to_dict(self) -> dict:
-        from poseaudit._version import __version__
+        from poseaudit._version import SCHEMA, __version__
 
         return {
             "poseaudit": __version__,
             "numpy": np.__version__,
-            "schema": 1,
+            "schema": SCHEMA,
             "settings": self.settings(),
             "models": {
                 name: [r.to_dict() for r in results]

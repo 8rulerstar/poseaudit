@@ -4,3 +4,6 @@ try:
     __version__ = version("poseaudit")
 except PackageNotFoundError:  # running from a source tree that was not installed
     __version__ = "0.0.0"
+
+# Version of the JSON output layout (docs/json.md); raise it when a key changes.
+SCHEMA = 1

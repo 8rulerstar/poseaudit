@@ -14,7 +14,7 @@ from typing import NoReturn
 import numpy as np
 
 from poseaudit._files import write_text
-from poseaudit._version import __version__
+from poseaudit._version import SCHEMA, __version__
 from poseaudit.audit import BIG_ERROR_KEYS, audit
 from poseaudit.io import load_coco, load_coco_results, load_yolo
 from poseaudit.io.mot import (
@@ -1225,7 +1225,7 @@ def several(results) -> dict:
     return {
         "poseaudit": __version__,
         "numpy": np.__version__,
-        "schema": 1,
+        "schema": SCHEMA,
         "settings": results[0].settings,
         "measures": [r.to_dict() for r in results],
     }

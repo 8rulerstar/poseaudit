@@ -5,13 +5,21 @@ checked against summary.txt, the audit's output kept with the example."""
 import re
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).parents[1]
+# examples/ is in the repository, not in the sdist: the check skips there
+needs_example = pytest.mark.skipif(
+    not (ROOT / "examples" / "real_knee" / "summary.txt").exists(),
+    reason="examples are not in this checkout",
+)
 
 
 def doc(name: str) -> str:
     return (ROOT / name).read_text(encoding="utf-8")
 
 
+@needs_example
 def test_the_real_knee_figures_are_what_its_audit_printed() -> None:
     """The real knee data is downloaded, not stored: its README figures are
     checked against summary.txt, the audit's own output kept with it."""

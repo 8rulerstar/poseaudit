@@ -371,10 +371,10 @@ class AuditResult:
         are the 2.5th and 97.5th percentiles of the errors; both are NaN
         (null in the JSON) under 10 readings, where they would be only the
         smallest and largest errors."""
-        from poseaudit._version import __version__
+        from poseaudit._version import SCHEMA, __version__
 
         skip = ("measure", "readings")
-        out = {"poseaudit": __version__, "numpy": np.__version__, "schema": 1}
+        out = {"poseaudit": __version__, "numpy": np.__version__, "schema": SCHEMA}
         out |= {k: v for k, v in asdict(self).items() if k not in skip}
         if not self.offset_shifts:  # only with --offset-shifts
             del out["offset_shifts"]

@@ -146,9 +146,15 @@ def load_coco_results(
         seen.add(result.get("category_id"))
         if wanted is not None and result.get("category_id") not in wanted:
             continue
-        if not result.get("score", 1.0) >= min_score:  # a NaN score is dropped
+        score = result.get("score", 1.0)
+        if not _is_number(score):
+            raise ValueError(f"{where}: score must be a number; got {score!r}")
+        if not score >= min_score:  # a NaN score is dropped
             continue
-        name = _name(names, result["image_id"], annotations)
+        try:
+            name = _name(names, result["image_id"], annotations)
+        except ValueError as error:
+            raise ValueError(f"{where}: {error}") from None
         try:
             keypoints, visible, third = _points(result["keypoints"], min_confidence)
             bbox = _box(result["bbox"]) if "bbox" in result else None
@@ -189,7 +195,17 @@ def _names(images, annotations) -> dict:
     return names
 
 
+def _is_number(value) -> bool:
+    """A JSON number: bool is an int in Python but not in JSON."""
+    return isinstance(value, int | float) and not isinstance(value, bool)
+
+
 def _name(names: dict, image_id, annotations) -> str:
+    if not isinstance(image_id, int | str) or isinstance(image_id, bool):
+        raise ValueError(
+            f"image_id must be a number or a string as in {annotations}; "
+            f"got {image_id!r}"
+        )
     if image_id not in names:
         alike = [i for i in names if str(i) == str(image_id)]
         if alike:
@@ -220,8 +236,12 @@ def _points(flat: list[float], min_confidence: float):
 
 
 def _box(values) -> np.ndarray:
+    if not isinstance(values, list | tuple):
+        raise ValueError(f"bbox must be a list of x, y, width, height; got {values!r}")
     if len(values) != 4:
         raise ValueError(f"bbox must be x, y, width, height; got {len(values)} values")
+    if not all(_is_number(v) for v in values):
+        raise ValueError(f"bbox must hold numbers; got {values!r}")
     x, y, w, h = (float(v) for v in values)
     box = np.array([x, y, x + w, y + h])
     if not np.isfinite(box).all():

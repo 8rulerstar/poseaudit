@@ -9,6 +9,10 @@ from poseaudit.cli import main
 
 ROOT = Path(__file__).parents[1]
 DEMO = ROOT / "examples" / "coco_elbow"
+# the demo data is in the repository, not in the sdist: these tests skip there
+pytestmark = pytest.mark.skipif(
+    not (DEMO / "gt_200.json").exists(), reason="demo data is not in this checkout"
+)
 BASE = ["audit", "--format", "coco", "--gt", "gt_200.json", "--pred",
         "pred_yolo11n.json", "--angle", "5,7,9", "--big-error", "15"]  # fmt: skip
 

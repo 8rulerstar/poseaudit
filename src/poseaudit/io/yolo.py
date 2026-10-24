@@ -44,7 +44,8 @@ def load_yolo(
             continue
         name = path.name[: -len(".txt")]  # not splitext: names may hold dots
         instances: list[Instance] = []
-        lines = path.read_text(encoding="utf-8").splitlines()
+        # utf-8-sig: a label saved with a byte-order mark reads like one without
+        lines = path.read_text(encoding="utf-8-sig").splitlines()
         if not any(line.strip() for line in lines):
             dataset[name] = instances  # no rows: no image size needed
             continue

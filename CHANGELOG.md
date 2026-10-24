@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.7.2
+
+### Fixed
+
+- COCO files with a `null` or non-numeric `bbox`, a `score` that is a string
+  or `null`, or an `image_id` that is a list now fail with a message naming
+  the file, the entry and the field, instead of a bare `TypeError`.
+- YOLO label files saved with a byte-order mark (some Windows editors add
+  one) read like files without it.
+- The sdist's tests skip, rather than fail, the eight that need the demo data
+  in `examples/`, which the sdist does not ship.
+
+### Internal
+
+- A test pins the sign of `--offset-shifts` over `--mot-pairs`, and one pins
+  that a `.mot` file with a repeated time is refused.
+- The JSON layout version is one constant (`SCHEMA`); importing `tests.*` is
+  a lint error, since CI cannot import it; Dependabot watches the Actions and
+  the uv lock monthly.
+
 ## 0.7.1
 
 ### Fixed

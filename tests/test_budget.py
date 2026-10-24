@@ -11,6 +11,11 @@ from poseaudit.pairing import Pair, Pairing
 from poseaudit.types import Instance
 
 DEMO = Path(__file__).parents[1] / "examples" / "coco_elbow"
+# the demo data is in the repository, not in the sdist: tests that read it
+# skip there rather than fail
+needs_demo = pytest.mark.skipif(
+    not (DEMO / "gt_200.json").exists(), reason="demo data is not in this checkout"
+)
 
 
 def limbs(n, rng, straight=False):
@@ -121,6 +126,7 @@ def test_target_must_be_a_share(target):
         budget(Pairing(), angle(0, 1, 2), 10, target)
 
 
+@needs_demo
 def test_cli_on_the_demo(tmp_path, capsys):
     out = tmp_path / "budget.json"
     main([
@@ -509,6 +515,7 @@ def test_redraw_counts_draws_that_pass_fail_or_cannot_fit():
     )
 
 
+@needs_demo
 def test_cli_passes_redraw(tmp_path):
     out = tmp_path / "budget.json"
     main([
@@ -557,6 +564,7 @@ def test_redraw_counts_draws_too_small_to_fit():
     assert "had too few readings to fit" in result.summary()
 
 
+@needs_demo
 @pytest.mark.parametrize("command", ["audit", "budget"])
 def test_a_cluster_group_that_matches_nothing_is_named(command, capsys):
     argv = [

@@ -143,3 +143,47 @@ def test_a_shift_that_lowers_the_rmse_is_flagged(tmp_path, capsys):
 def test_no_flag_when_the_offset_is_right(tmp_path, capsys):
     _run(tmp_path)
     assert "lowers the RMSE" not in capsys.readouterr().out
+
+
+def test_shifts_over_mot_pairs_keep_their_sign(tmp_path):
+    """Each pair's prediction lags its reference by 0.1 s, so moving the
+    offset by +0.1 s lines them up and -0.1 s doubles the lag; a sign flipped
+    on this path would swap the two rows."""
+    rows = ["subject,trial,pred,ref"]
+    for s in range(3):
+        t_ref = np.arange(0, 4, 0.01)
+        t_pred = np.arange(0, 4, 1 / 30)
+        _write_mot(tmp_path / f"r{s}.mot", t_ref, _sines(t_ref + s))
+        _write_mot(tmp_path / f"p{s}.mot", t_pred, _sines(t_pred + s, 0.1))
+        rows.append(f"s{s},t,p{s}.mot,r{s}.mot")
+    (tmp_path / "pairs.csv").write_text("\n".join(rows) + "\n")
+    out = tmp_path / "out.json"
+    main(
+        [
+            "paired",
+            "--mot-pairs",
+            str(tmp_path / "pairs.csv"),
+            "--measure",
+            "knee",
+            "--big-error",
+            "5",
+            "--resamples",
+            "200",
+            "--offset-shifts",
+            "0.1",
+            "--json",
+            str(out),
+        ]
+    )
+    data = json.loads(out.read_text())
+    rmse = {row["shift"]: row["rmse"] for row in data["offset_shifts"]}
+    assert rmse[0.1] < 0.5 < rmse[0.0] < rmse[-0.1]
+
+
+def test_a_repeated_time_is_refused(tmp_path):
+    from poseaudit.io.mot import load_mot
+
+    t = np.array([0.0, 0.01, 0.01, 0.02])
+    _write_mot(tmp_path / "dup.mot", t, {"knee": np.array([1.0, 2.0, 3.0, 4.0])})
+    with pytest.raises(ValueError, match="finite and increasing"):
+        load_mot(tmp_path / "dup.mot")
