@@ -113,6 +113,12 @@ shows how large it is and where in the stride it comes, not which of these makes
 0.1 s moves the RMSE by 7.2° and the peak by 0.05°
 ([examples/real_knee](https://github.com/8rulerstar/poseaudit/blob/main/examples/real_knee/README.md)).
 
+On a published benchmark of four monocular 3D pose models against IMU joint angles (VIDIMU,
+16 subjects), the model with the lowest published RMSE (9.2° on average) has the largest
+bias (24.8°) once each signal's own mean is no longer removed first; part of that gap is how
+the two angles are defined, which is the same for all four models
+([examples/vidimu](https://github.com/8rulerstar/poseaudit/blob/main/examples/vidimu/README.md)).
+
 ![Knee strides of a side-view YOLOv8 and marker motion capture stretched to 0 to 100%, then the mean error and its SD over the stride, most negative near the peak](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/cycles.gif)
 
 <details>

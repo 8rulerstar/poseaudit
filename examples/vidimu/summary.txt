@@ -1,0 +1,78 @@
+# python compare.py data out
+activity joint         model            published RMSE     bias    RMSE
+A01      knee_angle_l  BodyTrack                 7.07°    +3.6°   10.9°
+A01      knee_angle_l  MMPose                    6.54°    +4.1°   10.9°
+A01      knee_angle_l  MotionAGFormer            8.12°   +11.4°   17.4°
+A01      knee_angle_l  MotionBERT                7.40°    +4.5°   12.0°
+A02      knee_angle_r  BodyTrack                 4.72°    +5.2°    9.1°
+A02      knee_angle_r  MMPose                    5.74°    +7.8°   11.2°
+A02      knee_angle_r  MotionAGFormer            6.34°   +14.5°   19.3°
+A02      knee_angle_r  MotionBERT                6.55°    +8.9°   12.6°
+A03      knee_angle_l  BodyTrack                 6.19°    +4.1°   10.4°
+A03      knee_angle_l  MMPose                    6.36°    +4.6°   10.7°
+A03      knee_angle_l  MotionAGFormer            5.98°   +10.3°   15.9°
+A03      knee_angle_l  MotionBERT                7.16°    +5.4°   12.6°
+A04      knee_angle_r  BodyTrack                 7.95°    +8.1°   14.3°
+A04      knee_angle_r  MMPose                    9.30°   +14.4°   17.4°
+A04      knee_angle_r  MotionAGFormer           12.16°   +24.7°   30.3°
+A04      knee_angle_r  MotionBERT                5.75°    +0.5°   10.3°
+A05      elbow_flex_r  BodyTrack                13.02°   +29.4°   34.6°
+A05      elbow_flex_r  MMPose                   10.19°   +23.7°   27.6°
+A05      elbow_flex_r  MotionAGFormer            6.14°   +14.4°   18.8°
+A05      elbow_flex_r  MotionBERT               13.47°   +26.7°   31.9°
+A06      elbow_flex_l  BodyTrack                25.70°   +32.2°   43.1°
+A06      elbow_flex_l  MMPose                   19.29°   +31.8°   38.4°
+A06      elbow_flex_l  MotionAGFormer           18.22°   +34.0°   44.6°
+A06      elbow_flex_l  MotionBERT               33.64°   +33.5°   49.0°
+A07      arm_flex_r    BodyTrack                15.04°   -20.5°   27.4°
+A07      arm_flex_r    MMPose                    8.23°   +13.9°   19.2°
+A07      arm_flex_r    MotionAGFormer            5.58°   +27.2°   29.4°
+A07      arm_flex_r    MotionBERT                8.92°   -11.5°   18.4°
+A08      arm_flex_l    BodyTrack                 8.40°   -16.3°   20.1°
+A08      arm_flex_l    MMPose                    8.49°   +18.5°   23.0°
+A08      arm_flex_l    MotionAGFormer            8.94°   +11.9°   18.0°
+A08      arm_flex_l    MotionBERT                8.39°    +8.9°   15.9°
+A09      elbow_flex_r  BodyTrack                10.15°   +23.7°   35.7°
+A09      elbow_flex_r  MMPose                    6.53°   +22.1°   32.1°
+A09      elbow_flex_r  MotionAGFormer            6.94°   +21.5°   35.6°
+A09      elbow_flex_r  MotionBERT               10.75°   +27.9°   38.0°
+A10      arm_flex_r    BodyTrack                12.67°   -12.1°   19.2°
+A10      arm_flex_r    MMPose                   16.92°    +3.2°   20.1°
+A10      arm_flex_r    MotionAGFormer            9.74°   +42.5°   44.8°
+A10      arm_flex_r    MotionBERT               18.80°    +4.6°   22.7°
+A11      arm_flex_r    BodyTrack                15.06°    -2.0°   15.6°
+A11      arm_flex_r    MMPose                   18.90°   +20.1°   29.0°
+A11      arm_flex_r    MotionAGFormer            9.46°   +50.9°   52.3°
+A11      arm_flex_r    MotionBERT               15.25°   +17.6°   26.0°
+A12      arm_flex_l    BodyTrack                 9.49°    +0.1°   13.6°
+A12      arm_flex_l    MMPose                    8.75°   +29.5°   31.5°
+A12      arm_flex_l    MotionAGFormer           17.28°   +11.0°   24.6°
+A12      arm_flex_l    MotionBERT                6.22°   +24.5°   26.1°
+A13      arm_flex_r    BodyTrack                 7.61°   -10.6°   15.8°
+A13      arm_flex_r    MMPose                   17.57°   +13.8°   24.4°
+A13      arm_flex_r    MotionAGFormer            4.99°   +48.6°   49.5°
+A13      arm_flex_r    MotionBERT               16.79°   +12.4°   25.1°
+
+Mean over the 13 activities, models in the authors' order
+(lowest published RMSE first):
+model            published RMSE  mean |bias|    RMSE
+MotionAGFormer             9.2°        24.8°   30.8°
+MMPose                    11.0°        16.0°   22.7°
+BodyTrack                 11.0°        12.9°   20.7°
+MotionBERT                12.2°        14.4°   23.1°
+
+# cd out/motionagformer && poseaudit paired --mot-pairs pairs.csv --time-offset auto --big-error 10
+measure               n  bias                        limits              mean |error|             RMSE    >= 10°                    slope  ICC(A,1)
+A01 knee_angle_l  20136  +11.36° [+8.36 to +14.78]   -10.47° to +45.57°  13.06° [10.39 to 16.17]  17.42°  49.5% [38.7% to 60.5%]    0.697  0.508*
+A03 knee_angle_l  20242  +10.26° [+6.98 to +13.88]   -8.19° to +43.40°   11.74° [8.63 to 15.49]   15.85°  46.2% [33.5% to 59.6%]    0.725  0.575*
+A02 knee_angle_r  24683  +14.54° [+11.28 to +18.08]  -3.24° to +50.69°   15.02° [11.89 to 18.42]  19.28°  60.7% [48.0% to 73.4%]    0.715  0.349*
+A04 knee_angle_r  11286  +24.66° [+20.28 to +29.01]  -9.78° to +59.00°   26.22° [22.17 to 30.05]  30.25°  81.6% [72.2% to 89.5%]    0.619  0.535*
+A05 elbow_flex_r  14720  +14.40° [+8.86 to +18.71]   -18.51° to +31.38°  16.99° [14.37 to 19.74]  18.84°  79.0% [68.3% to 88.2%]    0.673  0.677*
+A09 elbow_flex_r  13565  +21.45° [+7.92 to +31.61]   -79.16° to +63.94°  29.85° [23.00 to 37.32]  35.58°  90.3% [81.4% to 97.0%]    0.222  0.253*
+A06 elbow_flex_l  14112  +34.01° [+25.74 to +43.84]  -5.91° to +108.70°  34.73° [26.65 to 44.29]  44.62°  81.5% [71.8% to 90.3%]    0.324  0.124*
+A07 arm_flex_r    12701  +27.24° [+23.20 to +31.60]  +9.55° to +50.69°   27.24° [23.20 to 31.60]  29.40°  96.7% [93.1% to 99.6%]    0.729  0.509*
+A10 arm_flex_r    10231  +42.54° [+36.51 to +47.56]  +5.17° to +64.56°   42.65° [36.73 to 47.62]  44.84°  95.1% [86.1% to 100.0%]   0.866  0.447*
+A11 arm_flex_r     8556  +50.89° [+47.71 to +54.12]  +27.62° to +74.43°  50.89° [47.71 to 54.12]  52.32°  99.9% [99.8% to 100.0%]   0.812  0.515*
+A13 arm_flex_r     6704  +48.55° [+45.88 to +51.23]  +33.10° to +70.57°  48.63° [45.97 to 51.28]  49.48°  100.0% [99.9% to 100.0%]  0.873  0.362*
+A08 arm_flex_l    12445  +11.89° [+7.48 to +16.04]   -17.44° to +38.92°  14.72° [12.08 to 17.62]  18.01°  59.8% [47.1% to 72.2%]    0.638  0.706*
+A12 arm_flex_l     9056  +11.01° [+6.16 to +17.37]   -21.93° to +67.16°  19.46° [15.40 to 24.41]  24.57°  71.7% [62.3% to 80.0%]    0.650  0.801*
