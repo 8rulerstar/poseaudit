@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -2177,7 +2177,7 @@ wheels = [
 
 [[package]]
 name = "supervision"
-version = "0.30.6"
+version = "0.31.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "av", version = "17.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -2198,9 +2198,9 @@ dependencies = [
     { name = "scipy", version = "1.18.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/98/20/4f519117a529bd35724ab3fa578e96539f96e0a3fabf30ea3556697e6fae/supervision-0.30.6.tar.gz", hash = "sha256:7fc29bd04a6b045c8f0b102371b2acabb81bd09f49d6d92313a47cedc0eb00b8", size = 356972, upload-time = "2026-09-29T11:08:05.157Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e3/71/3ab6c9d36ed74c1fd0e380e96f0b2ffa16b8550f4e5efd61256ee1c8c4a5/supervision-0.31.1.tar.gz", hash = "sha256:02bf7d4faf9cb8593ae159db6df01fb87e0b840e2912b0de109c58c1118ed97f", size = 426052, upload-time = "2026-10-20T18:19:35.669Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/69/32/ec4c7465e2fd88bac2590d1883951ea0933bdfb6992854863bd5d401bded/supervision-0.30.6-py3-none-any.whl", hash = "sha256:a3ed50fee54448146ebaf4c158a34285db618c1271484dec806b1142a8872f12", size = 395535, upload-time = "2026-09-29T11:08:03.626Z" },
+    { url = "https://files.pythonhosted.org/packages/d4/55/dcbfcd1f2472480fcf776f9ef20f879a902d3b1e4c36f936e72f06b936b8/supervision-0.31.1-py3-none-any.whl", hash = "sha256:f9043e6423a87bb4630742b9281030817602ed08885fee38f8e2d17742509042", size = 469104, upload-time = "2026-10-20T18:19:33.747Z" },
 ]
 
 [[package]]
