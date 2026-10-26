@@ -218,7 +218,9 @@ def test_carried_boxes_are_checked() -> None:
 
 def test_detection_boxes_must_be_finite() -> None:
     kp = key_points([[[10, 10], [10, 40]]])
-    bad = sv.Detections(xyxy=np.array([[0.0, 0.0, np.inf, 50.0]]))
+    # supervision 0.31 rejects non-finite boxes on construction; poison a valid one
+    bad = sv.Detections(xyxy=np.array([[0.0, 0.0, 1.0, 50.0]]))
+    bad.xyxy[0, 2] = np.inf
     with pytest.raises(ValueError, match="non-finite"):
         from_supervision({"i": kp}, {"i": bad})
 
