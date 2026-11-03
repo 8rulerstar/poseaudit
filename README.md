@@ -1,15 +1,104 @@
 # poseaudit
 
-[![PyPI](https://img.shields.io/pypi/v/poseaudit)](https://pypi.org/project/poseaudit/) [![Python](https://img.shields.io/pypi/pyversions/poseaudit)](https://pypi.org/project/poseaudit/) [![CI](https://github.com/8rulerstar/poseaudit/actions/workflows/ci.yml/badge.svg)](https://github.com/8rulerstar/poseaudit/actions/workflows/ci.yml) [![License](https://img.shields.io/pypi/l/poseaudit)](https://github.com/8rulerstar/poseaudit/blob/main/LICENSE) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/8rulerstar/poseaudit/blob/main/examples/poseaudit_demo.ipynb) [![Open in Spaces](https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-sm.svg)](https://huggingface.co/spaces/8rulerstar/poseaudit)
+[![PyPI](https://img.shields.io/pypi/v/poseaudit)](https://pypi.org/project/poseaudit/) [![CI](https://github.com/8rulerstar/poseaudit/actions/workflows/ci.yml/badge.svg)](https://github.com/8rulerstar/poseaudit/actions/workflows/ci.yml) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/8rulerstar/poseaudit/blob/main/examples/poseaudit_demo.ipynb) [![Open in Spaces](https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-sm.svg)](https://huggingface.co/spaces/8rulerstar/poseaudit)
 
-**How far off are the joint angles, tilts and lengths you read from a pose model?**
-OKS and mAP say whether the points land near the right place; poseaudit says whether the
-angle computed from them is good enough to use, with the statistics used to validate a
-measuring device: bias, limits of agreement, ICC and the rate of large errors. Angles
-already computed (Pose2Sim, OpenSim, your own code) go in as a CSV or `.mot` files with
-`poseaudit paired` ([paired values](https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#paired-values)).
+**A pose model can score well on mAP and still read joint angles 19° off.**
+poseaudit measures the angle, tilt or length you compute from keypoints against labels or a
+reference system, with the statistics used to validate a measuring device: bias, limits of
+agreement, ICC and the rate of large errors, each with a 95% interval. NumPy only.
 
-![poseaudit run on the demo data in a terminal, and the summary it prints](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/demo.gif)
+On the left elbows of 200 COCO val2017 images, `yolo11n-pose` is off by 19.5° on average
+and by 15° or more on 43% of arms. Keeping only detections scored 0.7 or more makes the
+mean look 2° better, because it drops the 68 people the model read worst.
+
+![The score filter person by person: the mean drops only because the worst-read people were dropped](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/score-filter.gif)
+
+## Try it
+
+```bash
+python -m pip install poseaudit
+git clone https://github.com/8rulerstar/poseaudit   # the demo data (or GitHub's Code > Download ZIP)
+cd poseaudit/examples/coco_elbow
+poseaudit audit --format coco --gt gt_200.json --pred pred_yolo11n.json --angle 5,7,9 --big-error 15 --size-bands 30,60
+```
+
+```text
+angle (5, 7, 9): read 322 of 380 labelled instances
+  not read     no matching prediction 35, prediction lacked a point 23, unmeasurable 0
+  not counted  206 with a point unlabelled in the truth, 79 unmatched predictions
+  bias         +2.27° [-1.21 to +6.15], median +0.52°
+  limits       -50.90° to +79.99° (percentile, 2.5th to 97.5th; JSON percentile_limits)
+  |error|      mean 19.48° [17.05 to 22.13], median 12.59°, 95th pct 68.99°
+  RMSE         29.57° [25.30 to 33.94]
+  >= 15°       43.2% [37.9% to 48.6%]
+  by size      0-30 px 58% (n 134), 30-60 px 37% (n 112), 60+ px 26% (n 76)
+  slope        0.731 [0.639 to 0.814] (pred on truth, 1 is ideal); Theil-Sen 0.786
+  ICC(A,1)     0.762 [0.677 to 0.827]
+```
+
+Two warnings follow it. That is the left elbow angle of `yolo11n-pose` against COCO's labels on 200 val2017 images.
+Keypoints count from 0 in COCO's order (5, 7, 9: left shoulder, elbow, wrist; each right-side
+point is one higher). `--big-error` is required: the error that counts as large, in the
+measure's unit. Add `--report report.md` for a report that explains every line, `--full` for
+every statistic and `--plot panels.png` for [this figure](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/panels.png). If `poseaudit` is not found, use `python -m poseaudit`.
+
+The install needs only NumPy and runs every audit. `python -m pip install "poseaudit[plot]"` adds
+`--plot` (Matplotlib); `[images]` adds `--images`, which reads YOLO image sizes from the
+images (Pillow), and `[supervision]` adds `pa.from_supervision`.
+
+<details>
+<summary><b>The same audit from Python</b></summary>
+
+```python
+import poseaudit as pa
+
+truth = pa.load_coco("gt_200.json")
+predicted = pa.load_coco_results("pred_yolo11n.json", "gt_200.json")
+result = pa.audit(
+    pa.pair(truth, predicted), pa.angle(5, 7, 9), big_error=15, size_bands=[30, 60]
+)
+print(result.summary())
+```
+
+Your own arrays, YOLO labels and `result.to_markdown()` / `to_csv()` / `plot()` are in
+[Python](https://github.com/8rulerstar/poseaudit/blob/main/docs/python.md).
+
+</details>
+
+## On your own model
+
+With Ultralytics, write YOLO prediction labels with their confidences, then audit them
+against your COCO keypoint labels (image sizes are read from the images, so add
+`poseaudit[images]`):
+
+```bash
+python -m pip install "poseaudit[images]"
+yolo pose predict model=yolo11n-pose.pt source=images/ save_txt=True save_conf=True
+poseaudit audit --gt-format coco --gt labels.json --pred-format yolo --pred runs/pose/predict/labels \
+  --images images/ --keypoints 17 --angle 5,7,9 --big-error 15 --min-conf 0.5
+```
+
+On the demo's 200 images this gives the figures above (the last digit of an interval can differ). COCO results files,
+YOLO label folders on both sides, `sv.KeyPoints` and your own arrays also work
+([inputs](https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#inputs),
+[Python](https://github.com/8rulerstar/poseaudit/blob/main/docs/python.md)).
+
+## When to use it, and when not
+
+- **Use it** to decide whether keypoint-derived angles, tilts or lengths are good enough
+  for a purpose, to compare models on what both read, or as a CI gate on a fixed test set.
+- **Not for** 3D joint angles from a single 2D view, clinical decisions on its own, or
+  ground truth you do not trust: the figures are agreement with your labels, not error
+  against the world ([limitations](https://github.com/8rulerstar/poseaudit/blob/main/docs/statistics.md#limitations)).
+
+## How it differs
+
+- **OKS, PCK, pycocotools** score where the points land, not the angle computed from them.
+- **A numpy mean or `pingouin`'s Bland-Altman and ICC** take paired values; poseaudit first
+  pairs detections with labels, counts who was not read and why, and resamples by image
+  or subject for its intervals.
+- **Validation studies** such as OpenCap's report these statistics for one system;
+  poseaudit computes them for yours, from COCO, YOLO, supervision or a CSV of angles.
 
 ## What plain numpy misses
 
@@ -34,65 +123,6 @@ The mean |error| is one line of numpy. The work is around it (brackets are 95% i
   with segments of 35 px or more, where that noise alone gives 22 to 25% on the demo's
   straight arms of the same lengths: most likely the labels' noise is shaped otherwise, or
   models learn it ([statistics](https://github.com/8rulerstar/poseaudit/blob/main/docs/statistics.md#reading-the-demo)).
-
-![The score filter person by person: the mean drops only because the worst-read people were dropped](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/score-filter.gif)
-
-## Install
-
-```bash
-python -m pip install poseaudit
-```
-
-That needs only NumPy and runs every audit. `python -m pip install "poseaudit[plot]"` adds
-`--plot` (Matplotlib); the extra `[images]` adds `--images`, which reads YOLO image sizes
-from the images (Pillow), and `[supervision]` adds `pa.from_supervision`.
-
-## Quick start
-
-```bash
-git clone https://github.com/8rulerstar/poseaudit   # the demo data (or GitHub's Code > Download ZIP)
-cd poseaudit/examples/coco_elbow
-poseaudit audit --format coco --gt gt_200.json --pred pred_yolo11n.json --angle 5,7,9 --big-error 15 --size-bands 30,60
-```
-
-```text
-angle (5, 7, 9): read 322 of 380 labelled instances
-  not read     no matching prediction 35, prediction lacked a point 23, unmeasurable 0
-  not counted  206 with a point unlabelled in the truth, 79 unmatched predictions
-  bias         +2.27° [-1.21 to +6.15], median +0.52°
-  limits       -50.90° to +79.99° (percentile, 2.5th to 97.5th; JSON percentile_limits)
-  |error|      mean 19.48° [17.05 to 22.13], median 12.59°, 95th pct 68.99°
-  RMSE         29.57° [25.30 to 33.94]
-  >= 15°       43.2% [37.9% to 48.6%]
-  by size      0-30 px 58% (n 134), 30-60 px 37% (n 112), 60+ px 26% (n 76)
-  slope        0.731 [0.639 to 0.814] (pred on truth, 1 is ideal); Theil-Sen 0.786
-  ICC(A,1)     0.762 [0.677 to 0.827]
-```
-
-Two warnings follow it, as in the GIF above. That is the left elbow angle of `yolo11n-pose` against COCO's labels on 200 val2017 images.
-Keypoints count from 0 in COCO's order (5, 7, 9: left shoulder, elbow, wrist; each right-side
-point is one higher). `--big-error` is required: the error that counts as large, in the
-measure's unit. Add `--report report.md` for a report that explains every line, `--full` for
-every statistic and `--plot panels.png` for [this figure](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/panels.png) (with `[plot]`). If `poseaudit` is not found, use `python -m poseaudit`.
-
-<details>
-<summary><b>The same audit from Python</b></summary>
-
-```python
-import poseaudit as pa
-
-truth = pa.load_coco("gt_200.json")
-predicted = pa.load_coco_results("pred_yolo11n.json", "gt_200.json")
-result = pa.audit(
-    pa.pair(truth, predicted), pa.angle(5, 7, 9), big_error=15, size_bands=[30, 60]
-)
-print(result.summary())
-```
-
-Your own arrays, YOLO labels and `result.to_markdown()` / `to_csv()` / `plot()` are in
-[Python](https://github.com/8rulerstar/poseaudit/blob/main/docs/python.md).
-
-</details>
 
 ## Per cycle
 
@@ -168,16 +198,6 @@ knee groups; one elbow group passed in only 10 of 20 redraws of the data (`--red
 - 2D angles read off an image are not 3D joint angles.
 - Name the subject (`subject` column, `--cluster`), or every frame counts as independent.
 - The jitter check in `--full` is experimental and assumes labels much cleaner than the model.
-
-</details>
-
-<details>
-<summary><b>What is new versus OKS, PCK and pycocotools</b></summary>
-
-They score where the points land, yet points scattered by the label spread OKS is built on,
-as independent isotropic noise, turn these elbow angles by 11 to 16° on average. poseaudit
-scores the angle itself, with the statistics clinicians use to compare two measuring
-devices, from COCO, YOLO or supervision.
 
 </details>
 
