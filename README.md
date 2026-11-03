@@ -2,15 +2,15 @@
 
 [![PyPI](https://img.shields.io/pypi/v/poseaudit)](https://pypi.org/project/poseaudit/) [![CI](https://github.com/8rulerstar/poseaudit/actions/workflows/ci.yml/badge.svg)](https://github.com/8rulerstar/poseaudit/actions/workflows/ci.yml) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/8rulerstar/poseaudit/blob/main/examples/poseaudit_demo.ipynb) [![Open in Spaces](https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-sm.svg)](https://huggingface.co/spaces/8rulerstar/poseaudit)
 
-**A pose model can score well on mAP and still disagree with human labels on joint angles by 19° on average.**
-poseaudit measures the angle, tilt or length you compute from keypoints against labels or a
-reference system, with the statistics used to validate a measuring device: bias, limits of
-agreement, ICC and the rate of large errors, each with a 95% interval. NumPy only.
+**On 200 COCO images, `yolo11n-pose` disagrees with the human labels on the left elbow angle by 19° on average. Keypoint metrics such as mAP do not show this.**
+poseaudit checks the angles, tilts and lengths you compute from keypoints against labels or a
+reference system, the way a measuring device is validated: bias, limits of agreement, ICC
+and how often the error is large, each with a 95% interval. NumPy only.
 
 On the left elbows of 200 COCO val2017 images, `yolo11n-pose` disagrees with COCO's labels
 by 19.5° on average and by 15° or more on 43% of arms; how much of that is the labels' own
-noise is not known ([statistics](https://github.com/8rulerstar/poseaudit/blob/main/docs/statistics.md#reading-the-demo)). Keeping only detections scored 0.7 or more makes the
-mean look 2° better, because it drops 68 people the model read worse.
+noise is not known ([statistics](https://github.com/8rulerstar/poseaudit/blob/main/docs/statistics.md#reading-the-demo)). Keeping only detections scored 0.7 or more (`--min-score 0.7`)
+makes the mean look 2° better, because it drops 68 people the model read worse.
 
 ![The score filter person by person: the mean drops only because people read worse were dropped](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/score-filter.gif)
 
@@ -79,8 +79,8 @@ poseaudit audit --gt-format coco --gt labels.json --pred-format yolo --pred runs
   --images images/ --keypoints 17 --angle 5,7,9 --big-error 15 --min-conf 0.5 --size-bands 30,60
 ```
 
-On the demo's 200 images this gives the figures above (the last digit of some figures can differ, and one more warning
-notes that image names matched without their extensions). COCO results files,
+On the demo's 200 images this gives the figures above (the last digit of some figures can differ, and two more warnings note that
+image names matched without their extensions and that class ids differ between the sides). COCO results files,
 YOLO label folders on both sides, `sv.KeyPoints` and your own arrays also work
 ([inputs](https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#inputs),
 [Python](https://github.com/8rulerstar/poseaudit/blob/main/docs/python.md)).
@@ -115,7 +115,7 @@ The mean |error| is one line of numpy. The work is around it (brackets are 95% i
 - **Pairing.** People are matched to labels image by image by box overlap and keypoint
   similarity (OKS); points left unlabelled in the truth stay out of the count instead of
   counting as errors.
-- **Honest intervals.** Readings from one image, or from one subject with `--cluster`,
+- **Clustered intervals.** Readings from one image, or from one subject with `--cluster`,
   are resampled together.
 - **Where it goes wrong.** 58% of elbows disagree with COCO's labels by 15° or more when
   the arm segments average under 30 px, against 26% above 60 px. How much of that is the
