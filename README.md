@@ -2,16 +2,17 @@
 
 [![PyPI](https://img.shields.io/pypi/v/poseaudit)](https://pypi.org/project/poseaudit/) [![CI](https://github.com/8rulerstar/poseaudit/actions/workflows/ci.yml/badge.svg)](https://github.com/8rulerstar/poseaudit/actions/workflows/ci.yml) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/8rulerstar/poseaudit/blob/main/examples/poseaudit_demo.ipynb) [![Open in Spaces](https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-sm.svg)](https://huggingface.co/spaces/8rulerstar/poseaudit)
 
-**A pose model can score well on mAP and still read joint angles 19° off.**
+**A pose model can score well on mAP and still disagree with human labels on joint angles by 19° on average.**
 poseaudit measures the angle, tilt or length you compute from keypoints against labels or a
 reference system, with the statistics used to validate a measuring device: bias, limits of
 agreement, ICC and the rate of large errors, each with a 95% interval. NumPy only.
 
-On the left elbows of 200 COCO val2017 images, `yolo11n-pose` is off by 19.5° on average
-and by 15° or more on 43% of arms. Keeping only detections scored 0.7 or more makes the
-mean look 2° better, because it drops the 68 people the model read worst.
+On the left elbows of 200 COCO val2017 images, `yolo11n-pose` disagrees with COCO's labels
+by 19.5° on average and by 15° or more on 43% of arms; how much of that is the labels' own
+noise is not known ([statistics](https://github.com/8rulerstar/poseaudit/blob/main/docs/statistics.md#reading-the-demo)). Keeping only detections scored 0.7 or more makes the
+mean look 2° better, because it drops 68 people the model read worse.
 
-![The score filter person by person: the mean drops only because the worst-read people were dropped](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/score-filter.gif)
+![The score filter person by person: the mean drops only because people read worse were dropped](https://raw.githubusercontent.com/8rulerstar/poseaudit/main/docs/score-filter.gif)
 
 ## Try it
 
@@ -36,7 +37,7 @@ angle (5, 7, 9): read 322 of 380 labelled instances
   ICC(A,1)     0.762 [0.677 to 0.827]
 ```
 
-Two warnings follow it. That is the left elbow angle of `yolo11n-pose` against COCO's labels on 200 val2017 images.
+The run also prints two warnings. That is the left elbow angle of `yolo11n-pose` against COCO's labels on 200 val2017 images.
 Keypoints count from 0 in COCO's order (5, 7, 9: left shoulder, elbow, wrist; each right-side
 point is one higher). `--big-error` is required: the error that counts as large, in the
 measure's unit. Add `--report report.md` for a report that explains every line, `--full` for
@@ -75,10 +76,11 @@ against your COCO keypoint labels (image sizes are read from the images, so add
 python -m pip install "poseaudit[images]"
 yolo pose predict model=yolo11n-pose.pt source=images/ save_txt=True save_conf=True
 poseaudit audit --gt-format coco --gt labels.json --pred-format yolo --pred runs/pose/predict/labels \
-  --images images/ --keypoints 17 --angle 5,7,9 --big-error 15 --min-conf 0.5
+  --images images/ --keypoints 17 --angle 5,7,9 --big-error 15 --min-conf 0.5 --size-bands 30,60
 ```
 
-On the demo's 200 images this gives the figures above (the last digit of an interval can differ). COCO results files,
+On the demo's 200 images this gives the figures above (the last digit of some figures can differ, and one more warning
+notes that image names matched without their extensions). COCO results files,
 YOLO label folders on both sides, `sv.KeyPoints` and your own arrays also work
 ([inputs](https://github.com/8rulerstar/poseaudit/blob/main/docs/cli.md#inputs),
 [Python](https://github.com/8rulerstar/poseaudit/blob/main/docs/python.md)).
@@ -97,8 +99,9 @@ YOLO label folders on both sides, `sv.KeyPoints` and your own arrays also work
 - **A numpy mean or `pingouin`'s Bland-Altman and ICC** take paired values; poseaudit first
   pairs detections with labels, counts who was not read and why, and resamples by image
   or subject for its intervals.
-- **Validation studies** such as OpenCap's report these statistics for one system;
-  poseaudit computes them for yours, from COCO, YOLO, supervision or a CSV of angles.
+- **Validation studies** (for example Nakano et al. 2020, Kanko et al. 2021) measure one system
+  against motion capture; poseaudit computes the same kind of figures for yours, from COCO,
+  YOLO, supervision or a CSV of angles.
 
 ## What plain numpy misses
 
