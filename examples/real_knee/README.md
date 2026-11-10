@@ -14,6 +14,7 @@ python build.py data out            # .mot pairs, stride starts, one row per tri
 poseaudit paired --mot-pairs out/pairs.csv --cycles out/events.csv \
   --big-error 5 --offset-shifts 0.1 --json out/report.json
 python cycles_gif.py out ../../docs # the README's cycles.gif
+python checks.py data out checks    # speed, filter and sagittal checks (checks.txt)
 ```
 
 `cycles_gif.py` borrows the GIF helpers of `../coco_elbow`, so run it from a
@@ -45,6 +46,24 @@ not known, a hip keypoint against a hip joint centre, knee and ankle
 markers on the outside of the joint against keypoints, and a time offset
 estimated here. The audit says how large the gap is and where in the
 stride it comes; it cannot say which of these makes it.
+
+## Three suspects checked
+
+`checks.py` reruns the audit three ways; `checks.txt` is what it prints
+(peak bias per stride, each subject's mean counting once).
+
+- Speed: audited apart, the peak is read 17.7° lower at 2 km/h, 24.2° at
+  5 km/h and 16.6° at 8 km/h, each from 6 to 13 subjects. S02 to S10 are
+  read lower than the later subjects within every speed too, so the mix of
+  speeds does not explain that split.
+- Filter: both sides through a 6 Hz zero-lag Butterworth move the peak
+  bias by 0.15° (to 17.2° lower).
+- Reference: the marker angle projected onto the pelvis's sagittal plane,
+  signed, brings the peak to 15.7° lower [11.0 to 20.8]. The 3D angle
+  against a 2D one accounts for under 2° of the gap.
+
+None of the three accounts for the gap. The camera's angle and the time
+offset remain.
 
 ## How the two sides are made comparable
 
