@@ -77,8 +77,8 @@ def main(folder: str, out: str) -> None:
                     f"[{lo:+.1f} to {hi:+.1f}]"
                 )
                 line = (
-                    f"low in {low}/{len(peaks)} subjects; mixes model, 2D vs 3D, "
-                    f"camera, hip; offset ±0.1 s: RMSE {moved:.1f}°, "
+                    f"low in {low}/{len(peaks)}; mixes model, 2D vs 3D, "
+                    f"camera, hip; ±0.1 s offset moves RMSE {moved:.1f}°, "
                     f"peak {moved_peak:.2f}°"
                 )
             fig.text(0.03, 0.94, head, fontsize=14, fontweight="bold")
