@@ -1,4 +1,4 @@
-"""Round 15: big_error in Python refused clearly in every wrong form, a
+"""Big_error in Python refused clearly in every wrong form, a
 comparison as Markdown tables and as flat rows, the same settings whichever
 way a comparison is run, tests that skip without the optional extras, and
 docs a newcomer can find their way through."""

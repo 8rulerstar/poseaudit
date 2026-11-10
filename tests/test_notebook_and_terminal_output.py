@@ -1,4 +1,4 @@
-"""Round 13: results that show their summary in a notebook, output that fits
+"""Results that show their summary in a notebook, output that fits
 an 80-column terminal, a help that says what each measure reads, warnings
 printed as they happen, a report written whatever was read, a long-run note
 that counts what costs time, and plot labels and ticks at the edges."""
@@ -147,7 +147,7 @@ def test_figures_line_up_on_the_decimal_point() -> None:
 
 def test_measures_in_different_units_show_each_threshold_in_its_row() -> None:
     # round 14: the header used to read ">= 10°, 10 px", which cannot say
-    # which row is held to which; see test_fixes_round14 for the column
+    # which row is held to which; see test_big_error_per_unit for the column
     results = [_result(30, m) for m in (angle(0, 1, 2), tilt(0, 1), length(0, 1))]
     lines = table(results).splitlines()
     assert "large if" in lines[0] and ">= 10°, 10 px" not in lines[0]

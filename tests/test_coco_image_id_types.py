@@ -1,4 +1,4 @@
-"""Round 8: COCO image ids written as a number in one file and a string in
+"""COCO image ids written as a number in one file and a string in
 the other."""
 
 import json

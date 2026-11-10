@@ -1,4 +1,4 @@
-"""Round 9: a NaN supervision class, a stale num_keypoints of 0, a class
+"""A NaN supervision class, a stale num_keypoints of 0, a class
 filter on results with no category_id, and the documented public names."""
 
 import json

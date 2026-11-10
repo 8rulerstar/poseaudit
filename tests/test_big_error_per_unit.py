@@ -1,4 +1,4 @@
-"""Round 14: a large error for each kind of measure, warnings that several
+"""A large error for each kind of measure, warnings that several
 measures share printed once, a figure a notebook shows inline, ticks that
 match across the panels, and loader errors that name the file and the field."""
 

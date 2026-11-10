@@ -1,4 +1,4 @@
-"""Round 7: non-finite boxes, EXIF-rotated images, fractional supervision
+"""Non-finite boxes, EXIF-rotated images, fractional supervision
 classes, cluster names, conflicting image sizes, and comparison invariants."""
 
 import csv

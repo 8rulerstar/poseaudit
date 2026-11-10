@@ -1,4 +1,4 @@
-"""Round 11: a faster jitter reference with the same numbers, `python -m
+"""A faster jitter reference with the same numbers, `python -m
 poseaudit`, and a count of the crowd regions left out."""
 
 import json

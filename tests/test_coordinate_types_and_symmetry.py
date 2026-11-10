@@ -1,4 +1,4 @@
-"""Round 6: integer coordinates, measures listed the other way round, and
+"""Integer coordinates, measures listed the other way round, and
 properties of whole audits checked on random data."""
 
 import re

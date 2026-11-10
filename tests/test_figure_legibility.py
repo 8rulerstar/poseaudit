@@ -1,4 +1,4 @@
-"""Round 12: a figure that stays legible in one column of a paper, in
+"""A figure that stays legible in one column of a paper, in
 grayscale and to colour-blind readers; the report's headings and the section
 it points to; the command's help."""
 

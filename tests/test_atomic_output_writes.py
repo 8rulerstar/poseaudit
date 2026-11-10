@@ -1,4 +1,4 @@
-"""Round 10: outputs are written whole or not at all, and a long run says so
+"""Outputs are written whole or not at all, and a long run says so
 before it starts."""
 
 import json
