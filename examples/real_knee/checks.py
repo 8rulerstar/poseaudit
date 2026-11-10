@@ -68,7 +68,8 @@ def run(pairs: Path, events: Path, js: Path):
         capture_output=True,
         text=True,
     )
-    r = json.load(open(js))
+    with open(js) as f:
+        r = json.load(f)
     peak = next(c for c in r["cycle"] if c["feature"] == "peak")
     trough = next(c for c in r["cycle"] if c["feature"] == "trough")
     return peak["bias"], peak["bias_ci"], trough["bias"], peak["n"]
@@ -85,7 +86,8 @@ def write_pairs(rows, path: Path, base: Path):
 def main(data: str, out: str, work: str) -> None:
     data, out, work = Path(data).resolve(), Path(out).resolve(), Path(work).resolve()
     work.mkdir(exist_ok=True)
-    rows = list(csv.reader(open(out / "pairs.csv")))[1:]
+    with open(out / "pairs.csv") as f:
+        rows = list(csv.reader(f))[1:]
     events = out / "events.csv"
     res = {}
 
@@ -110,7 +112,8 @@ def main(data: str, out: str, work: str) -> None:
     # sagittal-projected marker angle
     (work / "mot_s").mkdir(exist_ok=True)
     srows = []
-    legs = {(r[0], r[1]): r[2] for r in list(csv.reader(open(out / "trials.csv")))[1:]}
+    with open(out / "trials.csv") as f:
+        legs = {(r[0], r[1]): r[2] for r in list(csv.reader(f))[1:]}
     for s, tr, p, _r in rows:
         subj = s[1:]
         time, m = build.read_trc(data / "02_markerbased_data" / subj / f"{tr}.trc")
@@ -151,11 +154,23 @@ def main(data: str, out: str, work: str) -> None:
     write_pairs(sfrows, work / "sagf.csv", work)
     res["sagittal+filtered"] = run(work / "sagf.csv", events, work / "sagf.json")
 
+    print("peak and trough bias, each subject's mean counting once; n is strides")
     for k, (pb, ci, tb, n) in res.items():
         print(
             f"{k:20s} peak {pb:+6.2f} [{ci[0]:+6.2f} {ci[1]:+6.2f}]"
             f"  trough {tb:+6.2f}  n={n}"
         )
+    print("peak bias per subject by speed, S02 to S10 | S11 on")
+    for sp in ("Walk_2km", "Walk_5km", "Walk_8km"):
+        with open(work / f"{sp}.json") as f:
+            cycles = json.load(f)["cycles"]
+        per: dict[str, list[float]] = {}
+        for c in cycles:
+            per.setdefault(c["subject"], []).append(c["pred_peak"] - c["ref_peak"])
+        means = {s: float(np.mean(v)) for s, v in per.items()}
+        early = sorted(round(v, 1) for s, v in means.items() if int(s[1:]) <= 10)
+        late = sorted(round(v, 1) for s, v in means.items() if int(s[1:]) > 10)
+        print(f"{sp:20s} {early} | {late}")
 
 
 if __name__ == "__main__":

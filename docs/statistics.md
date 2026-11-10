@@ -231,7 +231,10 @@ turns wrapping off for paired values.
 ## Limits of agreement and their intervals
 
 The limits' intervals are percentile bootstraps over clusters (images,
-named clusters or subjects), valid however the readings are grouped. When
+named clusters or subjects), so readings that share a cluster are not
+counted as independent. With few clusters they come out too narrow: with 5
+to 10 subjects a nominal 95% bias interval held the truth about 81 to 92%
+of the time in simulation (see Limitations). When
 every reading is its own cluster (one per image, one per subject), the
 normal limits also get exact parametric intervals (Carkeet 2015): the upper
 limit estimates mu + 1.96 sigma, and (mu + 1.96 sigma - mean) / (SD /

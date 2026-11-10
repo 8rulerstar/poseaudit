@@ -1,3 +1,4 @@
+peak and trough bias, each subject's mean counting once; n is strides
 all                  peak -17.34 [-22.25 -12.75]  trough  -2.64  n=3674
 Walk_2km             peak -17.67 [-21.54 -13.81]  trough  -9.73  n=970
 Walk_5km             peak -24.18 [-33.12 -15.93]  trough  -8.52  n=678
@@ -5,3 +6,7 @@ Walk_8km             peak -16.57 [-23.32 -10.42]  trough  +2.44  n=2026
 filtered             peak -17.19 [-22.15 -12.53]  trough  -2.90  n=3674
 sagittal             peak -15.68 [-20.80 -11.04]  trough  +4.91  n=3674
 sagittal+filtered    peak -15.49 [-20.69 -10.74]  trough  +3.96  n=3674
+peak bias per subject by speed, S02 to S10 | S11 on
+Walk_2km             [-28.3, -25.2, -22.7, -18.7, -16.5, -14.6, -9.0] | [-25.5, -22.4, -13.6, -9.1, -6.4]
+Walk_5km             [-42.6, -32.9, -23.9, -19.8] | [-17.9, -8.1]
+Walk_8km             [-38.8, -37.1, -30.2, -24.0, -21.3, -14.8] | [-10.5, -10.1, -10.0, -7.3, -6.7, -4.0, -0.5]

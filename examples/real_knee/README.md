@@ -26,7 +26,8 @@ trial in the marker files, and some trials have only one side.
 - Per stride, the peak flexion is read 17.3° lower [12.8 to 22.2] on
   average, and lower in all 17 subjects: by 0.5° in S15, by 40° in S06.
   With 17 subjects that interval is likely too narrow (the audit says so).
-  The trough is read 2.6° lower, so the range of motion shrinks by 14.7°.
+  The trough is read 2.6° lower, so the range of motion shrinks by 14.7°
+  (against this 3D reference; see below).
   Over every frame the bias is -6.2°.
 - The subjects differ more than any figure across them shows: S02 to S10
   are read 13 to 40° low at the peak, S11 to S21 0.5 to 21°, mostly under
@@ -53,17 +54,24 @@ stride it comes; it cannot say which of these makes it.
 (peak bias per stride, each subject's mean counting once).
 
 - Speed: audited apart, the peak is read 17.7° lower at 2 km/h, 24.2° at
-  5 km/h and 16.6° at 8 km/h, each from 6 to 13 subjects. S02 to S10 are
-  read lower than the later subjects within every speed too, so the mix of
-  speeds does not explain that split.
+  5 km/h and 16.6° at 8 km/h, each from 6 to 13 subjects, so with wide
+  intervals. Per subject (the last block of `checks.txt`), S02 to S10 are
+  read clearly lower than the later subjects at 8 km/h, but not at 2 km/h,
+  where S12 and S13 are read lower than most of them; 5 km/h has only two
+  later subjects. The mix of speeds may be part of that split.
 - Filter: both sides through a 6 Hz zero-lag Butterworth move the peak
   bias by 0.15° (to 17.2° lower).
-- Reference: the marker angle projected onto the pelvis's sagittal plane,
-  signed, brings the peak to 15.7° lower [11.0 to 20.8]. The 3D angle
-  against a 2D one accounts for under 2° of the gap.
+- Reference: the marker angle projected onto the pelvis's sagittal plane
+  (not a femur-based flexion axis), signed, brings the peak to 15.7° lower
+  [11.0 to 20.8]: for the peak, the 3D angle against a 2D one accounts for
+  under 2° of the gap. The trough moves much more, from 2.6° lower to 4.9°
+  higher: the 3D angle of a joint centre and two lateral markers reads the
+  extended leg as more bent (in S02 at 5 km/h its minimum is 16°, where the
+  projected angle goes down to about 0°), so the trough and range figures
+  above depend on that reference.
 
-None of the three accounts for the gap. The camera's angle and the time
-offset remain.
+None of the three accounts for the peak gap. The camera's angle, the time
+offset and possibly the speed mix remain.
 
 ## How the two sides are made comparable
 
