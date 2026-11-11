@@ -21,26 +21,6 @@ python checks.py data out checks    # speed, filter and sagittal checks (checks.
 clone of the repository. The dataset has 21 subjects; 4 have no walking
 trial in the marker files, and some trials have only one side.
 
-## Follow-up: hip adduction, rotation and the leg proportions
-
-A reader asked whether hip adduction or rotation explains the low peak.
-`hip_and_camera.py data out` checks it (right leg, subject means, n = 17,
-peak gap = 95th percentile of the video angle minus that of the markers):
-
-- Hip ab/adduction and the tilt of the hip-knee-ankle plane out of the
-  pelvis's sagittal plane, at the frames of highest flexion, do not track the
-  gap: Spearman -0.01 and -0.06. With 17 subjects only a strong relation is
-  ruled out, and with only a lateral knee marker the absolute adduction is
-  biased; rotation enters only through the plane tilt.
-- The video's shank-to-thigh length ratio, divided by the markers', does:
-  Spearman +0.80 (p < 0.001), still +0.72 or more with S15, S19 and S02 left
-  out. Subjects whose thigh looks relatively long in the video are read
-  lowest. Both the ratio and the gap use the same video keypoints and marker
-  landmarks, so this points to a mismatch between where YOLO puts the hip,
-  knee and ankle and the marker landmarks, or to the camera or session setup,
-  without telling which. Split by segment, shank (+0.47) and thigh (-0.42)
-  both contribute, so the hip keypoint alone is unlikely to explain it.
-
 ## What it shows
 
 - Per stride, the peak flexion is read 17.3° lower [12.8 to 22.2] on
@@ -127,3 +107,23 @@ knee flexion computed from the marker trajectories and from the keypoints,
 lined up in time and cut into strides as above. Nothing of the dataset is
 stored here: `download.py` fetches it. The description mentions synchronised
 video, which the files on Zenodo do not include.
+
+## Follow-up: hip adduction, rotation and the leg proportions
+
+A reader asked whether hip adduction or rotation explains the low peak.
+`hip_and_camera.py data out` checks it (right leg, subject means, n = 17,
+peak gap = 95th percentile of the video angle minus that of the markers):
+
+- Hip ab/adduction and the tilt of the hip-knee-ankle plane out of the
+  pelvis's sagittal plane, at the frames of highest flexion, do not track the
+  gap: Spearman -0.01 and -0.06. With 17 subjects only a strong relation is
+  ruled out, and with only a lateral knee marker the absolute adduction is
+  biased; rotation enters only through the plane tilt.
+- The video's shank-to-thigh length ratio, divided by the markers', does:
+  Spearman +0.80 (p < 0.001), still +0.72 or more with S15, S19 and S02 left
+  out. Subjects whose thigh looks relatively long in the video are read
+  lowest. Both the ratio and the gap use the same video keypoints and marker
+  landmarks, so this points to a mismatch between where YOLO puts the hip,
+  knee and ankle and the marker landmarks, or to the camera or session setup,
+  without telling which. Split by segment, shank (+0.47) and thigh (-0.42)
+  both contribute, so the hip keypoint alone is unlikely to explain it.
