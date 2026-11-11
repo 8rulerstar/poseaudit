@@ -127,3 +127,24 @@ peak gap = 95th percentile of the video angle minus that of the markers):
   knee and ankle and the marker landmarks, or to the camera or session setup,
   without telling which. Split by segment, shank (+0.47) and thigh (-0.42)
   both contribute, so the hip keypoint alone is unlikely to explain it.
+
+`camera_fit.py data out` then separates the two. It fits one camera per trial
+from the 3D markers to the side video's keypoints (shoulders, hips, knees,
+ankles) and draws the markers through it:
+
+- The side camera is close to side-on: yaw 0 to 21 degrees and pitch within
+  7 degrees off the pelvis's lateral axis, per subject.
+- Of the -16.9 degree mean peak gap, the camera accounts for -4.0 (the markers
+  drawn through it already read lower than in 3D) and the keypoints for -12.9
+  (the video against the markers drawn through the same camera). Across
+  subjects the keypoint part carries 89% of the gap's variance, the camera
+  part 3%.
+- The keypoint part tracks how far the knee keypoint sits off the thigh line
+  of the drawn markers at peak flexion (Spearman +0.94); the hip keypoint
+  (-0.50) much less, the ankle not at all.
+
+So the subject-to-subject differences come mostly from where YOLO puts the
+knee at deep flexion, not from the camera. Limits: the camera is fitted to the
+same keypoints, so an offset shared by many of them can leak into it; one
+camera per trial; the knee marker is lateral and the hip centre a regression
+estimate. The front camera was not needed for this fit and is not used.
