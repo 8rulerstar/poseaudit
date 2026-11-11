@@ -21,15 +21,16 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.stats import spearmanr
-
 from build import COCO, MIN_CONFIDENCE, flexion, hip_centres, read_trc, unit
+from scipy.stats import spearmanr
 
 
 def mot(path: Path):
     lines = path.read_text().splitlines()
     i = lines.index("endheader") + 2
-    a = np.array([[float(x) for x in line.split()] for line in lines[i:] if line.strip()])
+    a = np.array(
+        [[float(x) for x in line.split()] for line in lines[i:] if line.strip()]
+    )
     return a[:, 0], a[:, 1]
 
 
@@ -38,12 +39,20 @@ def leg_lengths_2d(csv: Path) -> tuple[float, float]:
     k = k[k.person == 0]
     hip, knee, ankle = (k[k.keypoint == i].set_index("frame") for i in COCO["R"])
     f = hip.index.intersection(knee.index).intersection(ankle.index)
-    ok = ((hip.loc[f].confidence > MIN_CONFIDENCE) & (knee.loc[f].confidence > MIN_CONFIDENCE)
-          & (ankle.loc[f].confidence > MIN_CONFIDENCE)).to_numpy()
+    ok = (
+        (hip.loc[f].confidence > MIN_CONFIDENCE)
+        & (knee.loc[f].confidence > MIN_CONFIDENCE)
+        & (ankle.loc[f].confidence > MIN_CONFIDENCE)
+    ).to_numpy()
     f = f[ok]
-    xy = lambda p: p.loc[f, ["x", "y"]].to_numpy()
-    return (np.median(np.linalg.norm(xy(hip) - xy(knee), axis=1)),
-            np.median(np.linalg.norm(xy(knee) - xy(ankle), axis=1)))
+
+    def xy(p):
+        return p.loc[f, ["x", "y"]].to_numpy()
+
+    return (
+        np.median(np.linalg.norm(xy(hip) - xy(knee), axis=1)),
+        np.median(np.linalg.norm(xy(knee) - xy(ankle), axis=1)),
+    )
 
 
 def main(data: Path, out: Path) -> None:
@@ -61,19 +70,30 @@ def main(data: Path, out: Path) -> None:
         tilt = np.degrees(np.arccos(np.clip(np.abs((normal * right).sum(-1)), 0, 1)))
         f3 = flexion(hip, knee, ankle)
         top = f3 >= np.nanpercentile(f3, 95)
-        thigh2, shank2 = leg_lengths_2d(data / "03_markerless_data" / sid / "side" / f"{r.trial}.csv")
+        thigh2, shank2 = leg_lengths_2d(
+            data / "03_markerless_data" / sid / "side" / f"{r.trial}.csv"
+        )
         thigh3 = np.nanmedian(np.linalg.norm(hip - knee, axis=-1))
         shank3 = np.nanmedian(np.linalg.norm(knee - ankle, axis=-1))
-        rows.append(dict(subject=r.subject, trial=r.trial,
-                         peak_gap=np.nanpercentile(video, 95) - np.nanpercentile(marker, 95),
-                         adduction=np.nanmean(adduction[top]), plane_tilt=np.nanmean(tilt[top]),
-                         length_ratio=(shank2 / thigh2) / (shank3 / thigh3)))
+        rows.append(
+            dict(
+                subject=r.subject,
+                trial=r.trial,
+                peak_gap=np.nanpercentile(video, 95) - np.nanpercentile(marker, 95),
+                adduction=np.nanmean(adduction[top]),
+                plane_tilt=np.nanmean(tilt[top]),
+                length_ratio=(shank2 / thigh2) / (shank3 / thigh3),
+            )
+        )
     t = pd.DataFrame(rows)
     t.to_csv(out / "hip_and_camera.csv", index=False)
     s = t.groupby("subject").mean(numeric_only=True)
     for c in ("adduction", "plane_tilt", "length_ratio"):
         rho = spearmanr(s[c], s.peak_gap)
-        print(f"{c:12s} Spearman {rho.statistic:+.2f} (p={rho.pvalue:.3f}) over {len(s)} subjects")
+        print(
+            f"{c:12s} Spearman {rho.statistic:+.2f} (p={rho.pvalue:.3f})"
+            f" over {len(s)} subjects"
+        )
     print(s.round(2).to_string())
 
 
