@@ -76,7 +76,7 @@ def read_mot(path: Path) -> np.ndarray:
     return np.array([float(line.split()[1]) for line in lines[i:] if line.strip()])
 
 
-def trial(data: Path, out: Path, t) -> dict:
+def trial(data: Path, out: Path, t, pairs: dict = PAIRS) -> dict:
     sid, name = t.subject, t.trial
     time, m = read_trc(data / "02_markerbased_data" / sid / f"{name}.trc")
     hc = hip_centres(m)
@@ -86,7 +86,7 @@ def trial(data: Path, out: Path, t) -> dict:
     k = k[k.person == 0]
     tracks = {i: keypoint_track(k, i, time, t.fps, t.offset_s) for i in PAIRS}
     x, u = [], []
-    for i, mk in PAIRS.items():
+    for i, mk in pairs.items():
         ok = ~np.isnan(tracks[i]).any(1) & ~np.isnan(m[mk]).any(1)
         x.append(m[mk][ok])
         u.append(tracks[i][ok])
@@ -133,12 +133,21 @@ def main(data: Path, out: Path) -> None:
     trials = pd.read_csv(out / "trials.csv", dtype={"subject": str})
     t = pd.DataFrame([trial(data, out, r) for r in trials.itertuples()])
     t.to_csv(out / "camera_fit.csv", index=False)
+    no_knee = {i: mk for i, mk in PAIRS.items() if i not in (13, 14)}
+    t2 = pd.DataFrame([trial(data, out, r, no_knee) for r in trials.itertuples()])
+    s2 = t2.groupby("subject").mean(numeric_only=True)
     s = t.groupby("subject").mean(numeric_only=True)
     print(s.round(2).to_string())
     print(
         f"over {len(s)} subjects: gap {s.gap.mean():.1f}, camera part "
         f"{s.camera.mean():.1f}, keypoint part {s.keypoint.mean():.1f}; "
         f"|yaw| up to {s.yaw.abs().max():.0f}, |pitch| up to {s.pitch.abs().max():.0f}"
+    )
+    print(
+        f"camera fitted without the knees: camera part {s2.camera.mean():.1f}, "
+        f"keypoint part {s2.keypoint.mean():.1f}, variance "
+        f"{s2.camera.var() / s2.gap.var():.2f} and "
+        f"{s2.keypoint.var() / s2.gap.var():.2f} of the gap's"
     )
     for c in ("camera", "keypoint"):
         print(f"{c} part: variance {s[c].var() / s.gap.var():.2f} of the gap's")

@@ -137,14 +137,18 @@ ankles) and draws the markers through it:
 - Of the -16.9 degree mean peak gap, the camera accounts for -4.0 (the markers
   drawn through it already read lower than in 3D) and the keypoints for -12.9
   (the video against the markers drawn through the same camera). Across
-  subjects the keypoint part carries 89% of the gap's variance, the camera
-  part 3%.
-- The keypoint part tracks how far the knee keypoint sits off the thigh line
-  of the drawn markers at peak flexion (Spearman +0.94); the hip keypoint
-  (-0.50) much less, the ankle not at all.
+  subjects the keypoint part has 89% of the gap's variance and the camera
+  part 3% (the rest is their covariance).
+- The camera is fitted to the same keypoints, so an offset shared by many of
+  them could leak into it. Fitted without the knees, the split barely moves:
+  camera -4.7, keypoints -12.2, variance 4% and 88%.
+- Within the keypoint part, the knee keypoint's offset across the thigh line
+  of the drawn markers at peak flexion tracks it (Spearman +0.94), but that is
+  close to its definition, since the knee angle moves with that offset when
+  hip and ankle stay put. What it adds is that the hip (-0.50) and the ankle
+  (+0.15) offsets track it much less.
 
-So the subject-to-subject differences come mostly from where YOLO puts the
-knee at deep flexion, not from the camera. Limits: the camera is fitted to the
-same keypoints, so an offset shared by many of them can leak into it; one
-camera per trial; the knee marker is lateral and the hip centre a regression
+So the subject-to-subject differences come mostly from the keypoints, most
+likely the knee at deep flexion, not from the camera. Limits: one camera per
+trial; the knee marker is lateral and the hip centre a regression
 estimate. The front camera was not needed for this fit and is not used.
